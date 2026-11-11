@@ -1,0 +1,85 @@
+"""A SQLcl MCP server session (`sql -home <home> -mcp`) with typed SQL results."""
+
+import re
+from dataclasses import dataclass
+
+from tools.mcp_client import McpError, McpStdioClient, ToolResult
+from tools.sqlcl_text import find_error, parse_csv
+
+# SQLcl 26.3 renamed these tools; earlier releases (the spike ran 26.1) use the
+# hyphenated names. The server's tools/list decides which one is called.
+_RENAMED = {
+    "list-connections": "connections_list",
+    "run-sql": "sql_run",
+    "run-sqlcl": "sqlcl_run",
+}
+
+
+def _error(result: ToolResult) -> str | None:
+    """The ORA-/SP2- code in the text; failing that, when SQLcl flagged isError
+    (e.g. "Connection not established"), the first line of the text."""
+    error = find_error(result.text)
+    if error is None and result.is_error:
+        error = result.text.strip().partition("\n")[0] or "SQLcl reported an error with no text"
+    return error
+
+
+@dataclass(frozen=True)
+class SqlResult:
+    text: str
+    header: list[str]
+    rows: list[list[str]]
+    footer: str
+    error: str | None
+
+
+class SqlclSession:
+    """One `sql -mcp` process. Every tool call carries `model`, which SQLcl puts in
+    V$SESSION.MODULE. SQLcl runs at its default restrict level (no `-R`).
+
+    Use as a context manager. `timeout` bounds each tool call; `connect` alone
+    takes about 10 seconds.
+    """
+
+    def __init__(self, sql_bin: str, home: str, model: str = "pack-tools", timeout: float = 120.0):
+        self.model = model
+        self._client = McpStdioClient([sql_bin, "-home", home, "-mcp"], timeout)
+        self._tool_names: dict[str, str] = {}
+
+    def __enter__(self):
+        self._client.__enter__()
+        try:
+            offered = set(self._client.list_tools())
+        except BaseException:
+            self._client.close()
+            raise
+        self._tool_names = {old: new for old, new in _RENAMED.items() if new in offered}
+        return self
+
+    def __exit__(self, *exc):
+        self._client.close()
+
+    def _call(self, tool: str, **arguments) -> ToolResult:
+        name = self._tool_names.get(tool, tool)
+        return self._client.call_tool(name, {**arguments, "model": self.model})
+
+    def list_connections(self) -> list[str]:
+        names = re.split(r"[,\n]", self._call("list-connections").text)
+        return [n.strip() for n in names if n.strip()]
+
+    def connect(self, name: str) -> None:
+        """Raises McpError when `name` is not saved in this session's home, or when
+        the logon fails (SQLcl flags that isError; raised here with code 0)."""
+        result = self._call("connect", connection_name=name)
+        if result.is_error:
+            raise McpError(0, _error(result))
+
+    def run_sql(self, sql: str) -> SqlResult:
+        result = self._call("run-sql", sql=sql)
+        error = _error(result)
+        if error is not None:
+            return SqlResult(result.text, [], [], "", error)
+        return SqlResult(result.text, *parse_csv(result.text), None)
+
+    def disconnect(self) -> None:
+        self._call("disconnect")

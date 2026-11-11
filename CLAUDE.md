@@ -25,4 +25,6 @@ Each module in `tools/commands/` is a command, discovered automatically; the con
 
 - Unit tests: `source .venv/bin/activate && pytest tests/unit`
 - Integration tests: `source .venv/bin/activate && pytest -m integration`
+- Test database, before integration tests: `docker compose -f tests/docker-compose.yml up -d --wait`, with `ORACLE_TEST_PASSWORD` set (`ORACLE_TEST_IMAGE` overrides the image).
+- Integration tests read `SQLCL_BIN` (default `sql`), `ORACLE_TEST_DSN` (default `localhost:1521/FREEPDB1`) and `ORACLE_TEST_PASSWORD` (SYSTEM password, no default). Without SQLcl or the database they skip; `REQUIRE_INTEGRATION=1` makes them fail instead.
 - Lint: `source .venv/bin/activate && ruff check .`

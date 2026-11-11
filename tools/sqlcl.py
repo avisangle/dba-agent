@@ -6,9 +6,13 @@ from dataclasses import dataclass
 from tools.mcp_client import McpStdioClient
 from tools.sqlcl_text import find_error, parse_csv
 
-# SQLcl 26.3 renamed two tools; earlier releases (the spike ran 26.1) use the
+# SQLcl 26.3 renamed these tools; earlier releases (the spike ran 26.1) use the
 # hyphenated names. The server's tools/list decides which one is called.
-_RENAMED = {"list-connections": "connections_list", "run-sql": "sql_run"}
+_RENAMED = {
+    "list-connections": "connections_list",
+    "run-sql": "sql_run",
+    "run-sqlcl": "sqlcl_run",
+}
 
 
 @dataclass(frozen=True)

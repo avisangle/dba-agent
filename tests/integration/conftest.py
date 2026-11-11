@@ -49,18 +49,19 @@ def _integration_ready():
         _unavailable(f"database not reachable at ORACLE_TEST_DSN={DSN}: {exc}")
 
 
-def _connected(tmp_path_factory, name: str, user: str, password: str) -> SqlclSession:
+def _connected(tmp_path_factory, name: str, user: str, password: str):
+    """Yield a SqlclSession connected to `name`, saved in a fresh home."""
     home = tmp_path_factory.mktemp(f"sqlcl-home-{name}")
     save_connection(SQLCL_BIN, str(home), name, user, password, DSN)
-    return SqlclSession(SQLCL_BIN, str(home))
+    with SqlclSession(SQLCL_BIN, str(home)) as session:
+        session.connect(name)
+        yield session
 
 
 @pytest.fixture(scope="session")
 def admin(_integration_ready, tmp_path_factory):
     """SqlclSession connected as SYSTEM to the test PDB."""
-    with _connected(tmp_path_factory, "admin", "system", PASSWORD) as session:
-        session.connect("admin")
-        yield session
+    yield from _connected(tmp_path_factory, "admin", "system", PASSWORD)
 
 
 @pytest.fixture(scope="session")
@@ -75,6 +76,4 @@ def ro(admin, tmp_path_factory):
     ):
         result = admin.run_sql(sql)
         assert result.error is None, f"{sql.split(' identified')[0]}: {result.error}"
-    with _connected(tmp_path_factory, RO_USER, RO_USER, password) as session:
-        session.connect(RO_USER)
-        yield session
+    yield from _connected(tmp_path_factory, RO_USER, RO_USER, password)

@@ -1,6 +1,6 @@
 [project]
 name = "dba-agent"
-dynamic = ["version"]  # single source: VERSION in tools/config.py
+dynamic = ["version"]  # VERSION in tools/config.py; this project is not built as a package
 description = "Claude Code plugin and stdlib-only Python tools for Oracle DBA work"
 requires-python = ">=3.10"
 dependencies = []  # user-facing tools are stdlib only

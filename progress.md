@@ -7,3 +7,4 @@
 - 2026-11-11 DBA repo purge: deleted and recreated avisangle/dba-agent (private); old results commit 2178150 no longer on GitHub
 - 2026-11-11 DBA v1.0 scope: user decided all four tiers ship in v1.0; updated plan doc suggestions for the approval rule (show SQL in chat on write homes) and audit policy on tier users (no commit beyond this line)
 - 2026-11-11 DBA plan rewrite pass 2: accepted the 15 open suggestions on the user's word, rewrote Connections, Customising checks, Logging, telemetry, release readiness, distribution and risks for the SQLcl-first design, and relabelled both diagrams (direct edits, doc rev 125)
+- 2026-11-11 DBA breakdown: created Jira project DBA and filed Epic A (DBA-1) with 17 stories DBA-2 to DBA-18; workflow lacks In Review status

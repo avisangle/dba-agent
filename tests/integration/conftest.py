@@ -22,14 +22,15 @@ for path in (REPO_ROOT, REPO_ROOT / "tests" / "support"):
 
 from save_connection import save_connection  # noqa: E402
 
+from tools.checks.lint import CLIENT_COMMAND  # noqa: E402
 from tools.commands.setup_sql import profile_name, render  # noqa: E402
 from tools.sqlcl import SqlclSession  # noqa: E402
+from tools.tiers import TIERS  # noqa: E402
 
 SQLCL_BIN = os.environ.get("SQLCL_BIN", "sql")
 DSN = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
 PASSWORD = os.environ.get("ORACLE_TEST_PASSWORD")
 RO_USER = "dba_agent_ro"
-CLIENT_COMMANDS = ("ACCEPT ", "SET ")  # SQLcl-only lines; run-sql takes SQL
 
 
 def _unavailable(reason: str):
@@ -75,10 +76,10 @@ def _setup_sql_statements(password: str) -> list[str]:
     """
     lines = [
         ln
-        for ln in render("read-only", RO_USER).splitlines()
+        for ln in render(TIERS["read-only"], RO_USER).splitlines()
         if ln.strip()
         and not ln.lstrip().startswith("--")
-        and not ln.lstrip().upper().startswith(CLIENT_COMMANDS)
+        and not CLIENT_COMMAND.match(ln)  # ACCEPT, SET: SQLcl-only, run-sql takes SQL
     ]
     text = "\n".join(lines).replace("&agent_password", password)
     statements = [s.strip() for s in text.split(";") if s.strip()]

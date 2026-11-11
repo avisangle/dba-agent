@@ -15,6 +15,7 @@ KNOWN_KEYS = frozenset(REQUIRED_KEYS + ("max_version",))
 
 HEADER_LINE = re.compile(r"^--\s*(\w+)\s*:\s*(.*?)\s*$")
 INTEGER = re.compile(r"[0-9]+")  # not str.isdigit(), which accepts digits int() rejects
+MAX_ROWS_LIMIT = 1000
 
 
 class CheckFormatError(Exception):
@@ -66,6 +67,16 @@ def split_check(path) -> RawCheck:
     return RawCheck(header, "\n".join(lines[n:]), n + 1)
 
 
+def parse_max_rows(value: str) -> int | None:
+    """`value` as an int when it is an integer from 1 to MAX_ROWS_LIMIT, else None (L008)."""
+    return int(value) if INTEGER.fullmatch(value) and 1 <= int(value) <= MAX_ROWS_LIMIT else None
+
+
+def max_rows_error(value: str) -> str:
+    """The L008 message for a max_rows `value` that parse_max_rows rejects."""
+    return f"max_rows {value!r} is not an integer from 1 to {MAX_ROWS_LIMIT}"
+
+
 def missing_keys(raw: RawCheck) -> list[str]:
     """Required keys that are absent or have an empty value."""
     return [key for key in REQUIRED_KEYS if not raw.value(key)]
@@ -77,13 +88,14 @@ def parse_check(path) -> Check:
     if missing:
         raise CheckFormatError("L001", 1, f"missing required key: {', '.join(missing)}")
     values = {key: value for key, (_, value) in raw.header.items()}
-    line, max_rows = raw.header["max_rows"]
-    if not INTEGER.fullmatch(max_rows):
-        raise CheckFormatError("L008", line, f"max_rows {max_rows!r} is not an integer")
+    line, value = raw.header["max_rows"]
+    max_rows = parse_max_rows(value)
+    if max_rows is None:
+        raise CheckFormatError("L008", line, max_rows_error(value))
     return Check(
         **{key: values[key] for key in REQUIRED_KEYS if key != "max_rows"},
         max_version=values.get("max_version"),
-        max_rows=int(max_rows),
+        max_rows=max_rows,
         sql=raw.body.strip().removesuffix(";").rstrip(),
         path=Path(path),
     )

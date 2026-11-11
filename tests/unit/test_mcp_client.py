@@ -171,7 +171,8 @@ def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
     """AC: SqlclSession starts exactly [sql_bin, "-home", home, "-mcp"]; every
     tool call carries model="pack-tools"; SQL is sent unchanged; run_sql returns
     SqlResult(text, header, rows, footer, error); list_connections returns names.
-    Also D-DBA-4: nothing under tools/ or tests/ reaches the database another way."""
+    Also D-DBA-4-stdlib-mcp-client-through-sqlcl: nothing under tools/ or tests/
+    reaches the database another way."""
     sqlcl = _mod("tools.sqlcl")
     sql = "create table t (x number)"
     script, log = _script(tmp_path, calls={

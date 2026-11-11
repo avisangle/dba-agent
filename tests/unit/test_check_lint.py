@@ -128,6 +128,19 @@ def test_parse_check_raises_check_format_error_for_missing_required_key():
     assert "remediation" in err.message
 
 
+def test_parse_check_rejects_max_rows_that_lint_rejects():
+    """parse_check applies lint's L008 range: max_rows 5000 is over the limit of 1000."""
+    header = _header()
+    path = FIXTURES / "L008" / "storage" / "l008_max_rows.sql"
+
+    with pytest.raises(header.CheckFormatError) as excinfo:
+        header.parse_check(path)
+
+    assert excinfo.value.code == "L008"
+    assert excinfo.value.line == 6
+    assert str(header.MAX_ROWS_LIMIT) in excinfo.value.message
+
+
 @pytest.mark.parametrize("root", _rule_roots(), ids=lambda p: p.name)
 def test_each_rule_fixture_reports_only_its_own_code(root):
     """AC: rules L001-L014 each have their own code and a file that breaks only

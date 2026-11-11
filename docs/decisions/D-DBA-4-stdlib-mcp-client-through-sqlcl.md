@@ -10,4 +10,4 @@
 
 **Rejected:** python-oracledb: faster, but skips the CSV output, error-in-text and SQL-rewrite behaviour users get. The `mcp` package: not stdlib, and the spike only used it as a harness.
 
-**Impact:** No code under `tools/` or `tests/` opens a database connection by any other route (no `oracledb`, `cx_Oracle` or `mcp` import; `tests/unit/test_mcp_client.py` enforces this). New database access goes through `tools.sqlcl.SqlclSession` or `tools.mcp_client.McpStdioClient`.
+**Impact:** No code under `tools/` or `tests/` opens a database connection by any other route (no `oracledb`, `cx_Oracle` or `mcp` import; `tests/unit/test_mcp_client.py` enforces this). One exception: `tests/support/save_connection.py` logs on once through `sql -home <dir> /nolog` to run `conn -save` (DBA-4's first-choice route for saving a connection without a terminal); it runs no SQL. New database access goes through `tools.sqlcl.SqlclSession` or `tools.mcp_client.McpStdioClient`.

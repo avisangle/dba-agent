@@ -39,5 +39,5 @@ SELECT name,
        reason,
        CASE WHEN reason IS NOT NULL THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   params
-ORDER  BY severity DESC, name
+ORDER  BY CASE WHEN reason IS NULL THEN 1 ELSE 0 END, name
 FETCH FIRST 150 ROWS ONLY

@@ -21,7 +21,7 @@ WITH metrics AS (
 picked AS (
   SELECT metric_name,
          ROUND(value, 2) AS value,
-         SUBSTR(metric_unit, 1, 200) AS unit,
+         metric_unit AS unit,
          ROW_NUMBER() OVER (PARTITION BY metric_name ORDER BY source_rank) AS rn
   FROM   metrics
   WHERE  metric_name IN ('Host CPU Utilization (%)', 'Database CPU Time Ratio',

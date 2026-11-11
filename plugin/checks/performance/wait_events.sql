@@ -16,5 +16,5 @@ SELECT event,
        'INFO' AS severity
 FROM   v$system_event
 WHERE  wait_class <> 'Idle'
-ORDER  BY time_waited_micro DESC
+ORDER  BY time_waited_micro DESC, event
 FETCH FIRST 20 ROWS ONLY

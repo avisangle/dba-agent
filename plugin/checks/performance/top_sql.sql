@@ -17,5 +17,5 @@ SELECT sql_id,
        SUBSTR(sql_text, 1, 120) AS sql_text,
        'INFO' AS severity
 FROM   v$sqlstats
-ORDER  BY elapsed_time DESC
+ORDER  BY elapsed_time DESC, sql_id
 FETCH FIRST 20 ROWS ONLY

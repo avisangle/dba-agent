@@ -280,6 +280,43 @@ def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
     assert offenders == []
 
 
+# Real SQLcl text for an asynchronous run-sql (spike/results/raw/s6_async.json).
+ASYNC_ACCEPTED = "Task has been set to run in background successfully with id: 0"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
+@pytest.mark.parametrize("run_tool, arg_name", [
+    ("sql_run", "execution_type"),  # SQLcl 26.3 and later (D-DBA-4)
+    ("run-sql", "executionType"),   # earlier releases, as in the spike
+])
+def test_run_sql_asynchronous_sets_execution_type_for_the_offered_tool(
+        tmp_path, run_tool, arg_name):
+    """DBA-12 AC: run_sql(sql, asynchronous=True) sends the execution type
+    ASYNCHRONOUS under the argument name the offered run tool uses, and returns
+    the raw text; the default call sends no execution type."""
+    sqlcl = _mod("tools.sqlcl")
+    sql = "update t set v = 1 where id = 1"
+    script, log = _script(tmp_path, tools=["connect", run_tool, "disconnect"],
+                          calls={run_tool: {"text": ASYNC_ACCEPTED}})
+    home = tmp_path / "home"
+    home.mkdir()
+
+    with sqlcl.SqlclSession(str(_fake_sql_bin(tmp_path, script)), str(home)) as session:
+        text = session.run_sql(sql, asynchronous=True)
+        session.run_sql(sql)
+
+    assert text == ASYNC_ACCEPTED
+    _, msgs = _received(log)
+    calls = [m["params"] for m in msgs if m.get("method") == "tools/call"]
+    assert [c["name"] for c in calls] == [run_tool, run_tool]
+    async_args, sync_args = calls[0]["arguments"], calls[1]["arguments"]
+    assert async_args["sql"] == sql and async_args["model"] == "pack-tools"
+    assert async_args[arg_name] == "ASYNCHRONOUS", async_args
+    names = {"executionType", "execution_type"}
+    assert names & set(async_args) == {arg_name}, async_args
+    assert names & set(sync_args) == set(), sync_args
+
+
 # --- sqlcl_text --------------------------------------------------------------
 
 

@@ -1,0 +1,45 @@
+"""The permission tiers: one database user and one SQLcl home folder each.
+
+`setup-sql` and `setup-home` read this table; doctor compares live grants with it.
+"""
+
+import argparse
+from dataclasses import dataclass
+from pathlib import Path
+
+NO_TIER = "tier not available in this release"
+TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "db" / "tiers"
+
+
+@dataclass(frozen=True)
+class Tier:
+    name: str
+    db_user: str  # default database user
+    home_name: str  # folder under <pack_home>/homes
+    sys_privs: frozenset[str]  # exactly the system privileges the script grants
+    roles: frozenset[str]  # exactly the roles the script grants
+
+    @property
+    def template(self) -> Path:
+        return TEMPLATE_DIR / f"{self.name}.sql"
+
+
+TIERS = {
+    t.name: t
+    for t in (
+        Tier(
+            name="read-only",
+            db_user="dba_agent_ro",
+            home_name="read-only",
+            sys_privs=frozenset({"CREATE SESSION"}),
+            roles=frozenset({"SELECT_CATALOG_ROLE"}),
+        ),
+    )
+}
+
+
+def tier_arg(value: str) -> Tier:
+    """argparse `type` for `--tier`: an unknown tier exits 2."""
+    if value not in TIERS:
+        raise argparse.ArgumentTypeError(f"{value}: {NO_TIER}")
+    return TIERS[value]

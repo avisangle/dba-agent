@@ -22,7 +22,10 @@ for path in (REPO_ROOT, REPO_ROOT / "tests" / "support"):
 
 from save_connection import save_connection  # noqa: E402
 
+from tools.checks.lint import CLIENT_COMMAND  # noqa: E402
+from tools.commands.setup_sql import profile_name, render  # noqa: E402
 from tools.sqlcl import SqlclSession  # noqa: E402
+from tools.tiers import TIERS  # noqa: E402
 
 SQLCL_BIN = os.environ.get("SQLCL_BIN", "sql")
 DSN = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
@@ -64,16 +67,42 @@ def admin(_integration_ready, tmp_path_factory):
     yield from _connected(tmp_path_factory, "admin", "system", PASSWORD)
 
 
+def _setup_sql_statements(password: str) -> list[str]:
+    """The `setup-sql --tier read-only` script as statements for run_sql.
+
+    run-sql calls do not share substitution variables, and an unresolved one
+    returns "Substitution cancelled" with no error. So the password is
+    substituted here and any leftover `&` is refused before anything is sent.
+    """
+    lines = [
+        ln
+        for ln in render(TIERS["read-only"], RO_USER).splitlines()
+        if ln.strip()
+        and not ln.lstrip().startswith("--")
+        and not CLIENT_COMMAND.match(ln)  # ACCEPT, SET: SQLcl-only, run-sql takes SQL
+    ]
+    text = "\n".join(lines).replace("&agent_password", password)
+    statements = [s.strip() for s in text.split(";") if s.strip()]
+    leftover = [s.replace(password, "***") for s in statements if "&" in s]
+    if leftover:
+        raise RuntimeError(f"setup-sql script has unresolved substitution: {leftover}")
+    return statements
+
+
 @pytest.fixture(scope="session")
 def ro(admin, tmp_path_factory):
-    """SqlclSession connected as dba_agent_ro: CREATE SESSION and SELECT_CATALOG_ROLE only.
+    """SqlclSession connected as dba_agent_ro, created by applying the setup-sql script.
     The user is recreated with a fresh password each test session."""
     password = "P" + secrets.token_hex(12)
-    for sql in (
-        f"drop user if exists {RO_USER} cascade",
-        f'create user {RO_USER} identified by "{password}"',
-        f"grant create session, select_catalog_role to {RO_USER}",
-    ):
+    statements = _setup_sql_statements(password)
+    assert admin.run_sql(f"drop user if exists {RO_USER} cascade").error is None
+    # 23ai has no DROP PROFILE IF EXISTS; ORA-02380 means it was not there
+    dropped = admin.run_sql(f"drop profile {profile_name(RO_USER)} cascade")
+    assert dropped.error is None or dropped.error.startswith("ORA-02380"), dropped.error
+    for sql in statements:
         result = admin.run_sql(sql)
-        assert result.error is None, f"{sql.split(' identified')[0]}: {result.error}"
+        assert result.error is None, f"{sql.replace(password, '***')}: {result.error}"
+    user = RO_USER.upper()
+    created = admin.run_sql(f"select username from dba_users where username = '{user}'")
+    assert created.rows == [[user]], f"setup-sql did not create {RO_USER}: {created.text}"
     yield from _connected(tmp_path_factory, RO_USER, RO_USER, password)

@@ -11,7 +11,7 @@ from pathlib import Path
 REQUIRED_KEYS = (
     "id", "title", "category", "mode", "min_version", "max_rows", "pack", "remediation",
 )
-OPTIONAL_KEYS = ("max_version",)
+KNOWN_KEYS = frozenset(REQUIRED_KEYS + ("max_version",))
 
 HEADER_LINE = re.compile(r"^--\s*(\w+)\s*:\s*(.*?)\s*$")
 INTEGER = re.compile(r"[0-9]+")  # not str.isdigit(), which accepts digits int() rejects
@@ -50,6 +50,11 @@ class RawCheck:
     body: str
     body_line: int  # file line number of the body's first line
 
+    def value(self, key: str) -> tuple[int, str] | None:
+        """(line, value) for a key that is present and non-empty, else None."""
+        entry = self.header.get(key)
+        return entry if entry and entry[1] else None
+
 
 def split_check(path) -> RawCheck:
     lines = Path(path).read_text(encoding="utf-8").splitlines()
@@ -63,12 +68,7 @@ def split_check(path) -> RawCheck:
 
 def missing_keys(raw: RawCheck) -> list[str]:
     """Required keys that are absent or have an empty value."""
-    return [key for key in REQUIRED_KEYS if not raw.header.get(key, (0, ""))[1]]
-
-
-def strip_sql(body: str) -> str:
-    """The body without surrounding whitespace or a trailing semicolon."""
-    return body.strip().removesuffix(";").rstrip()
+    return [key for key in REQUIRED_KEYS if not raw.value(key)]
 
 
 def parse_check(path) -> Check:
@@ -84,6 +84,6 @@ def parse_check(path) -> Check:
         **{key: values[key] for key in REQUIRED_KEYS if key != "max_rows"},
         max_version=values.get("max_version"),
         max_rows=int(max_rows),
-        sql=strip_sql(raw.body),
+        sql=raw.body.strip().removesuffix(";").rstrip(),
         path=Path(path),
     )

@@ -12,8 +12,7 @@ from pathlib import Path
 
 from tools.checks.header import (
     INTEGER,
-    OPTIONAL_KEYS,
-    REQUIRED_KEYS,
+    KNOWN_KEYS,
     RawCheck,
     missing_keys,
     split_check,
@@ -99,17 +98,15 @@ class _FileLinter:
         self.path = path
         self.raw = raw
         self.findings: list[Finding] = []
+        entry = raw.value("max_rows")
+        valid = entry and INTEGER.fullmatch(entry[1]) and 1 <= int(entry[1]) <= MAX_ROWS_LIMIT
+        self.max_rows = int(entry[1]) if valid else None  # None when absent or invalid (L008)
 
     def add(self, line: int, code: str, message: str):
         self.findings.append(Finding(self.path, line, code, message))
 
     def body_line(self, offset: int) -> int:
         return self.raw.body_line + self.raw.body.count("\n", 0, offset)
-
-    def value(self, key: str) -> tuple[int, str] | None:
-        """(line, value) for a key that is present and non-empty, else None."""
-        entry = self.raw.header.get(key)
-        return entry if entry and entry[1] else None
 
     def run(self) -> list[Finding]:
         self.header_rules()
@@ -120,16 +117,16 @@ class _FileLinter:
         for key in missing_keys(self.raw):
             self.add(1, "L001", f"missing required key: {key}")
         for key, (line, _) in self.raw.header.items():
-            if key not in REQUIRED_KEYS + OPTIONAL_KEYS:
+            if key not in KNOWN_KEYS:
                 self.add(line, "L002", f"unknown header key: {key}")
 
-        if entry := self.value("id"):
+        if entry := self.raw.value("id"):
             line, check_id = entry
             if not ID.fullmatch(check_id):
                 self.add(line, "L003", f"id {check_id!r} does not match {ID.pattern}")
             if check_id != self.path.stem:
                 self.add(line, "L003", f"id {check_id!r} differs from file name {self.path.stem!r}")
-        if entry := self.value("category"):
+        if entry := self.raw.value("category"):
             line, category = entry
             if category != self.path.parent.name:
                 self.add(
@@ -140,21 +137,15 @@ class _FileLinter:
         self.one_of("mode", MODES, "L005")
         self.one_of("pack", PACKS, "L006")
         for key in ("min_version", "max_version"):
-            if (entry := self.value(key)) and not VERSION.fullmatch(entry[1]):
+            if (entry := self.raw.value(key)) and not VERSION.fullmatch(entry[1]):
                 self.add(entry[0], "L007", f"{key} {entry[1]!r} is not <major>.<minor>")
-        if (entry := self.value("max_rows")) and self.max_rows() is None:
+        if (entry := self.raw.value("max_rows")) and self.max_rows is None:
             message = f"max_rows {entry[1]!r} is not an integer from 1 to {MAX_ROWS_LIMIT}"
             self.add(entry[0], "L008", message)
 
     def one_of(self, key: str, allowed, code: str):
-        if (entry := self.value(key)) and entry[1] not in allowed:
+        if (entry := self.raw.value(key)) and entry[1] not in allowed:
             self.add(entry[0], code, f"{key} {entry[1]!r} is not one of {', '.join(allowed)}")
-
-    def max_rows(self) -> int | None:
-        entry = self.value("max_rows")
-        if entry and INTEGER.fullmatch(entry[1]) and 1 <= int(entry[1]) <= MAX_ROWS_LIMIT:
-            return int(entry[1])
-        return None
 
     def body_rules(self):
         body = self.raw.body
@@ -166,22 +157,18 @@ class _FileLinter:
         for match in re.finditer(";", code):
             if match.start() != last:
                 self.add(self.body_line(match.start()), "L009", "more than one statement: `;`")
-        offset = 0
-        for line in code.split("\n"):
+        for n, line in enumerate(code.split("\n"), start=self.raw.body_line):
             if line.strip() == "/":
-                self.add(self.body_line(offset), "L009", "more than one statement: `/` line")
+                self.add(n, "L009", "more than one statement: `/` line")
             if CLIENT_COMMAND.match(line):
-                self.add(self.body_line(offset), "L010", f"client command: {line.strip()}")
-            offset += len(line) + 1
+                self.add(n, "L010", f"client command: {line.strip()}")
         for match in SUBSTITUTION.finditer(_mask(body, strings)):
             self.add(self.body_line(match.start()), "L010", f"substitution variable: {match[0]}")
 
-        max_rows = self.max_rows()
         fetches = FETCH_FIRST.findall(code)
-        if max_rows is not None and (not fetches or int(fetches[-1]) != max_rows):
-            self.add(
-                self.raw.body_line, "L011", f"body does not end with FETCH FIRST {max_rows} ROWS"
-            )
+        if self.max_rows is not None and (not fetches or int(fetches[-1]) != self.max_rows):
+            message = f"last FETCH FIRST in the body is not FETCH FIRST {self.max_rows} ROWS"
+            self.add(self.raw.body_line, "L011", message)
 
         aliases = list(SEVERITY_ALIAS.finditer(code))
         if not aliases:
@@ -234,9 +221,9 @@ def lint_tree(root) -> list[Finding]:
     for path in sorted(Path(root).rglob("*.sql")):
         file_findings, raw = _lint(path)
         findings += file_findings
-        line, check_id = raw.header.get("id", (0, ""))
-        if not check_id:
+        if not (entry := raw.value("id")):
             continue
+        line, check_id = entry
         if check_id in first_use:
             message = f"id {check_id!r} is also used by {first_use[check_id]}"
             findings.append(Finding(path, line, "L014", message))

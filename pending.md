@@ -1,1 +1,0 @@
-- Plan doc, second pass for the SQLcl-first design: Connections and LLM setup, Customising checks, Logging and troubleshooting, Release readiness (CI matrix), Distribution, risks table, and both diagrams. Unblocked by: the first-pass suggestions (Architecture, Check catalogue, Safety, Roadmap) being accepted or rejected.

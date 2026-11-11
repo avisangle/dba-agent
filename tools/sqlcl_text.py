@@ -23,18 +23,32 @@ def _layout(text: str) -> tuple[list[str], int | None, int | None]:
     return lines, head, foot
 
 
+def _block_end(lines: list[str], head: int, foot: int | None) -> int:
+    """Index just past the CSV block starting at `head`: past the footer when there
+    is one, else the first blank line outside a quoted field, else the end."""
+    if foot is not None:
+        return foot + 1
+    quoted = False
+    for i in range(head, len(lines)):
+        if not quoted and not lines[i].strip():
+            return i
+        quoted ^= lines[i].count('"') % 2 == 1
+    return len(lines)
+
+
 def find_error(text: str) -> str | None:
     """First `ORA-nnnnn` or `SP2-nnnn` code with the rest of its line, or None.
 
-    With a CSV header and a row-count footer, only text outside the data rows is
-    searched, so an error code stored in the data is not reported. SQLcl prints
-    no footer under 6 rows, so there the whole text is searched. In an SQLcl error
-    report, the failing statement is echoed first; only the text after
-    `Error report -` is searched, so a code quoted in that statement is skipped.
+    The CSV block (header and data records, quoted multi-line fields included) is
+    data and is not searched. It ends at the row-count footer or, with no footer
+    (under 6 rows), at the blank line SQLcl writes after the last record; text
+    before and after it is searched. In an SQLcl error report, the failing statement
+    is echoed first; only the text after `Error report -` is searched, so a code
+    quoted in that statement is skipped.
     """
     lines, head, foot = _layout(text)
-    if foot is not None:
-        text = "\n".join(lines[:head] + lines[foot + 1 :])
+    if head is not None:
+        text = "\n".join(lines[:head] + lines[_block_end(lines, head, foot) :])
     report = text.find(_REPORT)
     if report != -1:
         text = text[report:]

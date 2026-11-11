@@ -1,0 +1,1 @@
+- `reclaimable_space` storage check (deferred from DBA-11, 2026-11-12): `TABLE(dbms_space.asa_recommendations())` run as the read-only user returns `ORA-00942` on `SYS.WRI$_ADV_ACTIONS`, and D-DBA-5-read-only-grants allows no further grant. Unblocked by the advisory tier user in a later epic.

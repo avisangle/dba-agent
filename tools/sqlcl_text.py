@@ -44,9 +44,9 @@ def find_error(text: str) -> str | None:
     The CSV block (header and data records, quoted multi-line fields included) is
     data and is not searched. It ends at the row-count footer or, with no footer
     (under 6 rows), at the blank line SQLcl writes after the last record or an
-    `Error report -` line; text before and after it is searched. In an SQLcl error report, the failing statement
-    is echoed first; only the text after `Error report -` is searched, so a code
-    quoted in that statement is skipped.
+    `Error report -` line; text before and after it is searched. In an SQLcl error
+    report, the failing statement is echoed first; only the text after
+    `Error report -` is searched, so a code quoted in that statement is skipped.
     """
     lines, head, foot = _layout(text)
     if head is not None:

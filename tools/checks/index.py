@@ -32,8 +32,10 @@ def discover(root) -> list[Check]:
 
 
 def find_check(root, check_id: str) -> Check | None:
-    """The check under `root` whose id is `check_id`, or None."""
-    return next((c for c in discover(root) if c.id == check_id), None)
+    """The check under `root` whose id is `check_id`, or None. Lint L003 ties the id
+    to the file name, so only `<id>.sql` files are parsed."""
+    candidates = (parse_check(p) for p in sorted(Path(root).rglob(f"{check_id}.sql")))
+    return next((c for c in candidates if c.id == check_id), None)
 
 
 def _row(cells) -> str:

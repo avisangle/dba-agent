@@ -24,7 +24,7 @@ def add_arguments(parser):
     parser.add_argument("--connection", required=True, metavar="NAME",
                         help="a connection saved in the SQLcl home")
     parser.add_argument("--tier", default="read-only",
-                        help="tier whose home is used when --home is not given (default: %(default)s)")
+                        help="tier whose home is used without --home (default: %(default)s)")
     parser.add_argument("--home", type=Path, metavar="DIR",
                         help="SQLcl home (default: <pack home>/homes/<tier>)")
 

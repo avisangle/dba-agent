@@ -1,0 +1,1 @@
+- Rewrite the plan doc's Architecture, Tool catalogue, Safety and Roadmap sections for a SQLcl-MCP-first design. Unblocked by: spike results in `spike/RESULTS.md` (see `spike/HANDOFF.md`).

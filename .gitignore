@@ -1,0 +1,8 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+# SQLcl homes with saved credentials and spool files from the spike
+spike/work/
+.DS_Store

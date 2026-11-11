@@ -4,9 +4,9 @@ import os
 import sys
 from pathlib import Path
 
-from tools.checks import CHECKS_ROOT
+from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError, parse_check
-from tools.checks.index import find_check
+from tools.checks.resolve import resolve_checks
 from tools.checks.run import run_check, validate_result
 from tools.config import pack_home
 from tools.mcp_client import McpError, McpTimeout
@@ -30,11 +30,13 @@ def add_arguments(parser):
 
 
 def _resolve(target: str):
-    """The check named by `target`, a file path or an id under plugin/checks/, or None."""
+    """The check named by `target`, a file path or an id (a user check overriding a
+    built-in one wins), or None."""
     path = Path(target)
     if path.suffix == ".sql" or len(path.parts) > 1:
         return parse_check(path) if path.is_file() else None
-    return find_check(CHECKS_ROOT, target)
+    entry = resolve_checks(CHECKS_ROOT, user_checks_root()).get(target)
+    return entry.check if entry else None
 
 
 def run(args):
@@ -60,6 +62,7 @@ def run(args):
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    print(f"file: {check.path.resolve()}")
     print(result.text.rstrip("\n"))
     problems = validate_result(check, result)
     for problem in problems:

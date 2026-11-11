@@ -6,3 +6,6 @@ __pycache__/
 # SQLcl homes with saved credentials and spool files from the spike
 spike/work/
 .DS_Store
+dist/
+.pytest_cache/
+.ruff_cache/

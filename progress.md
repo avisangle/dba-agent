@@ -5,3 +5,4 @@
 - 2026-11-11 DBA spike data cleanup: removed client data rows from spike transcripts and RESULTS.md, rewrote the results commit and force-pushed (94898ca)
 - 2026-11-11 DBA plan rewrite: laid 15 suggestions in the plan doc for the SQLcl-first design (Architecture, Check catalogue, Safety, Roadmap); repo delete blocked on gh delete_repo scope (see below)
 - 2026-11-11 DBA repo purge: deleted and recreated avisangle/dba-agent (private); old results commit 2178150 no longer on GitHub
+- 2026-11-11 DBA v1.0 scope: user decided all four tiers ship in v1.0; updated plan doc suggestions for the approval rule (show SQL in chat on write homes) and audit policy on tier users (no commit beyond this line)

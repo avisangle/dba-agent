@@ -34,6 +34,15 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | top_sql | Top SQL by elapsed time since instance start | R | none | 12.1 | performance/top_sql.sql |
 | wait_events | Top non-idle wait events since instance start | R | none | 12.1 | performance/wait_events.sql |
 
+## sessions
+
+| id | title | mode | pack | min_version | file |
+| --- | --- | --- | --- | --- | --- |
+| active_sessions | Active user sessions and how long their current call has run | R | none | 19.0 | sessions/active_sessions.sql |
+| blocking_tree | Blocking sessions and the sessions waiting on them, as a tree | R | none | 19.0 | sessions/blocking_tree.sql |
+| idle_in_transaction | Idle sessions holding an open transaction | R | none | 19.0 | sessions/idle_in_transaction.sql |
+| long_ops | Long-running operations still in progress and their time remaining | R | none | 19.0 | sessions/long_ops.sql |
+
 ## storage
 
 | id | title | mode | pack | min_version | file |

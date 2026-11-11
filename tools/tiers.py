@@ -18,6 +18,8 @@ class Tier:
     home_name: str  # folder under <pack_home>/homes
     sys_privs: frozenset[str]  # exactly the system privileges the script grants
     roles: frozenset[str]  # exactly the roles the script grants
+    # roles the granted roles bring with them (seen in SESSION_ROLES); allowed, not granted
+    implied_roles: frozenset[str] = frozenset()
 
     @property
     def template(self) -> Path:
@@ -33,6 +35,7 @@ TIERS = {
             home_name="read-only",
             sys_privs=frozenset({"CREATE SESSION"}),
             roles=frozenset({"SELECT_CATALOG_ROLE"}),
+            implied_roles=frozenset({"HS_ADMIN_SELECT_ROLE"}),  # Oracle 23ai Free, 23.26.3
         ),
     )
 }

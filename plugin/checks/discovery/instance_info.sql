@@ -8,7 +8,7 @@
 -- remediation: Find out why an instance is not OPEN or has RESTRICTED logins before changing anything.
 SELECT inst_id,
        instance_name,
-       SUBSTR(host_name, 1, 200) AS host_name,
+       host_name,
        version_full AS version,
        status,
        database_status,

@@ -15,7 +15,7 @@ SELECT d.name AS db_name,
        d.flashback_on,
        i.version_full AS version,
        TO_CHAR(i.startup_time, 'YYYY-MM-DD HH24:MI:SS') AS startup_time,
-       SUBSTR(d.platform_name, 1, 200) AS platform,
+       d.platform_name AS platform,
        CASE WHEN d.log_mode = 'NOARCHIVELOG' THEN 'WARNING'
             ELSE 'INFO' END AS severity
 FROM   v$database d

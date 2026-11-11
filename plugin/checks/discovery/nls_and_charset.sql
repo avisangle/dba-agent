@@ -7,7 +7,7 @@
 -- pack: none
 -- remediation: Facts only; a character set change is a migration, not a setting.
 SELECT parameter,
-       SUBSTR(value, 1, 200) AS value,
+       value,
        'INFO' AS severity
 FROM   nls_database_parameters
 ORDER  BY parameter

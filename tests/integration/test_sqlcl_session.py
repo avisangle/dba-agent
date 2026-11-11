@@ -1,4 +1,4 @@
-"""DBA-4: SqlclSession against the Oracle 23ai Free test container through `sql -mcp`.
+"""DBA-4, DBA-19: SqlclSession against the Oracle 23ai Free test container through `sql -mcp`.
 
 Fixtures `admin` (SYSTEM on FREEPDB1) and `ro` (dba_agent_ro: CREATE SESSION and
 SELECT_CATALOG_ROLE only) come from tests/integration/conftest.py, each in its
@@ -50,3 +50,14 @@ def test_admin_is_system_on_freepdb1(admin):
     result = admin.run_sql("select user, sys_context('userenv','con_name') as con from dual")
     assert result.error is None, result.text
     assert result.rows == [["SYSTEM", "FREEPDB1"]]
+
+
+def test_short_result_with_a_code_in_the_data_is_not_an_error(ro):
+    """DBA-19 AC: a 1-row result (no row-count footer) holding ORA- text is clean;
+    a real error is still reported."""
+    result = ro.run_sql("select 'ORA-00600: x' as m from dual")
+    assert result.error is None, result.text
+    assert result.rows == [["ORA-00600: x"]]
+    missing = ro.run_sql("select * from no_such_table")
+    assert missing.error is not None, missing.text
+    assert missing.error.startswith("ORA-00942")

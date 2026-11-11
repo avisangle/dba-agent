@@ -18,4 +18,10 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 
 | id | title | mode | pack | min_version | file |
 | --- | --- | --- | --- | --- | --- |
+| datafile_autoextend | Datafiles that cannot grow while their tablespace fills | R | none | 12.1 | storage/datafile_autoextend.sql |
+| fra_usage | Fast recovery area usage net of reclaimable space | R | none | 12.1 | storage/fra_usage.sql |
+| segment_growth | Segments that grew most in the last 7 days | R | diagnostics | 12.1 | storage/segment_growth.sql |
 | tablespace_usage | Tablespace usage above threshold | R | none | 12.1 | storage/tablespace_usage.sql |
+| temp_usage | Temporary tablespace usage above threshold | R | none | 12.1 | storage/temp_usage.sql |
+| top_segments | Largest segments | R | none | 12.1 | storage/top_segments.sql |
+| undo_usage | Undo space and undo errors in the last 24 hours | R | none | 12.1 | storage/undo_usage.sql |

@@ -11,10 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.checks.header import (
-    INTEGER,
     KNOWN_KEYS,
     RawCheck,
+    max_rows_error,
     missing_keys,
+    parse_max_rows,
     split_check,
 )
 
@@ -22,7 +23,6 @@ CATEGORIES = ("discovery", "health", "storage", "sessions", "performance", "cust
 MODES = ("R", "A", "W", "X")
 PACKS = ("none", "diagnostics", "tuning")
 SEVERITIES = ("CRITICAL", "WARNING", "OK", "INFO")
-MAX_ROWS_LIMIT = 1000
 
 ID = re.compile(r"[a-z][a-z0-9_]*")
 VERSION = re.compile(r"[0-9]+\.[0-9]+")
@@ -99,8 +99,7 @@ class _FileLinter:
         self.raw = raw
         self.findings: list[Finding] = []
         entry = raw.value("max_rows")
-        valid = entry and INTEGER.fullmatch(entry[1]) and 1 <= int(entry[1]) <= MAX_ROWS_LIMIT
-        self.max_rows = int(entry[1]) if valid else None  # None when absent or invalid (L008)
+        self.max_rows = parse_max_rows(entry[1]) if entry else None  # None: absent or invalid
 
     def add(self, line: int, code: str, message: str):
         self.findings.append(Finding(self.path, line, code, message))
@@ -140,8 +139,7 @@ class _FileLinter:
             if (entry := self.raw.value(key)) and not VERSION.fullmatch(entry[1]):
                 self.add(entry[0], "L007", f"{key} {entry[1]!r} is not <major>.<minor>")
         if (entry := self.raw.value("max_rows")) and self.max_rows is None:
-            message = f"max_rows {entry[1]!r} is not an integer from 1 to {MAX_ROWS_LIMIT}"
-            self.add(entry[0], "L008", message)
+            self.add(entry[0], "L008", max_rows_error(entry[1]))
 
     def one_of(self, key: str, allowed, code: str):
         if (entry := self.raw.value(key)) and entry[1] not in allowed:

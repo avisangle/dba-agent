@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - run: python -m pip install ruff
+      - run: python -m pip install -U pip && python -m pip install --group dev
       - run: ruff check .
       - run: python -m tools lint
 
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install pytest pyyaml "tomli; python_version < '3.11'"
+      - run: python -m pip install -U pip && python -m pip install --group dev
       - run: python -m pytest tests/unit
 
   integration:
@@ -52,7 +52,7 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
-      - run: python -m pip install pytest pyyaml
+      - run: python -m pip install -U pip && python -m pip install --group dev
       - name: Generate database password
         run: |
           password="P$(openssl rand -hex 12)"

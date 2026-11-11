@@ -7,7 +7,7 @@
 -- pack: none
 -- remediation: Informational; compare with segment_growth before purging, archiving or shrinking.
 SELECT owner,
-       SUBSTR(segment_name, 1, 200) AS segment_name,
+       segment_name,
        segment_type,
        tablespace_name,
        ROUND(bytes / POWER(1024, 3), 2) AS size_gb,

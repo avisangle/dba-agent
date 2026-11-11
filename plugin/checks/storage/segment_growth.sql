@@ -7,7 +7,7 @@
 -- pack: diagnostics
 -- remediation: Reads AWR history (dba_hist_*), which needs the Diagnostics Pack; whether that licensing applies is the DBA's decision. Plan space for fast growers and check them against purge jobs.
 SELECT o.owner,
-       SUBSTR(o.object_name, 1, 200) AS object_name,
+       o.object_name,
        o.object_type,
        ROUND(SUM(ss.space_allocated_delta) / POWER(1024, 2), 1) AS growth_mb,
        CASE WHEN SUM(ss.space_allocated_delta) > 10 * POWER(1024, 3) THEN 'WARNING'

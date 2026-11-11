@@ -38,5 +38,5 @@ FROM   dba_tablespaces t
        LEFT JOIN extents e ON e.tablespace_name = t.tablespace_name
        LEFT JOIN stats s ON s.tablespace_name = t.tablespace_name
 WHERE  t.contents = 'UNDO'
-ORDER  BY NVL(s.no_space_count, 0) DESC, NVL(s.ora_01555_count, 0) DESC, t.tablespace_name
+ORDER  BY no_space_count DESC, ora_01555_count DESC, t.tablespace_name
 FETCH FIRST 20 ROWS ONLY

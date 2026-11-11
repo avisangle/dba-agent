@@ -86,7 +86,7 @@ def _rows(session, check_id) -> list[dict[str, str]]:
 # --- contract test -----------------------------------------------------------
 
 
-def test_contract_for_dependents_dba16_storage_check_ids():
+def test_contract_for_dependents_dba16_storage_check_ids(_integration_ready):
     """Contract for DBA-16 (skill playbook, health_check profile): every storage
     check id it references resolves under plugin/checks/storage/, is mode R, and
     is listed in INDEX.md. Names only."""
@@ -104,7 +104,7 @@ def test_contract_for_dependents_dba16_storage_check_ids():
 # --- behaviour ---------------------------------------------------------------
 
 
-def test_headers_match_the_issue_table():
+def test_headers_match_the_issue_table(_integration_ready):
     """AC: six new storage checks, all mode R, with the issue's max_rows and
     pack; only segment_growth is pack diagnostics, and its remediation says it
     reads AWR history and that pack licensing is the DBA's decision.

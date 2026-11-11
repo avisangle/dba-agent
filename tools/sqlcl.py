@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 
-from tools.mcp_client import McpStdioClient
+from tools.mcp_client import McpError, McpStdioClient, ToolResult
 from tools.sqlcl_text import find_error, parse_csv
 
 # SQLcl 26.3 renamed these tools; earlier releases (the spike ran 26.1) use the
@@ -13,6 +13,15 @@ _RENAMED = {
     "run-sql": "sql_run",
     "run-sqlcl": "sqlcl_run",
 }
+
+
+def _error(result: ToolResult) -> str | None:
+    """The ORA-/SP2- code in the text; failing that, when SQLcl flagged isError
+    (e.g. "Connection not established"), the first line of the text."""
+    error = find_error(result.text)
+    if error is None and result.is_error:
+        error = result.text.strip().partition("\n")[0] or "SQLcl reported an error with no text"
+    return error
 
 
 @dataclass(frozen=True)
@@ -50,24 +59,27 @@ class SqlclSession:
     def __exit__(self, *exc):
         self._client.close()
 
-    def _call(self, tool: str, **arguments) -> str:
+    def _call(self, tool: str, **arguments) -> ToolResult:
         name = self._tool_names.get(tool, tool)
-        return self._client.call_tool(name, {**arguments, "model": self.model}).text
+        return self._client.call_tool(name, {**arguments, "model": self.model})
 
     def list_connections(self) -> list[str]:
-        names = re.split(r"[,\n]", self._call("list-connections"))
+        names = re.split(r"[,\n]", self._call("list-connections").text)
         return [n.strip() for n in names if n.strip()]
 
     def connect(self, name: str) -> None:
-        """Raises McpError when `name` is not saved in this session's home."""
-        self._call("connect", connection_name=name)
+        """Raises McpError when `name` is not saved in this session's home, or when
+        the logon fails (SQLcl flags that isError; raised here with code 0)."""
+        result = self._call("connect", connection_name=name)
+        if result.is_error:
+            raise McpError(0, _error(result))
 
     def run_sql(self, sql: str) -> SqlResult:
-        text = self._call("run-sql", sql=sql)
-        error = find_error(text)
+        result = self._call("run-sql", sql=sql)
+        error = _error(result)
         if error is not None:
-            return SqlResult(text, [], [], "", error)
-        return SqlResult(text, *parse_csv(text), None)
+            return SqlResult(result.text, [], [], "", error)
+        return SqlResult(result.text, *parse_csv(result.text), None)
 
     def disconnect(self) -> None:
         self._call("disconnect")

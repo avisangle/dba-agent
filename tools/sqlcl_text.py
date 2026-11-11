@@ -25,12 +25,14 @@ def _layout(text: str) -> tuple[list[str], int | None, int | None]:
 
 def _block_end(lines: list[str], head: int, foot: int | None) -> int:
     """Index just past the CSV block starting at `head`: past the footer when there
-    is one, else the first blank line outside a quoted field, else the end."""
+    is one, else the first blank or `Error report -` line outside a quoted field,
+    else the end. `Error report -` is never a record, so a quote-led line in an
+    echoed statement cannot hide the report after it."""
     if foot is not None:
         return foot + 1
     quoted = False
     for i in range(head, len(lines)):
-        if not quoted and not lines[i].strip():
+        if not quoted and lines[i].strip() in ("", _REPORT.strip()):
             return i
         quoted ^= lines[i].count('"') % 2 == 1
     return len(lines)
@@ -41,8 +43,8 @@ def find_error(text: str) -> str | None:
 
     The CSV block (header and data records, quoted multi-line fields included) is
     data and is not searched. It ends at the row-count footer or, with no footer
-    (under 6 rows), at the blank line SQLcl writes after the last record; text
-    before and after it is searched. In an SQLcl error report, the failing statement
+    (under 6 rows), at the blank line SQLcl writes after the last record or an
+    `Error report -` line; text before and after it is searched. In an SQLcl error report, the failing statement
     is echoed first; only the text after `Error report -` is searched, so a code
     quoted in that statement is skipped.
     """

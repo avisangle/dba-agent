@@ -114,3 +114,25 @@ def test_contract_find_error_for_dba_10():
     assert find_error('"ID","NOTE"\r\n1,"ORA-00001 in data"\r\n\nORA-01722: invalid number\n') == (
         "ORA-01722: invalid number"
     )
+
+
+# Real SQLcl 26.3 text for `select\n"DUMMY"\nfrom no_such_table` (test container,
+# 2026-11-12): the echoed line `"DUMMY"` opens with a quote, like a CSV header.
+ECHOED_QUOTED_LINE = (
+    "\nError starting at line : 1 in command -\n"
+    "select /* LLM in use is pack-tools */\n"
+    '"DUMMY"\n'
+    "from no_such_table\n"
+    "Error at Command Line : 3 Column : 6\n"
+    "Error report -\n"
+    'SQL Error: ORA-00942: table or view "SYSTEM"."NO_SUCH_TABLE" does not exist\n'
+    "Help: https://docs.oracle.com/error-help/db/ora-00942/\n"
+)
+
+
+def test_find_error_reports_an_error_after_an_echoed_line_opening_with_a_quote():
+    """DBA-19: a quote-led line in the echoed statement is not a CSV block that
+    hides the error report after it."""
+    assert find_error(ECHOED_QUOTED_LINE) == (
+        'ORA-00942: table or view "SYSTEM"."NO_SUCH_TABLE" does not exist'
+    )

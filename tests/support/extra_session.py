@@ -17,8 +17,7 @@ def extra_session(sql_bin, home, name, user, password, dsn, timeout=120.0):
     """Save `user` at `dsn` as connection `name` in `home`, with auto-commit off so
     DML stays an open transaction until COMMIT or ROLLBACK; yield a SqlclSession
     connected to it whose tool calls time out after `timeout` seconds."""
-    url = f"{dsn}{'&' if '?' in dsn else '?'}{MANUAL_COMMIT}"
-    save_connection(sql_bin, home, name, user, password, url)
+    save_connection(sql_bin, home, name, user, password, f"{dsn}?{MANUAL_COMMIT}")
     with SqlclSession(sql_bin, home, timeout=timeout) as session:
         session.connect(name)
         yield session

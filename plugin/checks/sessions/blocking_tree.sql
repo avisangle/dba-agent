@@ -25,11 +25,6 @@ WITH s AS (
                                 WHERE  blocking_session IS NOT NULL)
   CONNECT BY NOCYCLE PRIOR sid = blocking_session
                  AND PRIOR inst_id = blocking_instance
-), ranked AS (
-  SELECT tree.*,
-         MAX(CASE WHEN tree_level > 1 AND wait_seconds > 300 THEN 1 ELSE 0 END)
-           OVER (PARTITION BY root_inst_id, root_sid) AS critical_waiter
-  FROM   tree
 )
 SELECT tree_level,
        inst_id,
@@ -40,10 +35,11 @@ SELECT tree_level,
        sql_id,
        SUBSTR(event, 1, 200) AS event,
        wait_seconds,
-       CASE WHEN tree_level = 1 AND critical_waiter = 1 THEN 'CRITICAL'
-            WHEN tree_level = 1 THEN 'WARNING'
-            WHEN wait_seconds > 300 THEN 'CRITICAL'
+       CASE WHEN tree_level > 1 AND wait_seconds > 300 THEN 'CRITICAL'
+            WHEN tree_level = 1
+             AND MAX(CASE WHEN tree_level > 1 AND wait_seconds > 300 THEN 1 ELSE 0 END)
+                   OVER (PARTITION BY root_inst_id, root_sid) = 1 THEN 'CRITICAL'
             ELSE 'WARNING' END AS severity
-FROM   ranked
+FROM   tree
 ORDER  BY tree_order
 FETCH FIRST 100 ROWS ONLY

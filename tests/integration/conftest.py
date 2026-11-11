@@ -95,11 +95,11 @@ def ro(admin, tmp_path_factory):
     The user is recreated with a fresh password each test session."""
     password = "P" + secrets.token_hex(12)
     statements = _setup_sql_statements(password)
-    for sql in (
-        f"drop user if exists {RO_USER} cascade",
-        f"drop profile if exists {profile_name(RO_USER)} cascade",
-        *statements,
-    ):
+    assert admin.run_sql(f"drop user if exists {RO_USER} cascade").error is None
+    # 23ai has no DROP PROFILE IF EXISTS; ORA-02380 means it was not there
+    dropped = admin.run_sql(f"drop profile {profile_name(RO_USER)} cascade")
+    assert dropped.error is None or dropped.error.startswith("ORA-02380"), dropped.error
+    for sql in statements:
         result = admin.run_sql(sql)
         assert result.error is None, f"{sql.replace(password, '***')}: {result.error}"
     user = RO_USER.upper()

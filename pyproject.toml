@@ -1,0 +1,22 @@
+[project]
+name = "dba-agent"
+dynamic = ["version"]  # single source: VERSION in tools/config.py
+description = "Claude Code plugin and stdlib-only Python tools for Oracle DBA work"
+requires-python = ">=3.10"
+dependencies = []  # user-facing tools are stdlib only
+
+[dependency-groups]
+dev = ["pytest", "ruff", "pyyaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: needs the Oracle 23ai Free test container reached through `sql -mcp`",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

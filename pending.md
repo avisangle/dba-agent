@@ -1,2 +1,1 @@
 - Plan doc, second pass for the SQLcl-first design: Connections and LLM setup, Customising checks, Logging and troubleshooting, Release readiness (CI matrix), Distribution, risks table, and both diagrams. Unblocked by: the first-pass suggestions (Architecture, Check catalogue, Safety, Roadmap) being accepted or rejected.
-- Purge the old results commit from GitHub by deleting and recreating the repo. Unblocked by: `gh auth refresh -h github.com -s delete_repo`.

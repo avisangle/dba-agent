@@ -253,7 +253,23 @@ async def item_async():
     async with server(log, home=home) as c:
         tool = c.tools.get("run-sql")
         props = ((getattr(tool, "inputSchema", None) or {}).get("properties", {})) if tool else {}
-        if "async" not in props:
+        if "executionType" in props:
+            # SQLcl 26.x: executionType=ASYNCHRONOUS returns a toolRequestId, polled via dbtools-get-tool-request.
+            await c.call("connect", conn)
+            args = tool_args(tool, "select count(*) from dba_objects a, dba_objects b where rownum <= 5000000",
+                             {"executionType": "ASYNCHRONOUS"})
+            rec = await c.call("run-sql", raw_args=args, note="start async job")
+            m = re.search(r"(?:toolRequestId|with id)\W+([\w-]+)", rec.get("text", ""), re.I)
+            if m:
+                for _ in range(12):
+                    await asyncio.sleep(5)
+                    r = await c.call("dbtools-get-tool-request", raw_args={"toolRequestId": m.group(1)},
+                                     note="poll async request")
+                    if not re.search(r"running", r.get("text", ""), re.I):
+                        break
+            else:
+                log.append({"event": "no toolRequestId in response (finished inline within ~2s?)"})
+        elif "async" not in props:
             log.append({"event": "skipped", "reason": "run-sql has no 'async' parameter"})
         else:
             await c.call("connect", conn)

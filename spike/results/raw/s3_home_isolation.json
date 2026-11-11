@@ -1,0 +1,96 @@
+{
+  "item": "s3_home_isolation",
+  "generated": "2026-11-11T20:04:57+0530",
+  "calls": [
+    {
+      "server": "home=ro",
+      "event": "start",
+      "command": [
+        "sql.exe",
+        "-home",
+        "C:/Users/<os-user>/Desktop/Claude/dba_agent/spike/work/homes/ro",
+        "-mcp"
+      ]
+    },
+    {
+      "server": "home=ro",
+      "event": "initialized",
+      "server_info": {
+        "name": "sqlcl-mcp-server",
+        "title": null,
+        "version": "1.0.0",
+        "websiteUrl": null,
+        "icons": null
+      }
+    },
+    {
+      "server": "home=ro",
+      "tool": "list-connections",
+      "note": "expect only spike_ro",
+      "args": {},
+      "is_error": false,
+      "seconds": 0.07,
+      "chars": 8,
+      "approx_tokens": 2,
+      "text": "spike_ro",
+      "truncated_in_transcript": false
+    },
+    {
+      "server": "home=ro",
+      "tool": "connect",
+      "note": "expect failure: lives in the other home",
+      "args": {
+        "connection_name": "spike_other"
+      },
+      "exception": "McpError: Connection not found: spike_other",
+      "seconds": 0.15
+    },
+    {
+      "server": "home=ro",
+      "tool": "connect",
+      "note": "expect success",
+      "args": {
+        "connection_name": "spike_ro"
+      },
+      "is_error": false,
+      "seconds": 9.79,
+      "chars": 2108,
+      "approx_tokens": 527,
+      "text": "### DATABASE CONNECTION ESTABLISHED ###\nSuccessfully connected to: **spike_ro**\n\n### DATABASE ENVIRONMENT CONTEXT ###\n\n**1. Oracle Database Version:** \n19.32.0.0.0\n**2. Access Mode:** \nThe Oracle database is currently in 'READ WRITE' mode\n**3. NLS Parameters:** \nThe current Oracle database uses the following NLS configuration:\nDatabase character set:{\"results\":[{\"columns\":[{\"name\":\"PARAMETER\",\"type\":\"VARCHAR2\"},{\"name\":\"VALUE\",\"type\":\"VARCHAR2\"}],\"items\":\n[\n{\"parameter\":\"NLS_CHARACTERSET\",\"value\":\"AL32UTF8\"}\r\n]}]}\n\n Full NLS parameters: \n{\"results\":[{\"columns\":[{\"name\":\"PARAMETER\",\"type\":\"VARCHAR2\"},{\"name\":\"VALUE\",\"type\":\"VARCHAR2\"}],\"items\":\n[\n{\"parameter\":\"NLS_RDBMS_VERSION\",\"value\":\"19.0.0.0.0\"}\r\n,{\"parameter\":\"NLS_NCHAR_CONV_EXCP\",\"value\":\"FALSE\"}\r\n,{\"parameter\":\"NLS_LENGTH_SEMANTICS\",\"value\":\"BYTE\"}\r\n,{\"parameter\":\"NLS_COMP\",\"value\":\"BINARY\"}\r\n,{\"parameter\":\"NLS_DUAL_CURRENCY\",\"value\":\"$\"}\r\n,{\"parameter\":\"NLS_TIMESTAMP_TZ_FORMAT\",\"value\":\"DD-MON-RR HH.MI.SSXFF AM TZR\"}\r\n,{\"parameter\":\"NLS_TIME_TZ_FORMAT\",\"value\":\"HH.MI.SSXFF AM TZR\"}\r\n,{\"parameter\":\"NLS_TIMESTAMP_FORMAT\",\"value\":\"DD-MON-RR HH.MI.SSXFF AM\"}\r\n,{\"parameter\":\"NLS_TIME_FORMAT\",\"value\":\"HH.MI.SSXFF AM\"}\r\n,{\"parameter\":\"NLS_SORT\",\"value\":\"BINARY\"}\r\n,{\"parameter\":\"NLS_DATE_LANGUAGE\",\"value\":\"AMERICAN\"}\r\n,{\"parameter\":\"NLS_DATE_FORMAT\",\"value\":\"DD-MON-RR\"}\r\n,{\"parameter\":\"NLS_CALENDAR\",\"value\":\"GREGORIAN\"}\r\n,{\"parameter\":\"NLS_NUMERIC_CHARACTERS\",\"value\":\".,\"}\r\n,{\"parameter\":\"NLS_NCHAR_CHARACTERSET\",\"value\":\"AL16UTF16\"}\r\n,{\"parameter\":\"NLS_CHARACTERSET\",\"value\":\"AL32UTF8\"}\r\n,{\"parameter\":\"NLS_ISO_CURRENCY\",\"value\":\"AMERICA\"}\r\n,{\"parameter\":\"NLS_CURRENCY\",\"value\":\"$\"}\r\n,{\"parameter\":\"NLS_TERRITORY\",\"value\":\"AMERICA\"}\r\n,{\"parameter\":\"NLS_LANGUAGE\",\"value\":\"AMERICAN\"}\r\n]}]}\n20 rows selected. \n\n\n This is important for correctly interpreting data formats, encodings, and locale-specific behavior.\n\nHere\u2019s the Oracle database context you need: version, open mode, and NLS parameters. Use this information to run the following queries accurately and ensure they align with the database\u2019s current environment and settings.",
+      "truncated_in_transcript": false
+    },
+    {
+      "server": "home=other",
+      "event": "start",
+      "command": [
+        "sql.exe",
+        "-home",
+        "C:/Users/<os-user>/Desktop/Claude/dba_agent/spike/work/homes/other",
+        "-mcp"
+      ]
+    },
+    {
+      "server": "home=other",
+      "event": "initialized",
+      "server_info": {
+        "name": "sqlcl-mcp-server",
+        "title": null,
+        "version": "1.0.0",
+        "websiteUrl": null,
+        "icons": null
+      }
+    },
+    {
+      "server": "home=other",
+      "tool": "list-connections",
+      "note": "expect only spike_other",
+      "args": {},
+      "is_error": false,
+      "seconds": 0.08,
+      "chars": 11,
+      "approx_tokens": 2,
+      "text": "spike_other",
+      "truncated_in_transcript": false
+    }
+  ]
+}

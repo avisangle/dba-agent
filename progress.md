@@ -1,3 +1,4 @@
 - 2026-11-11 DBA plan review: reviewed 'Oracle DBA AI Agent: Product & Build Plan' doc, reported design gaps, factual errors and open decisions in chat; no doc edits (no commit)
 - 2026-11-11 DBA SQLcl-MCP option: assessed using Oracle SQLcl MCP as execution layer instead of own server; recommended SQLcl-first skills + check library pending a spike (no commit)
 - 2026-11-11 DBA spike setup: created private repo with SQLcl MCP spike harness, handoff and results template; harness verified against a stub server (initial commit)
+- 2026-11-11 DBA spike review: pulled results (2178150); SQLcl-first viable, recommend default -R 4 with check SQL via run-sql; flagged real CC&B environment data in committed transcripts

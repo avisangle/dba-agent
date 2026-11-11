@@ -1,0 +1,4 @@
+# Bugs
+
+- 2026-11-12, found in DBA-19 /tdd-prep: SQLcl 26.3 `run-sql` drops an error raised after the first fetch batch (25 rows). `select to_number(decode(level, 26, 'x', '1')) n from dual connect by level <= 26` returns 25 rows, `25 rows selected.` and no `ORA-`, so `SqlResult.error` is None and the result is silently truncated. An error within the first 25 rows returns a full error report and no rows. Not fixable in `find_error`: the error is not in the text.
+- 2026-11-12, found in DBA-19 /review: `parse_csv` drops a NULL row of a one-column numeric result. SQLcl 26.3 prints a NULL number as an empty field, so `select cast(null as number) n from dual union all select 1 from dual` returns `'"N"\n\n1\n\n'`; `parse_csv` filters empty records and returns `rows == [['1']]`, one row short. Predates DBA-19.

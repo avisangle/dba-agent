@@ -83,7 +83,13 @@ class SqlclSession:
         if result.is_error:
             raise McpError(0, _error(result))
 
-    def run_sql(self, sql: str) -> SqlResult:
+    def run_sql(self, sql: str, asynchronous: bool = False) -> SqlResult | str:
+        """Run `sql`. With `asynchronous`, SQLcl starts it in the background and the
+        call returns SQLcl's raw text (the task id) without waiting for the statement."""
+        if asynchronous:
+            # sql_run (26.3+) takes execution_type; run-sql takes executionType
+            arg = "execution_type" if "run-sql" in self._tool_names else "executionType"
+            return self._call("run-sql", sql=sql, **{arg: "ASYNCHRONOUS"}).text
         result = self._call("run-sql", sql=sql)
         error = _error(result)
         if error is not None:

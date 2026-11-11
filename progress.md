@@ -3,3 +3,4 @@
 - 2026-11-11 DBA spike setup: created private repo with SQLcl MCP spike harness, handoff and results template; harness verified against a stub server (initial commit)
 - 2026-11-11 DBA spike review: pulled results (2178150); SQLcl-first viable, recommend default -R 4 with check SQL via run-sql; flagged real CC&B environment data in committed transcripts
 - 2026-11-11 DBA spike data cleanup: removed client data rows from spike transcripts and RESULTS.md, rewrote the results commit and force-pushed (94898ca)
+- 2026-11-11 DBA plan rewrite: laid 15 suggestions in the plan doc for the SQLcl-first design (Architecture, Check catalogue, Safety, Roadmap); repo delete blocked on gh delete_repo scope (see below)

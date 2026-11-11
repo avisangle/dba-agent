@@ -126,8 +126,8 @@ not answered, see below)
   the run and it was created on 9 May 2026, most likely by an earlier SQLcl
   MCP session connected as that schema owner. So the spike created no log
   table for `spike_ro` (which has no CREATE TABLE privilege) and gave no
-  warning about it. Whether SQLcl logged the `spike_ro` calls anywhere was
-  not determined; that table's rows were not read.
+  warning about it. The user then checked that table: it has no rows for the
+  spike date, so SQLcl logged none of the `spike_ro` calls.
 - No warning about a log table in the `connect` result. The result (2,108
   chars) contains the DB version, `'READ WRITE'` access mode, the NLS
   parameters as JSON, and an instruction-style paragraph: "Use this

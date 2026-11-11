@@ -1,0 +1,15 @@
+# Throwaway Oracle 23ai Free database for the integration tests.
+# Start: docker compose -f tests/docker-compose.yml up -d --wait
+services:
+  oracle:
+    image: ${ORACLE_TEST_IMAGE:-gvenzl/oracle-free:23.26.3-slim-faststart}
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_TEST_PASSWORD:?set ORACLE_TEST_PASSWORD}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+      start_period: 10s

@@ -4,12 +4,11 @@ With `--user`, write the merged index of built-in and user checks to <pack home>
 import difflib
 import sys
 
-from tools.checks import CHECKS_ROOT
+from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError
 from tools.checks.index import build_index, build_merged_index, discover
 from tools.checks.lint import lint_tree
 from tools.checks.resolve import resolve_checks
-from tools.config import pack_home
 
 NAME = "index"
 HELP = (
@@ -53,7 +52,7 @@ def run(args):
 
 
 def _run_user():
-    user_root = pack_home() / "checks"
+    user_root = user_checks_root()
     findings = lint_tree(user_root) if user_root.is_dir() else []
     if findings:
         for finding in findings:
@@ -62,15 +61,15 @@ def _run_user():
               file=sys.stderr)
         return 1
     try:
-        builtin_ids = {c.id for c in discover(CHECKS_ROOT)}
         resolved = resolve_checks(CHECKS_ROOT, user_root)
     except CheckFormatError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    user_ids = {i for i, r in resolved.items() if r.source == "user"}
+    user_count = sum(r.source == "user" for r in resolved.values())
+    added = len(resolved) - sum(1 for _ in CHECKS_ROOT.rglob("*.sql"))  # one id per file (L014)
     user_root.mkdir(parents=True, exist_ok=True)
     path = user_root / "INDEX.md"
     path.write_text(build_merged_index(resolved.values()), encoding="utf-8", newline="\n")
-    print(f"wrote {path}: {len(resolved) - len(user_ids)} built-in, "
-          f"{len(user_ids & builtin_ids)} overridden, {len(user_ids - builtin_ids)} added")
+    print(f"wrote {path}: {len(resolved) - user_count} built-in, "
+          f"{user_count - added} overridden, {added} added")
     return 0

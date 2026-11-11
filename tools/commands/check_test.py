@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-from tools.checks import CHECKS_ROOT
+from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError, parse_check
 from tools.checks.resolve import resolve_checks
 from tools.checks.run import run_check, validate_result
@@ -35,7 +35,7 @@ def _resolve(target: str):
     path = Path(target)
     if path.suffix == ".sql" or len(path.parts) > 1:
         return parse_check(path) if path.is_file() else None
-    entry = resolve_checks(CHECKS_ROOT, pack_home() / "checks").get(target)
+    entry = resolve_checks(CHECKS_ROOT, user_checks_root()).get(target)
     return entry.check if entry else None
 
 

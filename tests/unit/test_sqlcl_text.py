@@ -136,3 +136,26 @@ def test_find_error_reports_an_error_after_an_echoed_line_opening_with_a_quote()
     assert find_error(ECHOED_QUOTED_LINE) == (
         'ORA-00942: table or view "SYSTEM"."NO_SUCH_TABLE" does not exist'
     )
+
+
+# --- DBA-20 item 1: quote tracking in a footerless block ------------------------
+
+# ECHOED_QUOTED_LINE with the echoed line `"DUMMY" || '"'`: three `"`, an odd count.
+ECHOED_ODD_QUOTES = ECHOED_QUOTED_LINE.replace('"DUMMY"\n', '"DUMMY" || \'"\'\n')
+
+
+def test_find_error_reports_an_error_after_an_echoed_line_with_odd_quotes():
+    """DBA-20 AC1a: an echoed statement line opening with `"` and holding an odd
+    number of `"` does not hide the error report after it (D-DBA-19 Impact)."""
+    assert ECHOED_ODD_QUOTES != ECHOED_QUOTED_LINE, "fixture precondition"
+    assert find_error(ECHOED_ODD_QUOTES) == (
+        'ORA-00942: table or view "SYSTEM"."NO_SUCH_TABLE" does not exist'
+    )
+
+
+def test_find_error_a_blank_line_inside_a_quoted_field_does_not_end_the_block():
+    """DBA-20 AC1b: a blank line inside a quoted multi-line field is data, so a code
+    on the field's next line is not reported. (Falsifier: delete the
+    `quoted ^= ...` line in `_block_end`, or make `quoted` always False.)"""
+    assert find_error('"M"\n"a\n\nORA-06512: at line 1"\n\n') is None
+

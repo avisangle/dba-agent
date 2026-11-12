@@ -19,6 +19,7 @@ plan lives in the "Oracle DBA AI Agent: Product & Build Plan" doc on claude.ai.
 | `docs/` | Architectural decision records (`docs/decisions/`). |
 | `pyproject.toml` | pytest and ruff configuration, dev dependencies. |
 | `pending.md` | Deferred work and what unblocks it. |
+| `bug.md` | Bugs as found, with how they were fixed or why they stay. |
 
 ## Running the spike
 

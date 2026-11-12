@@ -31,15 +31,17 @@ command. A user check with a built-in id replaces it. `file` is an absolute path
 """
 
 
+def load_check(path) -> Check:
+    """`parse_check(path)`, with the path in the message of a `CheckFormatError`."""
+    try:
+        return parse_check(path)
+    except CheckFormatError as exc:
+        raise CheckFormatError(exc.code, exc.line, f"{path}: {exc.message}") from exc
+
+
 def discover(root) -> list[Check]:
     """A `Check` for every `.sql` file under `root`, in path order."""
-    checks = []
-    for path in sorted(Path(root).rglob("*.sql")):
-        try:
-            checks.append(parse_check(path))
-        except CheckFormatError as exc:
-            raise CheckFormatError(exc.code, exc.line, f"{path}: {exc.message}") from exc
-    return checks
+    return [load_check(path) for path in sorted(Path(root).rglob("*.sql"))]
 
 
 def find_check(root, check_id: str) -> Check | None:

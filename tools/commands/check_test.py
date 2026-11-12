@@ -6,7 +6,7 @@ from pathlib import Path
 
 from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError, parse_check
-from tools.checks.resolve import resolve_checks
+from tools.checks.resolve import resolve_check
 from tools.checks.run import run_check, validate_result
 from tools.config import pack_home
 from tools.mcp_client import McpError, McpTimeout
@@ -35,7 +35,7 @@ def _resolve(target: str):
     path = Path(target)
     if path.suffix == ".sql" or len(path.parts) > 1:
         return parse_check(path) if path.is_file() else None
-    entry = resolve_checks(CHECKS_ROOT, user_checks_root()).get(target)
+    entry = resolve_check(CHECKS_ROOT, user_checks_root(), target)
     return entry.check if entry else None
 
 

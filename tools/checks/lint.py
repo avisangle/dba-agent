@@ -11,7 +11,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.checks.header import (
+    CLIENT_COMMAND,
     KNOWN_KEYS,
+    SEVERITIES,
     RawCheck,
     max_rows_error,
     missing_keys,
@@ -22,13 +24,9 @@ from tools.checks.header import (
 CATEGORIES = ("discovery", "health", "storage", "sessions", "performance", "custom")
 MODES = ("R", "A", "W", "X")
 PACKS = ("none", "diagnostics", "tuning")
-SEVERITIES = ("CRITICAL", "WARNING", "OK", "INFO")
 
 ID = re.compile(r"[a-z][a-z0-9_]*")
 VERSION = re.compile(r"[0-9]+\.[0-9]+")
-CLIENT_COMMAND = re.compile(
-    r"^\s*(@|(SET|DEFINE|SPOOL|HOST|PROMPT|ACCEPT)(\s|$)|EXIT\b)", re.IGNORECASE
-)
 SUBSTITUTION = re.compile(r"&+\w+")
 FETCH_FIRST = re.compile(r"\bFETCH\s+FIRST\s+([0-9]+)\s+ROWS?\b", re.IGNORECASE)
 SEVERITY_ALIAS = re.compile(r"\bAS\s+severity\b", re.IGNORECASE)

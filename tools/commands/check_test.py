@@ -1,16 +1,16 @@
 """`check-test`: run one check against one saved connection and print the raw result."""
 
-import os
 import sys
 from pathlib import Path
 
 from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError, parse_check
+from tools.checks.lint import lint_file
 from tools.checks.resolve import resolve_check
 from tools.checks.run import run_check, validate_result
-from tools.config import pack_home
 from tools.mcp_client import McpError, McpTimeout
-from tools.sqlcl import SqlclSession
+from tools.sqlcl import SqlclSession, sqlcl_bin
+from tools.tiers import tier_arg
 
 NAME = "check-test"
 HELP = (
@@ -23,7 +23,7 @@ def add_arguments(parser):
     parser.add_argument("target", metavar="ID_OR_PATH", help="a check id or a check file path")
     parser.add_argument("--connection", required=True, metavar="NAME",
                         help="a connection saved in the SQLcl home")
-    parser.add_argument("--tier", default="read-only",
+    parser.add_argument("--tier", type=tier_arg, default="read-only",
                         help="tier whose home is used without --home (default: %(default)s)")
     parser.add_argument("--home", type=Path, metavar="DIR",
                         help="SQLcl home (default: <pack home>/homes/<tier>)")
@@ -48,10 +48,15 @@ def run(args):
     if check is None:
         print(f"error: no check {args.target}", file=sys.stderr)
         return 2
+    if findings := lint_file(check.path):
+        for finding in findings:
+            print(finding, file=sys.stderr)
+        print(f"error: {check.path} fails lint; not run", file=sys.stderr)
+        return 1
 
-    home = args.home or pack_home() / "homes" / args.tier
+    home = args.home or args.tier.home
     try:
-        with SqlclSession(os.environ.get("SQLCL_BIN", "sql"), str(home)) as session:
+        with SqlclSession(sqlcl_bin(), str(home)) as session:
             if args.connection not in session.list_connections():
                 print(f"error: no connection {args.connection} in {home}", file=sys.stderr)
                 return 2

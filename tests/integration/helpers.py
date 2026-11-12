@@ -2,7 +2,8 @@
 
 from tools.checks import CHECKS_ROOT
 from tools.checks.index import find_check
-from tools.checks.run import CheckResult, run_check
+from tools.checks.run import run_check
+from tools.sqlcl import SqlResult
 
 
 def rows_as_dicts(result) -> list[dict[str, str]]:
@@ -10,7 +11,7 @@ def rows_as_dicts(result) -> list[dict[str, str]]:
     return [dict(zip(result.header, row, strict=True)) for row in result.rows]
 
 
-def run_check_by_id(session, check_id) -> CheckResult:
+def run_check_by_id(session, check_id) -> SqlResult:
     """Run the check under plugin/checks/ whose id is `check_id`."""
     check = find_check(CHECKS_ROOT, check_id)
     assert check is not None, f"no check {check_id} under {CHECKS_ROOT}"

@@ -41,7 +41,7 @@ def render(
     """The tier's script for `user` (default: the tier's db_user)."""
     user = user or tier.db_user
     script = (
-        tier.template.read_text()
+        tier.template.read_text(encoding="utf-8")
         .replace("{{user}}", user)
         .replace("{{profile}}", profile_name(user))
     )
@@ -76,7 +76,7 @@ def add_arguments(parser):
 def run(args):
     script = render(args.tier, args.user, args.audit, args.alert_log)
     if args.out:
-        args.out.write_text(script)
+        args.out.write_text(script, encoding="utf-8")
     else:
         sys.stdout.write(script)
     return 0

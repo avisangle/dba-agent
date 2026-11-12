@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKS_ROOT = REPO_ROOT / "plugin" / "checks"
 VALID = REPO_ROOT / "tests" / "fixtures" / "checks" / "valid"
@@ -67,6 +69,19 @@ def _run_tools(cwd: Path, *args):
         [sys.executable, "-m", "tools", *args],
         cwd=cwd, capture_output=True, text=True, timeout=60, check=False,
     )
+
+
+def _git(cwd: Path, *args):
+    return subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", *args],
+        cwd=cwd, capture_output=True, text=True, timeout=60, check=False,
+    )
+
+
+def _in_git_checkout() -> bool:
+    return shutil.which("git") is not None and _git(
+        REPO_ROOT, "rev-parse", "--is-inside-work-tree"
+    ).stdout.strip() == "true"
 
 
 # --- behavioural tests -------------------------------------------------------
@@ -160,3 +175,52 @@ def test_index_command_writes_then_check_detects_staleness(tmp_path):
     assert stale.returncode == 1, stale.stdout + stale.stderr
     assert "INDEX.md" in stale.stdout + stale.stderr
     assert (checks_root / "INDEX.md").read_bytes() == on_disk, "--check must not write"
+
+
+def test_index_stays_lf_and_fresh_in_a_crlf_checkout(tmp_path):
+    """DBA-21 AC2: a clone made with core.autocrlf=true (Git for Windows'
+    default) checks out INDEX.md with no CR, and `index --check` exits 0 in it.
+    The clone is of a scratch repo built from the working tree's tools/,
+    plugin/checks/ and root .gitattributes, so uncommitted work counts.
+    (Falsifier: delete the .gitattributes eol rule.)"""
+    if shutil.which("git") is None:
+        pytest.skip("needs git to make a CRLF checkout")
+    src = tmp_path / "src"
+    _copy_tree(src)
+    if (REPO_ROOT / ".gitattributes").is_file():
+        shutil.copyfile(REPO_ROOT / ".gitattributes", src / ".gitattributes")
+    ident = ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "core.autocrlf=false"]
+    for args in (["init", "-q"], [*ident, "add", "-A"],
+                 [*ident, "commit", "-q", "--no-verify", "-m", "snapshot"]):
+        done = _git(src, *args)
+        assert done.returncode == 0, done.stdout + done.stderr
+
+    clone = tmp_path / "clone"
+    done = _git(tmp_path, "-c", "core.autocrlf=true", "clone", "-q", str(src), str(clone))
+    assert done.returncode == 0, done.stdout + done.stderr
+
+    crs = (clone / "plugin" / "checks" / "INDEX.md").read_bytes().count(b"\r")
+    assert crs == 0, f"{crs} CR bytes in INDEX.md in a CRLF checkout"
+    proc = _run_tools(clone, "index", "--check")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+# --- contract test -----------------------------------------------------------
+
+
+def test_contract_lf_rule_and_decision_record_for_dba8():
+    """Contract for DBA-8 (green Windows unit cells for its AC8): a root
+    .gitattributes under which `git check-attr eol -- plugin/checks/INDEX.md`
+    prints `plugin/checks/INDEX.md: eol: lf`, and
+    docs/decisions/D-DBA-21-index-line-endings.md with a **Status:** line.
+    Shape only."""
+    assert (REPO_ROOT / ".gitattributes").is_file(), "no root .gitattributes"
+    record = REPO_ROOT / "docs" / "decisions" / "D-DBA-21-index-line-endings.md"
+    assert record.is_file(), f"missing {record.relative_to(REPO_ROOT).as_posix()}"
+    assert re.search(r"(?m)^\*\*Status:\*\*", record.read_text(encoding="utf-8"))
+
+    if not _in_git_checkout():
+        pytest.skip("not a git checkout, so git check-attr has no attributes to read")
+    attr = _git(REPO_ROOT, "check-attr", "eol", "--", "plugin/checks/INDEX.md")
+    assert attr.returncode == 0, attr.stderr
+    assert attr.stdout.strip() == "plugin/checks/INDEX.md: eol: lf", attr.stdout

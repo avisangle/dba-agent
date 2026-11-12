@@ -286,7 +286,7 @@ def test_alert_log_grant_statement_lives_in_one_constant():
         for path in (REPO_ROOT / root).rglob("*"):
             if path.suffix in (".py", ".sql") and path.is_file():
                 text = path.read_text(encoding="utf-8")
-                hits += [str(path.relative_to(REPO_ROOT))] * len(
+                hits += [path.relative_to(REPO_ROOT).as_posix()] * len(
                     re.findall(r"GRANT\s+SELECT\s+ON\s+SYS\.V_\$DIAG_ALERT_EXT", text, re.I)
                 )
     assert hits == ["tools/commands/setup_sql.py"], hits

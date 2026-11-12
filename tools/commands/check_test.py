@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 
 from tools.checks import CHECKS_ROOT, user_checks_root
-from tools.checks.header import CheckFormatError, parse_check
+from tools.checks.header import CheckFormatError
+from tools.checks.index import load_check
 from tools.checks.lint import lint_file
 from tools.checks.resolve import resolve_check
 from tools.checks.run import run_check, validate_result
@@ -15,7 +16,8 @@ from tools.tiers import tier_arg
 NAME = "check-test"
 HELP = (
     "run one check (by id or file path) on a saved connection and print the raw result; "
-    "exit 1 if the result is not a valid verdict, 2 if the check or connection does not exist"
+    "exit 1 if the check fails lint or its result is not a valid verdict, "
+    "2 if the check or connection does not exist"
 )
 
 
@@ -26,7 +28,7 @@ def add_arguments(parser):
     parser.add_argument("--tier", type=tier_arg, default="read-only",
                         help="tier whose home is used without --home (default: %(default)s)")
     parser.add_argument("--home", type=Path, metavar="DIR",
-                        help="SQLcl home (default: <pack home>/homes/<tier>)")
+                        help="SQLcl home (default: the tier's home under <pack home>/homes)")
 
 
 def _resolve(target: str):
@@ -34,7 +36,7 @@ def _resolve(target: str):
     built-in one wins), or None."""
     path = Path(target)
     if path.suffix == ".sql" or len(path.parts) > 1:
-        return parse_check(path) if path.is_file() else None
+        return load_check(path) if path.is_file() else None
     entry = resolve_check(CHECKS_ROOT, user_checks_root(), target)
     return entry.check if entry else None
 

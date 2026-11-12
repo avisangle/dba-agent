@@ -61,4 +61,4 @@ def test_check(path, request):
 
     result = run_check(ro, check)
     problems = validate_result(check, result)
-    assert problems == [], f"{problems}\n{getattr(result, 'text', '')}"
+    assert problems == [], f"{problems}\n{result.text}"

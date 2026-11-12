@@ -32,7 +32,7 @@ CODE_DIR = re.compile(r"^(L\d{3})(?:-[a-z]+)?$")
 OUTPUT_LINE = re.compile(r"^(?P<path>.+?):(?P<line>\d+): (?P<code>L\d{3}) (?P<message>\S.*)$")
 
 # Findings whose line number is unambiguous: the offending line itself.
-EXPECTED_LINE = {"L002": 8, "L010-set": 9}
+EXPECTED_LINE = {"L002": 8, "L010-set": 9, "L010-header": 8}
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))

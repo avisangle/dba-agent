@@ -6,7 +6,7 @@
 
 **Decision:** `check-test` runs `lint_file` on the resolved check and, when there is any finding, prints the findings to stderr and exits 1 without opening a SQLcl session. Its `--tier` takes `tier_arg` and its default home is `Tier.home`, the same as `setup-home` and doctor.
 
-**Why:** `index --user` already refuses user checks that fail lint (D-DBA-14), but `check-test` ran any file it could parse, so a check breaking a body rule (a `&` substitution, a client command, a write in a mode `R` check) still reached `run-sql`. Lint is the one definition of a well-formed check; a command that runs checks should not have a weaker one.
+**Why:** `index --user` already refuses user checks that fail lint (D-DBA-14), but `check-test` ran any file it could parse, so a check breaking a rule (a `&` substitution, a client command, a second statement) still reached `run-sql`. Lint does not judge whether SQL writes: read-only safety rests on the tier's grants (D-DBA-5-read-only-grants), and D-DBA-14-user-check-overlay rules out parsing SQL for safety. Lint is the one definition of a well-formed check; a command that runs checks should not have a weaker one.
 
 **Rejected:** Leaving `check-test` ungated so a work-in-progress check can be tried before it lints: `python -m tools lint <file>` gives that feedback without running SQL, and an unlinted check is exactly what should not reach a database. A `--no-lint` flag: no user asked for it.
 

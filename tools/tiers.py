@@ -1,6 +1,6 @@
 """The permission tiers: one database user and one SQLcl home folder each.
 
-`setup-sql` and `setup-home` read this table; doctor compares live grants with it.
+`setup-sql`, `setup-home` and `check-test` read this table; doctor compares live grants with it.
 """
 
 import argparse

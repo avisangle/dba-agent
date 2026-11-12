@@ -32,7 +32,7 @@ from tools.tiers import TIERS  # noqa: E402
 SQLCL_BIN = sqlcl_bin()
 DSN = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
 PASSWORD = os.environ.get("ORACLE_TEST_PASSWORD")
-RO_USER = "dba_agent_ro"
+RO_USER = TIERS["read-only"].db_user
 
 
 def _unavailable(reason: str):
@@ -91,7 +91,7 @@ def _setup_sql_statements(password: str) -> list[str]:
     """
     lines = [
         ln
-        for ln in render(TIERS["read-only"], RO_USER).splitlines()
+        for ln in render(TIERS["read-only"]).splitlines()
         if ln.strip()
         and not ln.lstrip().startswith("--")
         and not CLIENT_COMMAND.match(ln)  # ACCEPT, SET: SQLcl-only, run-sql takes SQL

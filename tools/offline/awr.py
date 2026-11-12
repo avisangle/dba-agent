@@ -194,6 +194,7 @@ _SPEC = re.compile(r" *[-~]+(?: +[-~]+)+ *")  # column underline: two or more ru
 _RULE = re.compile(r" +-{10,} *")  # indented rule closing a section
 _META = re.compile(r"\s*(Module|PDB):\s*(.*)")  # record lines that are not table cells
 SQL_EXTRA_COLUMNS = ["SQL Module", "PDB Name", "SQL Text"]
+_SQL_ID = re.compile(r"[0-9a-z]{13}")
 
 
 def _title(lines: list[str], i: int) -> str | None:
@@ -233,12 +234,14 @@ def _header(lines: list[str], spec: int, top: int, starts: list[int]) -> list[st
     return [_norm(" ".join(p[c] for p in parts)) for c in range(len(starts))]
 
 
-def _fixed_table(lines: list[str], t: int, sql: bool):
+def _fixed_table(lines: list[str], t: int, sql: bool, prev: list[list[str]]):
     """(columns, rows) of the fixed-width table under the title on line t, or None.
 
     A table has one underline per line of a record (segments use two). SQL
     sections have one numbers line per record, then Module/PDB lines and the
-    wrapped SQL text, records separated by blank lines.
+    wrapped SQL text, records separated by blank lines. A SQL record cut by a
+    page break continues on the next page, before its first numbers line; that
+    text is appended to the last row of `prev`, the rows of the earlier pages.
     """
     n, i = len(lines), t + 1
     while i < n and not _SPEC.fullmatch(lines[i]):
@@ -265,19 +268,22 @@ def _fixed_table(lines: list[str], t: int, sql: bool):
         i += 1
 
     if sql:
-        starts = tiers[0][0]
+        starts, sql_id = tiers[0][0], columns.index("SQL Id")
         rows = []
         for record in "\n".join(block).split("\n\n"):
             record_lines = [ln for ln in record.split("\n") if ln.strip()]
             if not record_lines:
                 continue
-            meta = {"Module": "", "PDB": ""}
-            k = 1
+            cells, k = _cut(record_lines[0], starts), 0
+            if _SQL_ID.fullmatch(cells[sql_id]) or not (rows or prev):
+                rows.append([*cells] + [""] * len(SQL_EXTRA_COLUMNS))
+                k = 1
+            # else: the rest of the previous record, cut off by a page break
+            row = (rows or prev)[-1]
             while k < len(record_lines) and (match := _META.match(record_lines[k])):
-                meta[match[1]] = match[2].strip()
+                row[-3 if match[1] == "Module" else -2] = match[2].strip()  # SQL Module, PDB Name
                 k += 1
-            sql_text = _norm("".join(record_lines[k:]))
-            rows.append([*_cut(record_lines[0], starts), meta["Module"], meta["PDB"], sql_text])
+            row[-1] = _norm(row[-1] + "".join(record_lines[k:]))
         return columns + SQL_EXTRA_COLUMNS, rows
 
     records = []  # ([line per tier], PDB name); a CDB report adds a "PDB:" line to each
@@ -333,7 +339,7 @@ def _parse_text(text: str) -> AwrReport:
             if name == "instance_efficiency":
                 table = _table(match.group(0), PAIR_COLUMNS, _pair_table(lines, i))
                 break
-            parsed = _fixed_table(lines, i, name.startswith("sql_by_"))
+            parsed = _fixed_table(lines, i, name.startswith("sql_by_"), table.rows if table else [])
             if parsed is None:
                 continue
             if table is None:

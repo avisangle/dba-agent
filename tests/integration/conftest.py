@@ -64,6 +64,12 @@ def _connected(tmp_path_factory, name: str, user: str, password: str, as_sysdba=
 
 
 @pytest.fixture(scope="session")
+def sqlcl_bin_and_dsn(_integration_ready):
+    """(SQLCL_BIN, DSN), for tests that save their own connections."""
+    return SQLCL_BIN, DSN
+
+
+@pytest.fixture(scope="session")
 def admin(_integration_ready, tmp_path_factory):
     """SqlclSession connected as SYSTEM to the test PDB."""
     yield from _connected(tmp_path_factory, "admin", "system", PASSWORD)

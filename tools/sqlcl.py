@@ -13,6 +13,8 @@ _RENAMED = {
     "run-sql": "sql_run",
     "run-sqlcl": "sqlcl_run",
 }
+# Arguments renamed with them; applied only when the renamed tool is called.
+_RENAMED_ARGS = {"executionType": "execution_type"}
 
 
 def mcp_argv(home: str) -> list[str]:
@@ -70,6 +72,8 @@ class SqlclSession:
 
     def _call(self, tool: str, **arguments) -> ToolResult:
         name = self._tool_names.get(tool, tool)
+        if name != tool:
+            arguments = {_RENAMED_ARGS.get(k, k): v for k, v in arguments.items()}
         return self._client.call_tool(name, {**arguments, "model": self.model})
 
     def list_connections(self) -> list[str]:
@@ -83,7 +87,11 @@ class SqlclSession:
         if result.is_error:
             raise McpError(0, _error(result))
 
-    def run_sql(self, sql: str) -> SqlResult:
+    def run_sql(self, sql: str, asynchronous: bool = False) -> SqlResult | str:
+        """Run `sql`. With `asynchronous`, SQLcl starts it in the background and the
+        call returns SQLcl's raw text (the task id) without waiting for the statement."""
+        if asynchronous:
+            return self._call("run-sql", sql=sql, executionType="ASYNCHRONOUS").text
         result = self._call("run-sql", sql=sql)
         error = _error(result)
         if error is not None:

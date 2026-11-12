@@ -15,10 +15,10 @@
 | 26.1 (spike) | `run-sql`: `executionType`, `model`, `sql` | none |
 | 26.3.1 | `sql_run`: `execution_type`, `model`, `sql` | none |
 
-25.3.2 silently ignores an undeclared `executionType` and runs the statement synchronously: CI run 43198647960 timed out on the DBA-12 scenario's blocked update in both 25.3.2 cells. The schema comes from the same `tools/list` reply that D-DBA-4 already reads, so the check costs no extra round trip.
+25.3.2 silently ignores an undeclared `executionType` and runs the statement synchronously: CI run 43198647960 timed out on the DBA-12 scenario's blocked update in both 25.3.2 cells. The schema comes from the same `tools/list` reply that D-DBA-4-sqlcl-tool-names-from-tools-list already reads, so the check costs no extra round trip.
 
 **Rejected:**
-- Checking the SQLcl version: D-DBA-4 already rejects `sql -V`, and the asynchronous form does not follow release order (25.4 has a different tool, 26.1 has the argument).
+- Checking the SQLcl version: D-DBA-4-sqlcl-tool-names-from-tools-list already rejects `sql -V`, and the asynchronous form does not follow release order (25.4 has a different tool, 26.1 has the argument).
 - Sending the argument anyway: the bug this fixes.
 - Falling back to synchronous execution inside `run_sql`: it blocks, the opposite of what the caller asked for, and hides the limitation.
 - Emulating asynchrony with a thread inside `SqlclSession`: the session's stdio client serves one call at a time, so the caller could not use the session meanwhile anyway.

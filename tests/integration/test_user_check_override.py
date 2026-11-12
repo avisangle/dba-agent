@@ -12,7 +12,7 @@ for every tablespace there, so an all-CRITICAL run proves the user SQL is what
 reached the database.
 
 The `ro` fixture does not expose its password, so this module creates its own
-user with the same grants (CREATE SESSION and SELECT_CATALOG_ROLE) and drops it
+user with the read-only tier's grants (`TIERS` in tools/tiers.py) and drops it
 afterwards.
 
 Columns used: the check's own TABLESPACE_NAME, USED_PCT, SEVERITY
@@ -31,6 +31,7 @@ from save_connection import save_connection
 from tools.checks import CHECKS_ROOT
 from tools.config import PACK_NAME
 from tools.sqlcl_text import parse_csv
+from tools.tiers import TIERS
 
 pytestmark = pytest.mark.integration
 
@@ -38,6 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SQLCL_BIN = os.environ.get("SQLCL_BIN", "sql")
 DSN = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
 RO_USER = "dba_agent_ro14"
+READ_ONLY = TIERS["read-only"]
 
 
 @pytest.fixture(scope="module")
@@ -47,7 +49,7 @@ def ro_pack_home(admin, tmp_path_factory):
     for sql in (
         f"drop user if exists {RO_USER} cascade",
         f'create user {RO_USER} identified by "{password}"',
-        f"grant create session, select_catalog_role to {RO_USER}",
+        f"grant {', '.join(sorted(READ_ONLY.sys_privs | READ_ONLY.roles))} to {RO_USER}",
     ):
         result = admin.run_sql(sql)
         assert result.error is None, f"{sql.split(' identified')[0]}: {result.error}"

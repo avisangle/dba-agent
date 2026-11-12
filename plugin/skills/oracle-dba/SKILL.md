@@ -61,7 +61,7 @@ Every check returns a `SEVERITY` column (`CRITICAL`, `WARNING`, `INFO` or `OK`).
 
 ### 4. Read every result for errors
 
-After every tool result, look for `ORA-` and `SP2-` in the text before using it. SQLcl returns database errors as ordinary text, with no error flag set, so the text is the only signal. A result containing such an error is a failure, whatever the tool's error flag says: report the error and the check it came from, and do not present the rows around it as an answer.
+After every tool result, look for `ORA-` and `SP2-` in the text before using it. SQLcl returns database errors as ordinary text, with no error flag set, so the text is the only signal. A code is an error when it stands outside the result's rows: in an error report (`Error starting at line`, `Error report -`) or on a line of a result that has no CSV header. Such a result is a failure, whatever the tool's error flag says: report the error and the check it came from, and do not present the rows around it as an answer. A code inside a field of a CSV row, below the header line of quoted column names, is data the query returned, not a failure, in any check or query: the `SEVERITY` column is a check's verdict. For example, `alert_log_errors` and `failed_jobs` return error codes as findings, and SQL text or module names can contain them.
 
 A row-count footer such as `25 rows selected.` does not prove a result is complete: a query that fails during a later fetch can come back cut off with a normal footer and no error. When an answer rests on a result that looks short or stops abruptly, tell the user it may be cut off and point them to the "Known limitations" section of `README.md`, which describes how to cross-check it.
 

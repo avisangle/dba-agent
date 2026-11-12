@@ -11,18 +11,16 @@ detected: `bug.md` holds the one accurate entry, `README.md` the user-facing
 """
 
 import importlib
-import os
 import re
 import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tests.unit.test_mcp_client import _fake_sql_bin, _script  # noqa: E402
+from tests.support.fake_sqlcl import fake_sql_bin  # noqa: E402
+from tests.unit.test_mcp_client import _script  # noqa: E402
 
 DECISION = REPO_ROOT / "docs" / "decisions" / "D-DBA-20-accept-truncated-result-on-fetch-error.md"
 WRONG_CLAIM = "An error within the first 25 rows returns a full error report"
@@ -68,7 +66,6 @@ def test_decision_record_links_bug_md_and_readme():
     assert "bug.md" in text and "README.md" in text
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 def test_run_sql_accepts_a_footered_result_after_a_non_json_error_line(tmp_path):
     """DBA-20 AC7b, a guard on accepted v1.0 behaviour: the server writes the non-JSON
     line `ORA-01722: invalid number` to stdout, then a normal reply with 25 rows and
@@ -86,7 +83,7 @@ def test_run_sql_accepts_a_footered_result_after_a_non_json_error_line(tmp_path)
     home = tmp_path / "home"
     home.mkdir()
 
-    with sqlcl.SqlclSession(str(_fake_sql_bin(tmp_path, script)), str(home)) as session:
+    with sqlcl.SqlclSession(str(fake_sql_bin(tmp_path, script)), str(home)) as session:
         session.connect("admin")
         result = session.run_sql("select to_number(decode(level, 26, 'x', '1')) n "
                                  "from dual connect by level <= 26")

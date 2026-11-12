@@ -27,11 +27,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKS_ROOT = REPO_ROOT / "plugin" / "checks"
 FIXTURES = REPO_ROOT / "tests" / "fixtures" / "checks"
-FAKE_SERVER = REPO_ROOT / "tests" / "support" / "fake_mcp_server.py"
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tests.support.fake_sqlcl import fake_sql_bin  # noqa: E402
 from tools.checks.header import Check, parse_check  # noqa: E402  (exists since DBA-3)
 from tools.config import PACK_NAME  # noqa: E402
 
@@ -154,15 +154,7 @@ def _fake_sqlcl(tmp_path: Path) -> tuple[Path, Path]:
             "disconnect": {"text": "Disconnected."},
         },
     }))
-    if os.name == "nt":
-        # CreateProcess cannot start a shell script (WinError 193) but starts a
-        # .cmd by its extension. `@echo off` keeps cmd.exe off stdout, the MCP channel.
-        exe = tmp_path / "fake-sql.cmd"
-        exe.write_text(f'@echo off\n"{sys.executable}" "{FAKE_SERVER}" "{script}" %*\n')
-    else:
-        exe = tmp_path / "fake-sql"
-        exe.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKE_SERVER}" "{script}" "$@"\n')
-        exe.chmod(0o755)
+    exe = fake_sql_bin(tmp_path, script)
     return exe, log
 
 

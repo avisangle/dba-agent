@@ -24,10 +24,11 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FAKE_SERVER = REPO_ROOT / "tests" / "support" / "fake_mcp_server.py"
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+from tests.support.fake_sqlcl import FAKE_SERVER, fake_sql_bin  # noqa: E402
 
 # Real SQLcl texts (spike/results/raw/s4_session_audit.json, s2_restrict_levels.json).
 ORA_REAL = (
@@ -218,13 +219,6 @@ def test_no_reply_within_timeout_raises_mcp_timeout_and_kills_server(tmp_path):
 # --- SqlclSession against the fake server -----------------------------------
 
 
-def _fake_sql_bin(tmp_path, script):
-    wrapper = tmp_path / "sql"
-    wrapper.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKE_SERVER}" "{script}" "$@"\n')
-    wrapper.chmod(0o755)
-    return wrapper
-
-
 def test_mcp_argv_pins_restrict_level_4():
     """DBA-15 (D-DBA-15-sqlcl-explicit-restrict-level-4): the one source of
     SQLcl's MCP command line is tools.sqlcl.mcp_argv, which always passes -R 4.
@@ -255,7 +249,6 @@ def test_sqlcl_bin_path_to_the_shell_script_starts_sql_exe_on_windows(tmp_path, 
     assert session._client.command == [f"{script}.resolved", "-home", "/h", "-R", "4", "-mcp"]
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
     """AC: SqlclSession starts exactly [sql_bin, "-home", home, "-R", "4", "-mcp"];
     every tool call carries model="pack-tools"; SQL is sent unchanged; run_sql
@@ -273,7 +266,7 @@ def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
 
-    with sqlcl.SqlclSession(str(_fake_sql_bin(tmp_path, script)), str(home)) as session:
+    with sqlcl.SqlclSession(str(fake_sql_bin(tmp_path, script)), str(home)) as session:
         assert session.list_connections() == ["ro_conn"]
         session.connect("ro_conn")
         result = session.run_sql(sql)
@@ -361,7 +354,7 @@ def _shape_session(tmp_path, tools: dict, reply=ASYNC_ACCEPTED):
                           calls={name: {"text": reply} for name in tools})
     home = tmp_path / "home"
     home.mkdir()
-    return sqlcl.SqlclSession(str(_fake_sql_bin(tmp_path, script)), str(home)), log
+    return sqlcl.SqlclSession(str(fake_sql_bin(tmp_path, script)), str(home)), log
 
 
 def _tool_calls(log):
@@ -405,7 +398,6 @@ def _assert_async_refused(tmp_path, tools: dict, run_tool: str):
     assert _tool_calls(log) == [], "nothing may be sent when the asynchronous form is missing"
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 @pytest.mark.parametrize("release", ["25.3.2", "25.4.2"])
 def test_run_sql_asynchronous_raises_without_calling_when_sqlcl_lacks_it(tmp_path, release):
     """DBA-22 AC1, AC2: on SQLcl 25.3.2 (run-sql takes model, sql) and 25.4.2 (the
@@ -418,7 +410,6 @@ def test_run_sql_asynchronous_raises_without_calling_when_sqlcl_lacks_it(tmp_pat
     _assert_async_refused(tmp_path, tools, run_tool)
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 @pytest.mark.parametrize("release, arg_name", [
     ("26.1", "executionType"),     # run-sql, as in the spike
     ("26.3.1", "execution_type"),  # sql_run (D-DBA-4)
@@ -435,7 +426,6 @@ def test_run_sql_asynchronous_sends_the_declared_execution_type(tmp_path, releas
 _BARE = {"connect": None, "disconnect": None}
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 @pytest.mark.parametrize("run_tool, schema, arg_name", [
     ("run-sql", _props("model", "sql"), None),
     ("run-sql", None, None),  # {"type": "object"}: no properties key, not declared
@@ -463,7 +453,6 @@ def test_run_sql_asynchronous_is_decided_by_the_schema_alone(
         assert not re.search(r"""["']-V["']""", source), f"{module} runs `sql -V`"
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 @pytest.mark.parametrize("release", list(SHAPES))
 def test_run_sql_synchronous_unchanged_on_every_shape(tmp_path, release):
     """DBA-22 AC5: run_sql(sql) returns a parsed SqlResult from the offered run tool

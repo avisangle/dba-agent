@@ -6,7 +6,8 @@ import re
 
 _FOOTER = re.compile(r"no rows selected|\d+ rows? selected\.")
 _ERROR = re.compile(r"\b(?:ORA-\d{5}|SP2-\d{4})\b.*")
-_REPORT = "\nError report -"
+_REPORT_LINE = "Error report -"
+_REPORT = "\n" + _REPORT_LINE
 _ECHO_START = "Error starting at line"
 
 
@@ -17,7 +18,7 @@ def _header_index(lines: list[str]) -> int | None:
     for i, ln in enumerate(lines):
         if ln.startswith(_ECHO_START):
             echo = True
-        elif ln.strip() == _REPORT.strip():
+        elif ln.strip() == _REPORT_LINE:
             echo = False
         elif not echo and ln.startswith('"'):
             return i
@@ -47,7 +48,7 @@ def _block_end(lines: list[str], head: int, foot: int | None) -> int:
         return foot + 1
     quoted = False
     for i in range(head, len(lines)):
-        if not quoted and lines[i].strip() in ("", _REPORT.strip()):
+        if not quoted and lines[i].strip() in ("", _REPORT_LINE):
             return i
         quoted ^= lines[i].count('"') % 2 == 1
     return len(lines)
@@ -90,7 +91,7 @@ def parse_csv(text: str) -> tuple[list[str], list[list[str]], str]:
     header = records[0]
     if len(header) == 1:
         rows = [r or [""] for r in records[1:]]
-        if records[-1] == [] and len(records) > 1:
+        if records[-1] == []:
             rows.pop()  # the blank line after the last record
     else:
         rows = [r for r in records[1:] if r]

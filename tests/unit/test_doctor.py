@@ -13,7 +13,9 @@ The python check reads `<sys.executable> --version` through Env.run; sqlcl runs
 The session stands in for SqlclSession: list_tools() (the server's raw tool
 names, either SQLcl name set), list_connections(), connect(name) (raises
 McpError with SQLcl's text), run_sql(sql) and run_sqlcl(command) returning
-tools.sqlcl.SqlResult, disconnect(). It works entered or not.
+tools.sqlcl.SqlResult, disconnect(). It works entered or not. run_sqlcl
+answers per command (real SQLcl 26.3.1 texts below) and records which commands
+it received, so the restrict-level probe order is observable.
 
 Views doctor reads (Oracle reference; derive the allowed role set on the
 container): SESSION_PRIVS(PRIVILEGE), SESSION_ROLES(ROLE),
@@ -45,6 +47,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.mcp_client import McpError, McpTimeout  # noqa: E402  (exists since DBA-4)
 from tools.sqlcl import SqlResult  # noqa: E402  (exists since DBA-4)
+from tools.sqlcl_text import find_error  # noqa: E402  (exists since DBA-4)
 from tools.tiers import TIERS  # noqa: E402  (exists since DBA-5)
 
 READ_ONLY = TIERS["read-only"]
@@ -60,7 +63,16 @@ JAVA_17 = (
 )
 TOOLS_26_1 = ["list-connections", "connect", "run-sql", "run-sqlcl", "disconnect"]
 TOOLS_26_3 = ["connections_list", "connect", "sql_run", "sqlcl_run", "disconnect"]
-REFUSED = 'SP2-0738: Restricted command: "@doctor_probe.sql" not available\n'
+AT_PROBE = "@doctor_probe.sql"
+HOST_PROBE = "host echo doctor-probe"
+# Real SQLcl 26.3.1 (Build 26.3.1.301.1413) answers through sqlcl_run; isError
+# is false for all four (issue DBA-15, revision of 2026-11-12).
+AT_REFUSED = 'SP2-0738: Restricted command: \n"@doctor_probe.sql"\nnot available\n'
+HOST_REFUSED = 'SP2-0738: Restricted command: \n"host echo doctor-probe"\nnot available\n'
+AT_ATTEMPTED = ('\nError starting at line : 1 in command -\n@doctor_probe.sql\nError report -\n'
+                'SP2-0310: Unable to open file: "doctor_probe.sql"\n')
+HOST_RAN = 'doctor-probe\n\n'
+REFUSED_BOTH = {AT_PROBE: AT_REFUSED, HOST_PROBE: HOST_REFUSED}
 DB_23 = {
     "VERSION": "23.0.0.0.0",
     "VERSION_FULL": "23.26.0.0.0",
@@ -113,15 +125,15 @@ class FakeSession:
     """Stands in for SqlclSession, scripted per test."""
 
     def __init__(self, tools=TOOLS_26_1, connections=("ro",), connect_errors=None,
-                 db=DB_23, privs=RO_PRIVS, roles=RO_ROLES, sqlcl_text=REFUSED):
+                 db=DB_23, privs=RO_PRIVS, roles=RO_ROLES, sqlcl_answers=None):
         self.tools = list(tools)
         self.connections = list(connections)
         self.connect_errors = connect_errors or {}
         self.db, self.privs, self.roles = db, list(privs), list(roles)
-        self.sqlcl_text = sqlcl_text
+        self.sqlcl_answers = dict(REFUSED_BOTH if sqlcl_answers is None else sqlcl_answers)
         self.connected = None
         self.sql = []
-        self.sqlcl = []
+        self.sqlcl = []  # (connection, command) per run_sqlcl call, in order
 
     def __enter__(self):
         return self
@@ -171,9 +183,12 @@ class FakeSession:
 
     def run_sqlcl(self, command):
         assert self.connected, f"run_sqlcl before connect: {command}"
-        self.sqlcl.append(command)
-        error = self.sqlcl_text.strip() if "SP2-0738" in self.sqlcl_text else None
-        return SqlResult(self.sqlcl_text, [], [], "", error)
+        command = command.strip()
+        self.sqlcl.append((self.connected, command))
+        assert command in self.sqlcl_answers, f"unexpected run_sqlcl command: {command}"
+        text = self.sqlcl_answers[command]
+        # As SqlclSession.run_sqlcl: isError is false, so error is the code in the text.
+        return SqlResult(text, [], [], "", find_error(text))
 
 
 class FakeEnv:
@@ -331,10 +346,11 @@ def test_home_check_and_cascade_when_home_is_missing(tmp_path, mode, exists, sta
 )
 def test_mcp_start_needs_the_four_tools_under_either_name_set(tmp_path, tools, error, status,
                                                               named):
-    """AC: `sql -home <home> -mcp` answers initialize and lists list-connections,
-    connect, run-sql, disconnect (26.3 names connections_list and sql_run count);
-    a missing tool (named in the detail) or no answer within 30 s FAILs and the
-    later checks SKIP."""
+    """AC: `sql -home <home> -R 4 -mcp` answers initialize and lists
+    list-connections, connect, run-sql, disconnect (26.3 names connections_list
+    and sql_run count); a missing tool (named in the detail) or no answer within
+    30 s FAILs and the later checks SKIP. The "no answer" fix prints the full
+    command the pack runs (from tools.sqlcl.mcp_argv), so it carries `-R 4`."""
     env = FakeEnv(tmp_path, session=FakeSession(tools=tools), session_error=error)
     results = _run_all(env)
     _assert_fix_rule(results)
@@ -343,6 +359,10 @@ def test_mcp_start_needs_the_four_tools_under_either_name_set(tmp_path, tools, e
     assert env.opened and env.opened[0] == env.home, "mcp-start must use the tier home"
     if named:
         assert any(n in found["mcp-start"].detail for n in named), found["mcp-start"]
+    if error is not None:
+        fix = found["mcp-start"].fix
+        assert "-R 4" in fix, fix
+        assert f"-home {env.home} -R 4 -mcp" in fix, fix
     if status == "FAIL":
         _assert_skipped(results, ["connections"])
         later = results[GLOBAL_CHECKS.index("mcp-start") + 1:]
@@ -365,8 +385,9 @@ def test_sqlcl_or_java_failure_skips_everything_that_starts_sqlcl(tmp_path, fail
 
 def test_order_and_all_pass_on_a_correct_read_only_connection(tmp_path):
     """AC: checks run in the table's order, one block of per-connection checks
-    per saved connection; a correct read-only setup is all PASS. The probe goes
-    through run-sqlcl as `@doctor_probe.sql`."""
+    per saved connection; a correct read-only setup is all PASS. Each
+    connection is probed through run-sqlcl with `@doctor_probe.sql`, then
+    `host echo doctor-probe`."""
     session = FakeSession(connections=["ro", "ro2"])
     env = FakeEnv(tmp_path, session=session)
     results = _run_all(env)
@@ -379,7 +400,7 @@ def test_order_and_all_pass_on_a_correct_read_only_connection(tmp_path):
         own = [x for x in names if x.endswith(f":{n}")]
         assert own == [f"{c}:{n}" for c in PER_CONNECTION], names
     assert [r.status for r in results] == ["PASS"] * len(results), results
-    assert session.sqlcl and all(c.strip() == "@doctor_probe.sql" for c in session.sqlcl)
+    assert session.sqlcl == [(n, p) for n in ("ro", "ro2") for p in (AT_PROBE, HOST_PROBE)]
 
 
 def test_connection_failures_cascade_to_skip(tmp_path):
@@ -456,18 +477,32 @@ def test_grants_and_excess_privileges_compare_with_the_tier(tmp_path, privs, rol
 
 
 @pytest.mark.parametrize(
-    ("text", "status"),
-    [(REFUSED, "PASS"), ("Error starting at line 1: file not found doctor_probe.sql\n", "FAIL"),
-     ("", "FAIL")],
+    ("answers", "status", "named", "sent"),
+    [
+        (REFUSED_BOTH, "PASS", None, [AT_PROBE, HOST_PROBE]),
+        ({AT_PROBE: AT_ATTEMPTED, HOST_PROBE: HOST_RAN}, "FAIL", AT_PROBE, [AT_PROBE]),
+        ({AT_PROBE: "", HOST_PROBE: HOST_RAN}, "FAIL", AT_PROBE, [AT_PROBE]),
+        ({AT_PROBE: AT_REFUSED, HOST_PROBE: HOST_RAN}, "FAIL", "host", [AT_PROBE, HOST_PROBE]),
+    ],
+    ids=["both-refused", "at-attempted", "at-empty", "host-ran"],
 )
-def test_restrict_level_probe_must_be_refused(tmp_path, text, status):
-    """AC: `@doctor_probe.sql` through run-sqlcl returning SP2-0738 PASS; any
-    other answer means the server runs below restrict level 3: FAIL."""
-    session = FakeSession(sqlcl_text=text)
-    results = _run_all(FakeEnv(tmp_path, session=session))
+def test_restrict_level_probe_must_be_refused(tmp_path, answers, status, named, sent):
+    """AC: through run-sqlcl, `@doctor_probe.sql` and `host echo doctor-probe`
+    both refused with SP2-0738 PASS. `@` goes first; `host` is sent only when `@`
+    was refused, so doctor never runs an OS command on a server it has just found
+    under-restricted. Either not refused FAILs, the detail naming the probe, and
+    the fix says to start the server as `sql -home <home> -R 4 -mcp`."""
+    session = FakeSession(sqlcl_answers=answers)
+    env = FakeEnv(tmp_path, session=session)
+    results = _run_all(env)
     _assert_fix_rule(results)
-    assert _by_check(results)["restrict-level:ro"].status == status
-    assert session.sqlcl, "the probe was not sent through run-sqlcl"
+    result = _by_check(results)["restrict-level:ro"]
+    assert result.status == status, result
+    assert session.sqlcl == [("ro", p) for p in sent], session.sqlcl
+    if status == "FAIL":
+        assert named in result.detail, result
+        assert "-R 4" in result.fix, result
+        assert "-R 4 -mcp" in result.fix, result
 
 
 def test_doctor_reads_no_file_in_the_home_and_prints_no_secret(tmp_path, monkeypatch):

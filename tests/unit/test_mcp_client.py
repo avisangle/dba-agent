@@ -166,13 +166,21 @@ def _fake_sql_bin(tmp_path, script):
     return wrapper
 
 
+def test_mcp_argv_pins_restrict_level_4():
+    """DBA-15 (D-DBA-15-sqlcl-explicit-restrict-level-4): the one source of
+    SQLcl's MCP command line is tools.sqlcl.mcp_argv, which always passes -R 4.
+    DBA-18's client snippets consume it."""
+    sqlcl = _mod("tools.sqlcl")
+    assert sqlcl.mcp_argv("/h") == ["-home", "/h", "-R", "4", "-mcp"]
+
+
 @pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
-    """AC: SqlclSession starts exactly [sql_bin, "-home", home, "-mcp"]; every
-    tool call carries model="pack-tools"; SQL is sent unchanged; run_sql returns
-    SqlResult(text, header, rows, footer, error); list_connections returns names.
-    Also D-DBA-4-stdlib-mcp-client-through-sqlcl: nothing under tools/ or tests/
-    reaches the database another way."""
+    """AC: SqlclSession starts exactly [sql_bin, "-home", home, "-R", "4", "-mcp"];
+    every tool call carries model="pack-tools"; SQL is sent unchanged; run_sql
+    returns SqlResult(text, header, rows, footer, error); list_connections
+    returns names. Also D-DBA-15-sqlcl-explicit-restrict-level-4: nothing under
+    tools/ or tests/ reaches the database another way."""
     sqlcl = _mod("tools.sqlcl")
     sql = "create table t (x number)"
     script, log = _script(tmp_path, calls={
@@ -195,7 +203,7 @@ def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
     assert result.rows == []
 
     header, msgs = _received(log)
-    assert header["argv"] == ["-home", str(home), "-mcp"]
+    assert header["argv"] == ["-home", str(home), "-R", "4", "-mcp"]
     calls = [m["params"] for m in msgs if m.get("method") == "tools/call"]
     assert [c["name"] for c in calls] == ["list-connections", "connect", "run-sql", "disconnect"]
     assert all(c["arguments"].get("model") == "pack-tools" for c in calls)

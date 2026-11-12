@@ -9,9 +9,16 @@ Dictionary columns used (Oracle 23ai reference): V$SESSION.SID, V$SESSION.MODULE
 SYS_CONTEXT('USERENV', 'SID' | 'CON_NAME'); DUAL.
 """
 
+import os
+import shutil
+
 import pytest
 
+from tools.sqlcl import SqlclSession
+
 pytestmark = pytest.mark.integration
+
+SQLCL_BIN = os.environ.get("SQLCL_BIN", "sql")
 
 
 def test_ro_select_returns_header_and_one_row(ro):
@@ -61,3 +68,24 @@ def test_short_result_with_a_code_in_the_data_is_not_an_error(ro):
     missing = ro.run_sql("select * from no_such_table")
     assert missing.error is not None, missing.text
     assert missing.error.startswith("ORA-00942")
+
+
+def test_session_refuses_scripts_and_host_without_a_database(tmp_path):
+    """DBA-15 (D-DBA-15-sqlcl-explicit-restrict-level-4): SqlclSession starts
+    SQLcl's MCP server at restrict level 4, so on an empty home with no
+    connection sqlcl_run refuses `@` and `host` with SP2-0738 and runs no OS
+    command. Needs SQLcl and Java only. Falsifier: without `-R 4`, SQLcl 26.3.1
+    answers `@` with SP2-0310 and `host` with `doctor-probe`."""
+    if shutil.which(SQLCL_BIN) is None:
+        if os.environ.get("REQUIRE_INTEGRATION") == "1":
+            pytest.fail(f"REQUIRE_INTEGRATION=1 but SQLcl not found: SQLCL_BIN={SQLCL_BIN}",
+                        pytrace=False)
+        pytest.skip(f"SQLcl not found: SQLCL_BIN={SQLCL_BIN}")
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    with SqlclSession(SQLCL_BIN, str(home)) as session:
+        at = session.run_sqlcl("@doctor_probe.sql")
+        host = session.run_sqlcl("host echo doctor-probe")
+    assert "SP2-0738" in at.text, at.text
+    assert "SP2-0738" in host.text, host.text
+    assert "doctor-probe" not in [line.strip() for line in host.text.splitlines()], host.text

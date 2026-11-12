@@ -156,16 +156,24 @@ def test_top_sql_after_a_marked_statement_runs_50_times(ro, admin):
     """AC: as admin a marked statement runs 50 times; the check's rows are in
     descending elapsed order, at most 20, no sql text over 120 characters, and
     the whole result text is under 8,000 characters (falsifier: order ascending,
-    or widen the SUBSTR)."""
+    or widen the SUBSTR).
+
+    DBA-20: on an idle container the 20 smallest ELAPSED_S values all round to
+    0.00, so a sorted check alone passes with ASC. The marked statement costs
+    about 1 s over 50 runs (it ranked first at 0.47 s with 100,000 rows, the
+    20th row being 0.03 s), so it is in the top 20 and the first row's ELAPSED_S
+    is above the last row's; with ASC it falls out of the 20 smallest."""
     tag = f"dba13_{secrets.token_hex(4)}"
     for _ in range(50):
-        _ok(admin, f"select /* {tag} */ count(*) from dual")
+        _ok(admin, f"select /* {tag} */ count(*) from dual connect by level <= 200000")
 
     result = _run(ro, "top_sql")
     rows = importlib.import_module("helpers").rows_as_dicts(result)
     assert 0 < len(rows) <= 20, len(rows)
+    assert any(tag in r["SQL_TEXT"] for r in rows), f"{tag} not in top_sql"
     elapsed = [float(r["ELAPSED_S"]) for r in rows]
     assert elapsed == sorted(elapsed, reverse=True), elapsed
+    assert elapsed[0] > elapsed[-1], elapsed
     assert all(len(r["SQL_TEXT"]) <= 120 for r in rows), [len(r["SQL_TEXT"]) for r in rows]
     assert {r["SEVERITY"] for r in rows} == {"INFO"}
     assert len(result.text) < 8000, len(result.text)

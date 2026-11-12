@@ -242,6 +242,76 @@ def test_sql_text_cells_are_cut_to_200_characters(tmp_path):
     assert any("x" * 50 in c for c in cells), "the lengthened SQL text was not kept"
 
 
+SQL_ID = re.compile(r"[0-9a-z]{13}")
+# Columns the text and HTML formats print identically (others differ in decimals
+# or in how the SQL text is cut).
+SAME_IN_BOTH_FORMATS = ["Buffer Gets", "Executions", "SQL Id", "SQL Module", "PDB Name"]
+
+
+def _text_report_with_break_before_module(tmp_path):
+    """The text fixture with a copy of its sql_by_gets page header (form feed, title,
+    notes, column header, underline) inserted inside record 1b85hgs1u7wgd, between
+    its numbers line and its "Module:" line."""
+    lines = _fixture("txt").read_text().split("\n")  # splitlines() would also cut at "\f"
+    title = next(i for i, ln in enumerate(lines) if ln.startswith("SQL ordered by Gets "))
+    feed = next(
+        i
+        for i in range(title, len(lines))
+        if lines[i] == "\f" and lines[i + 1].startswith("SQL ordered by Gets ")
+    )
+    underline = next(i for i in range(feed, len(lines)) if lines[i].startswith("-----------"))
+    numbers = next(i for i in range(title, feed) if "1b85hgs1u7wgd" in lines[i])
+    assert lines[numbers + 1].startswith("Module:"), "fixture changed: no Module line to split"
+    path = tmp_path / "break_before_module.txt"
+    page_header = lines[feed : underline + 1]
+    path.write_text("\n".join(lines[: numbers + 1] + page_header + lines[numbers + 1 :]))
+    return path
+
+
+@pytest.mark.parametrize("case", ["break_before_sql_text", "break_before_module_line"])
+def test_text_sql_record_cut_by_a_page_break_stays_one_row(case, tmp_path):
+    """Regression (PR #14 review): a text report repeats the section header on each
+    page, and a SQL record cut by a page break continues under the new header. That
+    continuation must join the record it belongs to, never become a row of its own.
+    The committed fixture breaks just before the SQL text of 05d0ckrja68sf in
+    sql_by_gets; a derived copy also breaks before the Module line of 1b85hgs1u7wgd."""
+    if case == "break_before_sql_text":
+        path, sql_id = _fixture("txt"), "05d0ckrja68sf"
+        expected = {"SQL Text": "insert into wrm$_snapshot_details (snap_id, dbid"}
+        lines = path.read_text().split("\n")
+        cont = [i for i, ln in enumerate(lines) if ln.startswith(expected["SQL Text"])]
+        assert any(lines[i - 1].startswith("-----------") for i in cont), (
+            "fixture changed: the sql_by_gets page break no longer falls inside a record"
+        )
+    else:
+        path, sql_id = _text_report_with_break_before_module(tmp_path), "1b85hgs1u7wgd"
+        expected = {
+            "SQL Module": "pack-tools",
+            "SQL Text": "create /* LLM in use is pack-tools */ table awr_fixture_load",
+        }
+
+    text = _extract_json(path, "--max-rows", "100000")["sections"]
+    for name, table in text.items():
+        if name.startswith("sql_by_"):
+            col = table["columns"].index("SQL Id")
+            bad = [row[col] for row in table["rows"] if not SQL_ID.fullmatch(row[col])]
+            assert not bad, f"{name}: rows with an invalid SQL Id {bad}"
+
+    gets = text["sql_by_gets"]
+    rows = [dict(zip(gets["columns"], row, strict=True)) for row in gets["rows"]]
+    entry = next(r for r in rows if r["SQL Id"] == sql_id)
+    for column, start in expected.items():
+        assert entry[column].startswith(start), (column, entry[column])
+
+    html_gets = _extract_json(_fixture("html"), "--max-rows", "100000")["sections"]["sql_by_gets"]
+    html_rows = [dict(zip(html_gets["columns"], row, strict=True)) for row in html_gets["rows"]]
+
+    def key(r):
+        return [r[c] for c in SAME_IN_BOTH_FORMATS]
+
+    assert [key(r) for r in rows] == [key(r) for r in html_rows]
+
+
 def test_not_an_awr_report_exits_1_and_unknown_section_exits_2(tmp_path):
     """AC: a file that is not an AWR report exits 1 with "not an AWR report" on stderr;
     an unknown name in --sections exits 2."""

@@ -27,7 +27,11 @@ _EZCONNECT = re.compile(
 )
 _DESCRIPTION = re.compile(r"\(\s*DESCRIPTION(?:_LIST)?\s*=", re.I)
 _DESCRIPTION_NAMES = re.compile(r"\b(?:SERVICE_NAME|SID)\s*=\s*([^)\s]+)", re.I)
-_UNREGISTERED = re.compile(r"\bService (\S+) is not registered")  # ORA-12514, 23ai wording
+# Names in connect errors, 23ai wording: ORA-12514/12505 service or SID,
+# ORA-12154 TNS alias, ORA-01045 user (19c: "user X lacks CREATE SESSION").
+_UNREGISTERED = re.compile(rf"\b(?:Service|SID) ({_NAME}) is not registered")
+_ALIAS = re.compile(rf"\bfind alias ({_NAME}) in ")
+_NO_SESSION = re.compile(r"\b[Uu]ser ([A-Za-z][\w$#]*) (?:does not have|lacks) CREATE SESSION")
 _USER_AT = re.compile(r"([A-Za-z][\w$#]*)@$")
 
 _IPV4_RE = re.compile(rf"(?<![\w.]){_IPV4}(?!\w|\.\d)")
@@ -39,6 +43,7 @@ _LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
 _FQDN_RE = re.compile(
     rf"(?<![\w.-])(?:{_LABEL}\.)+(?P<tld>[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9])(?![\w-]|\.\w)")
 _HOST_PORT = re.compile(r"\b(host )([^\s<]\S*?)( port \d)")  # ORA-12541: "at host X port N"
+_UNKNOWN_HOST = re.compile(r"(Unknown host specified\.?\s*:\s*)[^\s:<]+")  # ORA-17868
 # Last parts that make a dotted word a file name, not a host name. None is a
 # top-level domain: md, py, sh and zip are, so `notes.md` is redacted as a host.
 FILE_TYPES = frozenset({
@@ -69,14 +74,16 @@ class Known:
 
 def collect(text: str, connections=(), db_users=()) -> Known:
     """`Known` for `connections` and `db_users`, plus the user (`user@`) and the
-    service name or SID of each connect string in `text`, and the service an
-    ORA-12514 names."""
+    service name or SID of each connect string in `text`, and the service, SID,
+    TNS alias or user a connect error names."""
     users, services = list(db_users), []
     for m in _EZCONNECT.finditer(text):
         services += filter(None, m.groups())  # service name or SID
         if user := _USER_AT.search(text, 0, m.start()):
             users.append(user[1])
-    services += _DESCRIPTION_NAMES.findall(text) + _UNREGISTERED.findall(text)
+    services += (_DESCRIPTION_NAMES.findall(text) + _UNREGISTERED.findall(text)
+                 + _ALIAS.findall(text))
+    users += _NO_SESSION.findall(text)
     return Known(connections=connections, db_users=users, services=services)
 
 
@@ -142,6 +149,7 @@ def redact(text: str, known: Known) -> str:
     text = _IPV6_RE.sub(lambda m: m[0] if m[0] == "::" else IP, text)
     text = _FQDN_RE.sub(lambda m: m[0] if m["tld"].lower() in FILE_TYPES else HOST, text)
     text = _HOST_PORT.sub(rf"\1{HOST}\3", text)
+    text = _UNKNOWN_HOST.sub(rf"\1{HOST}", text)
     for pattern, token in _identity_patterns():
         text = pattern.sub(token, text)
     return text

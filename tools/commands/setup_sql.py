@@ -22,12 +22,22 @@ CREATE AUDIT POLICY {policy} ACTIONS ALL;
 AUDIT POLICY {policy} BY {user};
 """
 
+# Optional object grant (docs/decisions/D-DBA-10-optional-alert-log-grant.md).
+ALERT_LOG_SQL = """\
+-- Optional on the read-only tier: lets the alert_log_errors check read the alert
+-- log (v$diag_alert_ext). Skip it and that check reports "not available".
+-- Run as SYS: SYSTEM gets ORA-01031 granting on a view owned by SYS.
+GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO {user};
+"""
+
 
 def profile_name(user: str) -> str:
     return f"{user}_profile"
 
 
-def render(tier: Tier, user: str | None = None, audit: bool = False) -> str:
+def render(
+    tier: Tier, user: str | None = None, audit: bool = False, alert_log: bool = False
+) -> str:
     """The tier's script for `user` (default: the tier's db_user)."""
     user = user or tier.db_user
     script = (
@@ -35,6 +45,8 @@ def render(tier: Tier, user: str | None = None, audit: bool = False) -> str:
         .replace("{{user}}", user)
         .replace("{{profile}}", profile_name(user))
     )
+    if alert_log:
+        script += ALERT_LOG_SQL.format(user=user)
     if audit:
         script += AUDIT_SQL.format(user=user, policy=f"{user}_audit")
     return script
@@ -55,10 +67,14 @@ def add_arguments(parser):
     parser.add_argument(
         "--audit", action="store_true", help="append a unified audit policy for the user"
     )
+    parser.add_argument(
+        "--alert-log", action="store_true",
+        help="append the optional grant that lets alert_log_errors read the alert log (run as SYS)",
+    )
 
 
 def run(args):
-    script = render(args.tier, args.user, args.audit)
+    script = render(args.tier, args.user, args.audit, args.alert_log)
     if args.out:
         args.out.write_text(script)
     else:

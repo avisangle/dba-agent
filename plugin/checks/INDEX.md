@@ -14,6 +14,16 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | options_and_features | Installed options and database feature usage | R | none | 19.0 | discovery/options_and_features.sql |
 | patch_inventory | SQL patches applied by datapatch | R | none | 19.0 | discovery/patch_inventory.sql |
 
+## health
+
+| id | title | mode | pack | min_version | file |
+| --- | --- | --- | --- | --- | --- |
+| alert_log_errors | ORA- errors in the alert log in the last 24 hours | R | none | 12.1 | health/alert_log_errors.sql |
+| dictionary_stats_age | Age of dictionary and fixed object statistics | R | none | 12.1 | health/dictionary_stats_age.sql |
+| failed_jobs | Scheduler job runs that failed in the last 7 days | R | none | 12.1 | health/failed_jobs.sql |
+| invalid_objects | Invalid objects, by owner | R | none | 12.1 | health/invalid_objects.sql |
+| unusable_indexes | Unusable indexes and index partitions | R | none | 12.1 | health/unusable_indexes.sql |
+
 ## performance
 
 | id | title | mode | pack | min_version | file |

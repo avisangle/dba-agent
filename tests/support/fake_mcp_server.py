@@ -9,6 +9,9 @@ The script is a JSON object:
   calls      {tool: {"text": str, "isError": bool}
                    | {"error": {"code": int, "message": str}}
                    | {"hang": true}}
+             a call spec may add "raw": a line written to stdout as is, outside
+             any JSON-RPC message, before the reply (SQLcl does this with an
+             error raised during a later fetch)
   notify     if true, send a notification before each tools/call reply
 
 Reply shapes follow what SQLcl sent in the spike (protocol 2024-11-05).
@@ -55,6 +58,9 @@ def main():
                 continue
             if spec.get("hang"):
                 time.sleep(3600)
+            if "raw" in spec:
+                sys.stdout.write(spec["raw"] + "\n")
+                sys.stdout.flush()
             if script.get("notify"):
                 send({"jsonrpc": "2.0", "method": "notifications/message",
                       "params": {"level": "info", "data": "working"}})

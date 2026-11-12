@@ -6,16 +6,11 @@ import subprocess
 from pathlib import Path
 from typing import Protocol
 
-from tools.config import pack_home
-from tools.sqlcl import SqlclSession
+from tools.sqlcl import SqlclSession, sqlcl_bin
 from tools.tiers import Tier
 
 MCP_TIMEOUT = 30.0  # seconds for `sql -mcp` to answer initialize, and for each tool call
 RUN_TIMEOUT = 60.0  # seconds for `sql -V` or `java -version`
-
-
-def sqlcl_bin() -> str:
-    return os.environ.get("SQLCL_BIN", "sql")
 
 
 class Env(Protocol):
@@ -47,7 +42,7 @@ class RealEnv:
         return SqlclSession(sqlcl_bin(), str(home), timeout=MCP_TIMEOUT)
 
     def home_path(self, tier: Tier) -> Path:
-        return pack_home() / "homes" / tier.home_name
+        return tier.home
 
     def stat_mode(self, path: Path) -> int:
         return os.stat(path).st_mode

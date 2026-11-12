@@ -7,6 +7,8 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from tools.config import pack_home
+
 NO_TIER = "tier not available in this release"
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "db" / "tiers"
 
@@ -24,6 +26,11 @@ class Tier:
     @property
     def template(self) -> Path:
         return TEMPLATE_DIR / f"{self.name}.sql"
+
+    @property
+    def home(self) -> Path:
+        """The tier's SQLcl home folder."""
+        return pack_home() / "homes" / self.home_name
 
 
 TIERS = {

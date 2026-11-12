@@ -50,6 +50,11 @@ def _error(result: ToolResult) -> str | None:
     return error
 
 
+def sqlcl_bin() -> str:
+    """The SQLcl executable: $SQLCL_BIN, else `sql` on PATH."""
+    return os.environ.get("SQLCL_BIN", "sql")
+
+
 @dataclass(frozen=True)
 class SqlResult:
     text: str

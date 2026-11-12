@@ -24,12 +24,12 @@ for path in (REPO_ROOT, REPO_ROOT / "tests" / "support"):
 
 from save_connection import save_connection  # noqa: E402
 
-from tools.checks.lint import CLIENT_COMMAND  # noqa: E402
+from tools.checks.header import CLIENT_COMMAND  # noqa: E402
 from tools.commands.setup_sql import profile_name, render  # noqa: E402
-from tools.sqlcl import SqlclSession  # noqa: E402
+from tools.sqlcl import SqlclSession, sqlcl_bin  # noqa: E402
 from tools.tiers import TIERS  # noqa: E402
 
-SQLCL_BIN = os.environ.get("SQLCL_BIN", "sql")
+SQLCL_BIN = sqlcl_bin()
 DSN = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
 PASSWORD = os.environ.get("ORACLE_TEST_PASSWORD")
 RO_USER = "dba_agent_ro"

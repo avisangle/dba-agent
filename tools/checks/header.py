@@ -16,6 +16,11 @@ KNOWN_KEYS = frozenset(REQUIRED_KEYS + ("max_version",))
 HEADER_LINE = re.compile(r"^--\s*(\w+)\s*:\s*(.*?)\s*$")
 INTEGER = re.compile(r"[0-9]+")  # not str.isdigit(), which accepts digits int() rejects
 MAX_ROWS_LIMIT = 1000
+SEVERITIES = ("CRITICAL", "WARNING", "OK", "INFO")
+# SQLcl client commands, not SQL: a check must not contain them, and run-sql does not take them
+CLIENT_COMMAND = re.compile(
+    r"^\s*(@|(SET|DEFINE|SPOOL|HOST|PROMPT|ACCEPT)(\s|$)|EXIT\b)", re.IGNORECASE
+)
 
 
 class CheckFormatError(Exception):

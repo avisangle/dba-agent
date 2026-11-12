@@ -5,7 +5,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from tools.checks.lint import SEVERITIES as CHECK_SEVERITIES
+from tools.checks.header import SEVERITIES as CHECK_SEVERITIES
 
 SEVERITIES = (*CHECK_SEVERITIES, "ERROR")  # ERROR: the check failed to run
 PENALTY = {"CRITICAL": 15, "WARNING": 5}

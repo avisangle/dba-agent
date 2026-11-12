@@ -3,8 +3,7 @@ contract the level-4 check stories build on.
 
 No database is touched. `run_check` is driven through a fake session whose
 `run_sql` returns a real `tools.sqlcl.SqlResult` (fields: text, header, rows,
-footer, error). `validate_result` gets hand-built `CheckResult` values, built
-with the keywords header, rows, footer, error (any other field needs a default).
+footer, error). `validate_result` gets hand-built `SqlResult` values.
 
 The implementation modules do not exist yet, so they are imported inside the
 tests: each test then fails on its own instead of the whole file erroring at
@@ -40,7 +39,8 @@ def _check(max_rows=200):
 
 
 def _result(header=None, rows=None, footer="", error=None):
-    return _run().CheckResult(
+    return SqlResult(
+        text="",
         header=HEADER if header is None else header,
         rows=[["USERS", "12.5", "OK"]] if rows is None else rows,
         footer=footer,
@@ -87,7 +87,7 @@ def test_run_check_sends_sql_unchanged_and_returns_its_parts():
 
 
 def test_run_check_passes_the_error_through():
-    """AC: an ORA- error reported as a normal result reaches CheckResult.error."""
+    """AC: an ORA- error reported as a normal result reaches SqlResult.error."""
     text = "ORA-00942: table or view does not exist"
     session = FakeSession(SqlResult(text, [], [], "", "ORA-00942: table or view does not exist"))
 
@@ -156,6 +156,25 @@ def test_check_test_exits_2_for_an_unknown_id_or_path(tmp_path):
         assert target in proc.stderr, f"stderr must name what was not found: {proc.stderr}"
 
 
+def test_check_test_exits_2_for_an_unknown_tier(tmp_path):
+    """/integrate 3: --tier is validated like setup-home's, before any session."""
+    proc = _run_tools("check-test", "tablespace_usage", "--connection", "anything",
+                      "--tier", "no_such_tier")
+    assert proc.returncode == 2, (proc.stdout, proc.stderr)
+    assert "tier not available in this release" in proc.stderr, proc.stderr
+
+
+def test_check_test_refuses_a_check_that_fails_lint(tmp_path):
+    """/integrate 3: like `index --user`, check-test runs no check that fails lint;
+    the finding goes to stderr and no SQLcl session is opened."""
+    path = REPO_ROOT / "tests" / "fixtures" / "checks" / "L010-amp" / "storage" / "l010_amp.sql"
+    proc = _run_tools("check-test", str(path), "--connection", "anything",
+                      "--home", str(tmp_path))
+    assert proc.returncode == 1, (proc.stdout, proc.stderr)
+    assert "L010" in proc.stderr and "fails lint" in proc.stderr, proc.stderr
+    assert proc.stdout == "", "nothing ran, so no result is printed"
+
+
 def test_plugin_tablespace_check_exists_and_lints_clean():
     """AC: plugin/checks/storage/tablespace_usage.sql exists, lints clean, is a
     read-only storage check capped at 200 rows."""
@@ -195,7 +214,7 @@ def test_contract_for_dependents_dba9_to_dba16():
         fn = getattr(run, name)
         assert list(inspect.signature(fn).parameters) == params, name
     assert {"header", "rows", "footer", "error"} <= {
-        f.name for f in dataclasses.fields(run.CheckResult)
+        f.name for f in dataclasses.fields(SqlResult)
     }
     assert isinstance(run.validate_result(_check(), _result()), list)
 

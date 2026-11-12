@@ -57,7 +57,7 @@ class AwrReport:
 
 def parse_awr(path) -> AwrReport:
     """Raises NotAwrReport when the file has no AWR header (DB name and snapshots)."""
-    text = Path(path).read_text(errors="replace")
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
     if "WORKLOAD REPOSITORY" not in text:
         raise NotAwrReport(path)
     parse = _parse_html if text.lstrip().startswith("<") else _parse_text

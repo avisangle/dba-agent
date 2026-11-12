@@ -9,9 +9,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.doctor.env import Env, sqlcl_bin
+from tools.doctor.env import Env
 from tools.mcp_client import McpError, McpTimeout
-from tools.sqlcl import _RENAMED, mcp_argv
+from tools.sqlcl import _RENAMED, mcp_argv, sqlcl_bin
 from tools.tiers import Tier
 
 PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"

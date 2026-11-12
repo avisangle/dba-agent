@@ -1,31 +1,19 @@
 """Run a check through a SqlclSession and validate its result.
 
-SQLcl reports ORA- and SP2- errors as normal results, so `CheckResult.error`
-(from `SqlResult.error`) is the only reliable failure signal.
+SQLcl reports ORA- and SP2- errors as normal results, so `SqlResult.error`
+is the only reliable failure signal.
 """
 
-from dataclasses import dataclass
-
-from tools.checks.header import Check
-from tools.checks.lint import SEVERITIES
+from tools.checks.header import SEVERITIES, Check
+from tools.sqlcl import SqlResult
 
 
-@dataclass(frozen=True)
-class CheckResult:
-    header: list[str]
-    rows: list[list[str]]
-    footer: str
-    error: str | None
-    text: str = ""  # the raw text SQLcl returned
-
-
-def run_check(session, check: Check) -> CheckResult:
+def run_check(session, check: Check) -> SqlResult:
     """Send `check.sql` unchanged through `session.run_sql`."""
-    result = session.run_sql(check.sql)
-    return CheckResult(result.header, result.rows, result.footer, result.error, result.text)
+    return session.run_sql(check.sql)
 
 
-def validate_result(check: Check, result: CheckResult) -> list[str]:
+def validate_result(check: Check, result: SqlResult) -> list[str]:
     """Problems with a check's result; empty when it is a valid verdict.
 
     An error is reported alone: an errored result has no header or rows to judge.

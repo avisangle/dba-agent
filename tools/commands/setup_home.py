@@ -3,7 +3,6 @@
 Never asks for or handles a password: the user saves the connection in their own terminal.
 """
 
-from tools.config import pack_home
 from tools.tiers import tier_arg
 
 NAME = "setup-home"
@@ -16,7 +15,7 @@ def add_arguments(parser):
 
 def run(args):
     tier = args.tier
-    home = pack_home() / "homes" / tier.home_name
+    home = tier.home
     home.mkdir(parents=True, exist_ok=True)
     home.chmod(0o700)  # no effect beyond the read-only flag on Windows
     user = tier.db_user

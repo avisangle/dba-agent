@@ -6,7 +6,7 @@ nowhere else: a user check with a built-in id replaces it; a new id adds one.
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.checks.header import Check
+from tools.checks.header import Check, CheckFormatError, split_check
 from tools.checks.index import discover, load_check
 
 
@@ -37,8 +37,12 @@ def _by_id(root, check_id: str) -> list[Check]:
 def resolve_check(builtin_root, user_root, check_id: str) -> ResolvedCheck | None:
     """The check `check_id`, the user file winning as in `resolve_checks`, or None.
     A malformed file for another id is not read; a malformed `<check_id>.sql`
-    raises `CheckFormatError`."""
+    raises `CheckFormatError`, and so do two user files for the id (L014)."""
     user = _by_id(user_root, check_id)
+    if len(user) > 1:
+        first, second = user[0].path, user[1].path
+        line, _ = split_check(second).value("id")
+        raise CheckFormatError("L014", line, f"{second}: id {check_id!r} is also used by {first}")
     if user:
         return ResolvedCheck(user[0], "user")
     builtin = _by_id(builtin_root, check_id)

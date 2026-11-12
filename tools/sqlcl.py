@@ -98,6 +98,6 @@ class SqlclSession:
         return list(self._offered)
 
     def run_sqlcl(self, command: str) -> SqlResult:
-        """Run an SQLcl command through `run-sqlcl` (doctor's restrict-level probe)."""
+        """Run an SQLcl command (not SQL) through `run-sqlcl`."""
         result = self._call("run-sqlcl", sqlcl=command)
         return SqlResult(result.text, [], [], "", _error(result))

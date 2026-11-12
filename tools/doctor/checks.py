@@ -156,26 +156,25 @@ def check_grants(session, tier: Tier, name: str) -> list[Result]:
     the tier's. Roles the tier's roles bring with them count as expected."""
     privs = session.run_sql("select privilege from session_privs")
     roles = session.run_sql("select role from session_roles")
+    grants, excess = f"grants:{name}", f"excess-privileges:{name}"
     error = privs.error or roles.error
     if error:
-        return [Result(f"grants:{name}", FAIL, f"could not read session_privs and "
-                                               f"session_roles: {error}",
+        return [Result(grants, FAIL, f"could not read session_privs and session_roles: {error}",
                        f"run the `python -m tools setup-sql --tier {tier.name}` script"),
-                Result(f"excess-privileges:{name}", SKIP, f"grants:{name} failed")]
+                Result(excess, SKIP, f"{grants} failed")]
     held = {r[0] for r in privs.rows if r} | {r[0] for r in roles.rows if r}
     expected = tier.sys_privs | tier.roles
     missing = sorted(expected - held)
     extra = sorted(held - expected - tier.implied_roles)
     listed = ", ".join(sorted(expected))
     return [
-        Result(f"grants:{name}", FAIL, f"missing: {', '.join(missing)}",
+        Result(grants, FAIL, f"missing: {', '.join(missing)}",
                f"grant them to the connection's user (`python -m tools setup-sql "
                f"--tier {tier.name}` prints the script)")
-        if missing else Result(f"grants:{name}", PASS, f"holds {listed}"),
-        Result(f"excess-privileges:{name}", FAIL, f"beyond the {tier.name} tier: "
-                                                  f"{', '.join(extra)}",
+        if missing else Result(grants, PASS, f"holds {listed}"),
+        Result(excess, FAIL, f"beyond the {tier.name} tier: {', '.join(extra)}",
                f"revoke them from the connection's user; the tier holds only {listed}")
-        if extra else Result(f"excess-privileges:{name}", PASS, "nothing beyond the tier"),
+        if extra else Result(excess, PASS, "nothing beyond the tier"),
     ]
 
 
@@ -203,11 +202,16 @@ def _skips(checks: list[str], names: list[str] | None, reason: str) -> list[Resu
     return [Result(c, SKIP, reason) for c in [*checks, *per]]
 
 
+def _skip_after(name: str, i: int) -> list[Result]:
+    """SKIP for the per-connection checks of `name` after PER_CONNECTION[i]."""
+    return [Result(f"{c}:{name}", SKIP, f"{PER_CONNECTION[i]}:{name} failed")
+            for c in PER_CONNECTION[i + 1:]]
+
+
 def _connection_checks(session, tier: Tier, name: str, home: Path) -> list[Result]:
     results = [check_connect(session, tier, name)]
     if results[0].status == FAIL:
-        return results + [Result(f"{c}:{name}", SKIP, f"connect:{name} failed")
-                          for c in PER_CONNECTION[1:]]
+        return results + _skip_after(name, 0)
     try:
         results.append(check_db_version(session, name))
         results.extend(check_grants(session, tier, name))
@@ -218,8 +222,7 @@ def _connection_checks(session, tier: Tier, name: str, home: Path) -> list[Resul
                               f"SQLcl did not answer: {_first_line(str(exc))}",
                               "run doctor again; if it repeats, run SQLcl's MCP server "
                               "by hand to see its error"))
-        results += [Result(f"{c}:{name}", SKIP, f"{PER_CONNECTION[i]}:{name} failed")
-                    for c in PER_CONNECTION[i + 1:]]
+        results += _skip_after(name, i)
     with contextlib.suppress(McpError, McpTimeout):
         session.disconnect()
     return results

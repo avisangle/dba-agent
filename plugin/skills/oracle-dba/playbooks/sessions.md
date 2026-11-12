@@ -1,6 +1,6 @@
 # Sessions and locks playbook
 
-Who is running what, who blocks whom, and which sessions hold transactions open. Run each check as the skill's rule 3 says.
+Who is running what, who blocks whom, and which sessions hold transactions open.
 
 ## Start with
 
@@ -18,7 +18,7 @@ Who is running what, who blocks whom, and which sessions hold transactions open.
 
 ## Ending a blocker
 
-The fix for a blocker is its owner committing or rolling back in their own session. Never suggest ending, committing or rolling back a transaction through the MCP connection: on SQLcl 26.3.1 a `ROLLBACK` sent through it replies `Rollback complete.` while the change is committed. If the user decides to end a blocking session, write the statement for them to run themselves (rule 7), with the INST_ID, SID and SERIAL values from the result:
+The fix for a blocker is its owner committing or rolling back in their own session. Never end, commit or roll back a transaction through the MCP connection (rule 7). If the user decides to end a blocking session, write the statement for them to run themselves (rule 7), with the INST_ID, SID and SERIAL values from the result:
 
 ```
 ALTER SYSTEM KILL SESSION '<sid>,<serial>,@<inst_id>' IMMEDIATE;

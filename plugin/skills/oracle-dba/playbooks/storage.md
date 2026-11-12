@@ -1,6 +1,6 @@
 # Storage playbook
 
-Tablespaces, datafiles, temp, undo, the fast recovery area, and which segments use or gain space. Run each check as the skill's rule 3 says.
+Tablespaces, datafiles, temp, undo, the fast recovery area, and which segments use or gain space.
 
 ## Start with
 

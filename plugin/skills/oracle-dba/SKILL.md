@@ -17,7 +17,7 @@ claude mcp add sqlcl -- sql -home <read-only home> -R 4 -mcp
 
 ## Playbooks
 
-Pick the playbook that matches the question and follow it. Each one lists the checks to start with, the branches to take on what they show, and when to stop.
+Pick the playbook that matches the question and follow it. Each one lists the checks to start with, the branches to take on what they show, and when to stop. Run every check as rule 3 says.
 
 - [Discovery](playbooks/discovery.md): what this database is, its version, patches, containers and options.
 - [Health check](playbooks/health.md): the scored health check over `health_check.json`.
@@ -48,12 +48,14 @@ Connect by saved connection name only: call the connection-listing tool, then `c
 
 Before writing any SQL of your own:
 
-1. Read the check index: `<pack_home>/checks/INDEX.md` if it exists, otherwise `plugin/checks/INDEX.md`. `<pack_home>` is the folder named by the environment variable `<PACK NAME>_HOME` when set, otherwise `~/.` followed by the pack name that `python -m tools version` prints. The user index includes the user's own checks and overrides, with absolute file paths; the built-in index gives paths relative to `plugin/checks/`.
+1. Read the check index once per conversation and reuse it: `<pack_home>/checks/INDEX.md` if it exists, otherwise `plugin/checks/INDEX.md`. `<pack_home>` is the folder named by the environment variable `<PACK NAME>_HOME` when set, otherwise `~/.` followed by the pack name that `python -m tools version` prints. The user index includes the user's own checks and overrides, with absolute file paths; the built-in index gives paths relative to `plugin/checks/`.
 2. Pick a check by its id.
 3. Read its `.sql` file.
 4. Send the whole file through the SQL-running tool unchanged, header comments included. Do not reformat it, drop the comments, change a threshold or add a filter: the tested check is only what runs if the text is the same.
 
-Read the header before running: if `min_version` is above the database version, do not run the check and say why; if `pack` is not `none`, rule 8 applies.
+A check result already in this conversation answers for that check; run it again only when the user wants fresh figures.
+
+Read the header before running: if `min_version` is above the database version (from the `connect` result or `db_overview`), do not run the check and say why; if `pack` is not `none`, rule 8 applies.
 
 Every check returns a `SEVERITY` column (`CRITICAL`, `WARNING`, `INFO` or `OK`). A check's worst severity is its worst row, in the order `CRITICAL`, `WARNING`, `INFO`, `OK`. A check that returns no rows found nothing: its worst severity is `OK`. The header's `remediation` line is the usual fix for its findings.
 

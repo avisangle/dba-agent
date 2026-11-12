@@ -1,6 +1,6 @@
 # Performance playbook
 
-Load, wait events, the heaviest SQL, memory and parameters. All three starting checks read cumulative or last-minute figures from `V$` views and need no licensed pack. Run each check as the skill's rule 3 says.
+Load, wait events, the heaviest SQL, memory and parameters. All three starting checks read cumulative or last-minute figures from `V$` views and need no licensed pack.
 
 ## Start with
 
@@ -16,6 +16,8 @@ Load, wait events, the heaviest SQL, memory and parameters. All three starting c
 - If `wait_events` shows User I/O events such as db file sequential read near the top, run `sga_pga_usage` because a buffer cache that has shrunk raises physical reads.
 - If `sga_pga_usage` shows PGA over-allocations or frequent resizes, run `parameter_review` because memory targets set away from their defaults are the usual cause.
 - If `wait_events` shows `log file sync` near the top, run `active_sessions` because it shows which sessions are committing at that moment.
+- If `top_sql` shows a statement doing far more buffer gets or disk reads than its rows need, run `unusable_indexes` because the optimizer skips an unusable index and falls back to a full scan.
+- If `top_sql` shows recursive SQL on SYS-owned dictionary tables near the top, run `dictionary_stats_age` because stale dictionary or fixed object statistics give poor plans for recursive SQL.
 - If `top_sql` shows a statement with a high ms per execution, run `long_ops` because a full scan or sort of that statement still running appears there with its time remaining.
 
 For the execution plan of a statement from `top_sql`, no check exists; write it as your own SQL (rule 6), with the SQL_ID from the result:

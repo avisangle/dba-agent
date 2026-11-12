@@ -58,7 +58,7 @@ def check_python(env: Env) -> Result:
 
 def check_sqlcl(env: Env) -> Result:
     sql = sqlcl_bin()
-    fix = "install SQLcl 25.2 or newer and put `sql` on PATH, or set SQLCL_BIN to it"
+    fix = "install SQLcl 25.3.2 or newer and put `sql` on PATH, or set SQLCL_BIN to it"
     code, out, err = env.run([sql, "-V"])
     if code == 127:
         return Result("sqlcl", FAIL, f"{sql} not found", fix)
@@ -66,8 +66,8 @@ def check_sqlcl(env: Env) -> Result:
     if version is None:
         return Result("sqlcl", FAIL, f"`{sql} -V` reported no SQLcl version: "
                                      f"{_first_line(err or out) or f'exit {code}'}", fix)
-    if _numbers(version)[:2] < (25, 2):
-        return Result("sqlcl", FAIL, f"{version}, older than 25.2", fix)
+    if _numbers(version)[:3] < (25, 3, 2):
+        return Result("sqlcl", FAIL, f"{version}, older than 25.3.2", fix)
     return Result("sqlcl", PASS, version)
 
 
@@ -249,7 +249,7 @@ def run_all(env: Env, tier: Tier, connection: str | None = None) -> list[Result]
             return results + _skips(["connections"], names, "mcp-start failed")
         if missing:
             results.append(Result("mcp-start", FAIL, f"tools missing: {', '.join(missing)}",
-                                  "install SQLcl 25.2 or newer"))
+                                  "install SQLcl 25.3.2 or newer"))
             return results + _skips(["connections"], names, "mcp-start failed")
         results.append(Result("mcp-start", PASS, f"offers {', '.join(MCP_TOOLS)}"))
 

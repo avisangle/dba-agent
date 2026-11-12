@@ -8,6 +8,6 @@
 
 **Why:** One implementation runs on macOS, Linux and Windows. A stdlib-only tool needs no package install beyond Python itself.
 
-**Rejected:** Shell plus PowerShell: two implementations of every tool to keep in step. SQLcl scripting: the pack runs SQLcl at its default restrict level 4, where `@script`, `host` and `spool` return `SP2-0738` (`spike/RESULTS.md`). Trade-off accepted by the user: Python becomes a third prerequisite next to SQLcl and Java.
+**Rejected:** Shell plus PowerShell: two implementations of every tool to keep in step. SQLcl scripting: the pack runs SQLcl at restrict level 4, set explicitly with `-R 4` (D-DBA-15-sqlcl-explicit-restrict-level-4), where `@script`, `host` and `spool` return `SP2-0738` (`spike/RESULTS.md`). Trade-off accepted by the user: Python becomes a third prerequisite next to SQLcl and Java.
 
 **Impact:** No file under `tools/` may import a third-party package. `pyproject.toml` keeps `dependencies` empty. `tests/unit/test_skeleton.py` enforces both.

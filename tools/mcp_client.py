@@ -87,7 +87,12 @@ class McpStdioClient:
             proc.wait()
 
     def list_tools(self) -> list[str]:
-        return [t["name"] for t in self._request("tools/list", {})["tools"]]
+        return list(self.list_tool_schemas())
+
+    def list_tool_schemas(self) -> dict[str, dict]:
+        """{tool name: inputSchema} from one tools/list, in the server's order."""
+        tools = self._request("tools/list", {})["tools"]
+        return {t["name"]: t.get("inputSchema", {}) for t in tools}
 
     def call_tool(self, name: str, arguments: dict) -> ToolResult:
         result = self._request("tools/call", {"name": name, "arguments": arguments})

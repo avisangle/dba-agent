@@ -65,8 +65,7 @@ def run(args):
         out = {"summary": report.summary, "sections": sections, "sections_not_found": not_found}
         print(json.dumps(out, indent=1))
     else:
-        titles = {name: report.sections[name].title for name in sections}
-        print(_markdown(args.file.name, report.summary, sections, titles, not_found))
+        print(_markdown(args.file.name, report, sections, not_found))
     return 0
 
 
@@ -87,11 +86,11 @@ def _md_cell(text: str) -> str:
     return text.replace("|", "\\|")
 
 
-def _markdown(file_name, summary, sections, titles, not_found) -> str:
+def _markdown(file_name, report, sections, not_found) -> str:
     out = [f"# AWR report extract: {file_name}", "", "## Summary", ""]
-    out += [f"- {SUMMARY_LABELS[key]}: {value}" for key, value in summary.items()]
+    out += [f"- {SUMMARY_LABELS[key]}: {value}" for key, value in report.summary.items()]
     for name, table in sections.items():
-        out += ["", f"## {name}: {titles[name]}", ""]
+        out += ["", f"## {name}: {report.sections[name].title}", ""]
         out.append("| " + " | ".join(_md_cell(c) for c in table["columns"]) + " |")
         out.append("|" + "---|" * len(table["columns"]))
         out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in table["rows"]]

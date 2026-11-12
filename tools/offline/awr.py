@@ -54,10 +54,6 @@ class AwrReport:
     summary: dict[str, str]
     sections: dict[str, Table]  # found sections only, in SECTIONS order
 
-    @property
-    def sections_not_found(self) -> list[str]:
-        return [name for name in SECTIONS if name not in self.sections]
-
 
 def parse_awr(path) -> AwrReport:
     """Raises NotAwrReport when the file has no AWR header (DB name and snapshots)."""
@@ -196,8 +192,7 @@ def _parse_html(text: str) -> AwrReport:
 _UNDERLINE = re.compile(r"[-~ ]*[-~][-~ ]*")  # a line of only dashes, tildes, spaces
 _SPEC = re.compile(r" *[-~]+(?: +[-~]+)+ *")  # column underline: two or more runs
 _RULE = re.compile(r" +-{10,} *")  # indented rule closing a section
-_META = re.compile(r"\s*(Module|PDB):\s*(.*)")  # SQL record lines before the text
-_PDB = re.compile(r"\s*PDB:\s*(.*)")
+_META = re.compile(r"\s*(Module|PDB):\s*(.*)")  # record lines that are not table cells
 SQL_EXTRA_COLUMNS = ["SQL Module", "PDB Name", "SQL Text"]
 
 
@@ -278,9 +273,8 @@ def _fixed_table(lines: list[str], t: int, sql: bool):
                 continue
             meta = {"Module": "", "PDB": ""}
             k = 1
-            while k < len(record_lines) and _META.match(record_lines[k]):
-                key, value = _META.match(record_lines[k]).groups()
-                meta[key] = value.strip()
+            while k < len(record_lines) and (match := _META.match(record_lines[k])):
+                meta[match[1]] = match[2].strip()
                 k += 1
             sql_text = _norm("".join(record_lines[k:]))
             rows.append([*_cut(record_lines[0], starts), meta["Module"], meta["PDB"], sql_text])
@@ -288,9 +282,9 @@ def _fixed_table(lines: list[str], t: int, sql: bool):
 
     records = []  # ([line per tier], PDB name); a CDB report adds a "PDB:" line to each
     for line in block:
-        pdb = _PDB.match(line)
-        if pdb and records:
-            records[-1][1] = pdb.group(1).strip()
+        meta = _META.match(line)
+        if meta and meta[1] == "PDB" and records:
+            records[-1][1] = meta[2].strip()
         elif not records or len(records[-1][0]) == len(tiers):
             records.append([[line], ""])
         else:

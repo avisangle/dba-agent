@@ -48,11 +48,11 @@ def _value(session, sql):
     return _sql(session, sql).rows[0][0]
 
 
-def _report(session, function, dbid, inst, begin, end):
+def _report(session, function, window):
     rows = _sql(
         session,
         f"select output from table(dbms_workload_repository.{function}"
-        f"({dbid}, {inst}, {begin}, {end}))",
+        f"({window}))",
     ).rows
     # parse_csv keeps a footer with a thousands separator ("1,718 rows selected.")
     # as a two-field row; every report line is a one-field row.
@@ -81,9 +81,10 @@ def main() -> int:
             for sql in WORKLOAD:
                 _sql(admin, sql)
             end = _value(admin, create_snapshot)
+            window = f"{dbid}, {inst}, {begin}, {end}"
             reports = {
-                "html": _report(admin, "awr_report_html", dbid, inst, begin, end),
-                "txt": _report(admin, "awr_report_text", dbid, inst, begin, end),
+                "html": _report(admin, "awr_report_html", window),
+                "txt": _report(admin, "awr_report_text", window),
             }
             _sql(admin, f"drop table {TABLE} purge")
 

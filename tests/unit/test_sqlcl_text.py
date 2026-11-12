@@ -10,7 +10,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests.unit.test_mcp_client import ORA_REAL, SP2_REAL  # noqa: E402
-from tools.sqlcl_text import find_error  # noqa: E402
+from tools.sqlcl_text import find_error, parse_csv  # noqa: E402
 
 # Real SQLcl 26.3 `sql_run` text: the failing statement is echoed before the report.
 ECHOED_CODE = (
@@ -159,3 +159,62 @@ def test_find_error_a_blank_line_inside_a_quoted_field_does_not_end_the_block():
     `quoted ^= ...` line in `_block_end`, or make `quoted` always False.)"""
     assert find_error('"M"\n"a\n\nORA-06512: at line 1"\n\n') is None
 
+
+# --- DBA-20 item 2: a NULL row of a one-column result ---------------------------
+#
+# SQLcl 26.3 prints a NULL number as an empty field, so in a one-column result a
+# NULL row is an empty line; the blank line after the last record is not a row.
+# A NULL row parses as [''], as a NULL number does in a multi-column row.
+
+# Shape from bug.md for `select cast(null as number) n from dual union all
+# select 1 from dual` (NULL first, no footer).
+NULL_FIRST = '"N"\n\n1\n\n'
+
+# Real SQLcl 26.3 texts through SqlclSession.run_sql as SYSTEM (test container
+# 23.26.3, 2026-11-12), bare \n endings:
+# `select 1 n from dual union all select cast(null as number) from dual`
+NULL_LAST = '"N"\n1\n\n\n'
+# `select case when level in (3, 7) then null else level end n from dual
+#  connect by level <= 7` (footer from 6 rows; SQLcl leaves a trailing space on it)
+NULL_WITH_FOOTER = '"N"\n1\n2\n\n4\n5\n6\n\n\n7 rows selected. \n\n'
+# `select 1 n from dual`
+ONE_ROW_NO_NULL = '"N"\n1\n\n'
+
+
+def test_parse_csv_keeps_a_null_row_of_a_one_column_result():
+    """DBA-20 AC2: a NULL row is [''], first or last; the blank line after the
+    last record is not a row."""
+    assert parse_csv(NULL_FIRST) == (["N"], [[""], ["1"]], "")
+    assert parse_csv(NULL_LAST) == (["N"], [["1"], [""]], "")
+
+
+def test_parse_csv_one_column_with_footer_counts_every_null_row():
+    """DBA-20 AC2: with a row-count footer, len(rows) equals the number in it."""
+    header, rows, footer = parse_csv(NULL_WITH_FOOTER)
+    assert (header, footer) == (["N"], "7 rows selected.")
+    assert rows == [["1"], ["2"], [""], ["4"], ["5"], ["6"], [""]]
+    assert len(rows) == int(footer.split()[0])
+
+
+def test_parse_csv_one_column_without_null_has_no_extra_row():
+    """DBA-20 AC2 edge: the trailing blank line alone adds no row."""
+    assert parse_csv(ONE_ROW_NO_NULL) == (["N"], [["1"]], "")
+    assert parse_csv('"N"\r\n1\r\n\n') == (["N"], [["1"]], "")
+
+
+def test_parse_csv_two_or_more_columns_parse_as_before():
+    """DBA-20 AC2: results with two or more columns are unchanged, NULL cells,
+    footers and quoted multi-line fields included."""
+    assert parse_csv(FIVE_ROWS.format(code="x")) == (
+        ["ID", "NOTE"], [["1", "a"], ["2", "b"], ["3", "failed with x"], ["4", "d"], ["5", "e"]],
+        "",
+    )
+    header, rows, footer = parse_csv(SIX_ROWS)
+    assert (header, len(rows), footer) == (["ID", "NOTE"], 6, "6 rows selected.")
+    assert parse_csv('"A","B"\r\n1,\r\n,"x"\r\n\n') == (["A", "B"], [["1", ""], ["", "x"]], "")
+    assert parse_csv('"JOB","INFO"\r\n"J1","l1\n\nl3"\r\n\n') == (
+        ["JOB", "INFO"], [["J1", "l1\n\nl3"]], ""
+    )
+    assert parse_csv('"SQL_ID","EVENT"\r\nno rows selected\n') == (
+        ["SQL_ID", "EVENT"], [], "no rows selected"
+    )

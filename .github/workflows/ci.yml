@@ -59,6 +59,7 @@ jobs:
           echo "::add-mask::$password"
           echo "ORACLE_TEST_PASSWORD=$password" >> "$GITHUB_ENV"
       - run: .github/scripts/install-sqlcl.sh ${{ matrix.sqlcl }}
+      - run: '"$SQLCL_BIN" -V'
       - run: docker compose -f tests/docker-compose.yml up -d --wait
       - run: python -m pytest -m integration
         env:

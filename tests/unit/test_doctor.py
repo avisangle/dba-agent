@@ -279,8 +279,16 @@ def _assert_skipped(results, names):
         ("python", (0, "Python 3.12.4\n", ""), "PASS", "3.12"),
         ("python", (0, "Python 3.9.18\n", ""), "FAIL", "3.9"),
         ("sqlcl", (0, SQLCL_26_1, ""), "PASS", "26.1"),
+        # Minimum is build 25.3.2 (D-DBA-8-minimum-sqlcl-25-3-2); SQLcl prints four
+        # parts. The 25.3.1 build suffix is illustrative (that release is untested).
+        ("sqlcl", (0, "SQLcl: Release 25.3.2.0 Production Build: 25.3.2.317.1117\n", ""),
+         "PASS", "25.3.2"),
+        ("sqlcl", (0, "SQLcl: Release 25.3.1.0 Production Build: 25.3.1.0\n", ""),
+         "FAIL", "25.3.1"),
+        ("sqlcl", (0, "SQLcl: Release 25.2.2.0 Production Build: 25.2.2.199.0918\n", ""),
+         "FAIL", "25.2.2"),
         ("sqlcl", (0, "SQLcl: Release 25.2.0.0 Production Build: 25.2.0.184.2054\n", ""),
-         "PASS", "25.2"),
+         "FAIL", "25.2"),
         ("sqlcl", (0, "SQLcl: Release 24.3.0.0 Production Build: 24.3.0.284.0942\n", ""),
          "FAIL", "24.3"),
         ("sqlcl", (127, "", "sql: not found"), "FAIL", None),
@@ -293,7 +301,8 @@ def _assert_skipped(results, names):
     ],
 )
 def test_version_checks_classify_real_version_strings(tmp_path, check, output, status, shown):
-    """AC: python 3.10+ PASS else FAIL; sqlcl 25.2+ PASS, older or missing FAIL;
+    """AC: python 3.10+ PASS else FAIL; sqlcl 25.3.2+ PASS, older (25.3.1, 25.2.x)
+    or missing FAIL with a fix naming "25.3.2 or newer";
     java 17/21 PASS, other 17+ WARN, older or missing FAIL (falsifier: 11, 17,
     21, 24 give FAIL, PASS, PASS, WARN). Version parsing uses real strings."""
     env = FakeEnv(tmp_path, **{check: output})
@@ -303,6 +312,8 @@ def test_version_checks_classify_real_version_strings(tmp_path, check, output, s
     assert result.status == status, result
     if shown:
         assert shown in result.detail, result
+    if check == "sqlcl" and status == "FAIL":
+        assert "25.3.2 or newer" in result.fix, result
 
 
 # --- home -------------------------------------------------------------------
@@ -359,6 +370,7 @@ def test_mcp_start_needs_the_four_tools_under_either_name_set(tmp_path, tools, e
     assert env.opened and env.opened[0] == env.home, "mcp-start must use the tier home"
     if named:
         assert any(n in found["mcp-start"].detail for n in named), found["mcp-start"]
+        assert "25.3.2 or newer" in found["mcp-start"].fix, found["mcp-start"]
     if error is not None:
         fix = found["mcp-start"].fix
         assert "-R 4" in fix, fix

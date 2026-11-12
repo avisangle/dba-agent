@@ -1,7 +1,9 @@
 """A SQLcl MCP server session (`sql -home <home> -R 4 -mcp`) with typed SQL results."""
 
+import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from tools.mcp_client import McpError, McpStdioClient, ToolResult
 from tools.sqlcl_text import find_error, parse_csv
@@ -22,6 +24,16 @@ def mcp_argv(home: str) -> list[str]:
     `host` or `spool`); the only source of this list
     (D-DBA-15-sqlcl-explicit-restrict-level-4)."""
     return ["-home", home, "-R", "4", "-mcp"]
+
+
+def launcher(sql_bin: str, windows: bool = os.name == "nt") -> str:
+    """`sql_bin` as CreateProcess can start it. SQLcl's bin/ holds the shell script
+    `sql` beside the native `sql.exe`; on Windows a path to the script fails with
+    WinError 193, so it becomes the `sql.exe` beside it."""
+    path = Path(sql_bin)
+    if windows and not path.suffix and (exe := path.with_suffix(".exe")).is_file():
+        return str(exe)
+    return sql_bin
 
 
 def _error(result: ToolResult) -> str | None:
@@ -52,7 +64,7 @@ class SqlclSession:
 
     def __init__(self, sql_bin: str, home: str, model: str = "pack-tools", timeout: float = 120.0):
         self.model = model
-        self._client = McpStdioClient([sql_bin, *mcp_argv(home)], timeout)
+        self._client = McpStdioClient([launcher(sql_bin), *mcp_argv(home)], timeout)
         self._tool_names: dict[str, str] = {}
         self._offered: list[str] = []
 

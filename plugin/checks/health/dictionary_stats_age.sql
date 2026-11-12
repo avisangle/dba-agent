@@ -6,23 +6,15 @@
 -- max_rows: 2
 -- pack: none
 -- remediation: Run DBMS_STATS.GATHER_DICTIONARY_STATS, and DBMS_STATS.GATHER_FIXED_OBJECTS_STATS under a representative workload.
-WITH ops AS (
-  SELECT 'gather_dictionary_stats' AS operation FROM dual
-  UNION ALL
-  SELECT 'gather_fixed_objects_stats' FROM dual
-),
-last_run AS (
-  SELECT operation, MAX(end_time) AS end_time
-  FROM   dba_optstat_operations
-  WHERE  operation IN ('gather_dictionary_stats', 'gather_fixed_objects_stats')
-  GROUP  BY operation
-),
-aged AS (
+WITH aged AS (
   SELECT o.operation,
-         l.end_time,
-         ROUND(CAST(SYSTIMESTAMP AS DATE) - CAST(l.end_time AS DATE), 1) AS days_since
-  FROM   ops o
-         LEFT JOIN last_run l ON l.operation = o.operation
+         MAX(s.end_time) AS end_time,
+         ROUND(CAST(SYSTIMESTAMP AS DATE) - CAST(MAX(s.end_time) AS DATE), 1) AS days_since
+  FROM   (SELECT 'gather_dictionary_stats' AS operation FROM dual
+          UNION ALL
+          SELECT 'gather_fixed_objects_stats' FROM dual) o
+         LEFT JOIN dba_optstat_operations s ON s.operation = o.operation
+  GROUP  BY o.operation
 )
 SELECT operation,
        TO_CHAR(end_time, 'YYYY-MM-DD HH24:MI:SS') AS last_end_time,

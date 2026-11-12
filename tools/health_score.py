@@ -2,9 +2,12 @@
 (docs/decisions/D-DBA-10-health-check-is-a-profile.md)."""
 
 import json
+from collections import Counter
 from pathlib import Path
 
-SEVERITIES = ("CRITICAL", "WARNING", "OK", "INFO", "ERROR")  # ERROR: the check failed to run
+from tools.checks.lint import SEVERITIES as CHECK_SEVERITIES
+
+SEVERITIES = (*CHECK_SEVERITIES, "ERROR")  # ERROR: the check failed to run
 PENALTY = {"CRITICAL": 15, "WARNING": 5}
 GRADES = ((90, "A"), (75, "B"), (50, "C"))
 
@@ -21,6 +24,8 @@ def load_profile(path) -> dict[str, int]:
 
 def validate(profile: dict[str, int], results: dict[str, str]):
     """Raise InvalidResults naming every missing id, unknown id and unknown severity."""
+    if not isinstance(results, dict):
+        raise InvalidResults("results must be a JSON object of check id to severity")
     problems = []
     if missing := [i for i in profile if i not in results]:
         problems.append(f"missing ids: {', '.join(missing)}")
@@ -37,10 +42,11 @@ def score(profile: dict[str, int], results: dict[str, str]) -> dict:
     penalties = {i: profile[i] * PENALTY.get(results[i], 0) for i in profile}
     total = max(0, 100 - sum(penalties.values()))
     grade = next((g for floor, g in GRADES if total >= floor), "D")
+    tally = Counter(results[i] for i in profile)
     return {
         "score": total,
         "grade": grade,
-        "counts": {s: sum(1 for i in profile if results[i] == s) for s in SEVERITIES},
-        "incomplete": any(results[i] == "ERROR" for i in profile),
+        "counts": {s: tally[s] for s in SEVERITIES},
+        "incomplete": tally["ERROR"] > 0,
         "worst": sorted(profile, key=lambda i: -penalties[i]),
     }

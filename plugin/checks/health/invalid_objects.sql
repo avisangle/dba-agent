@@ -14,5 +14,5 @@ SELECT owner,
             ELSE 'WARNING' END AS severity
 FROM   dba_objects
 WHERE  status = 'INVALID'
-ORDER  BY CASE WHEN owner IN ('SYS', 'SYSTEM') THEN 0 ELSE 1 END, owner, object_type, object_name
+ORDER  BY severity, owner, object_type, object_name
 FETCH FIRST 100 ROWS ONLY

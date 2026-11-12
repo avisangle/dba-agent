@@ -24,17 +24,12 @@ def run(args):
         print(f"error: {args.profile}: not a readable profile: {exc}", file=sys.stderr)
         return 2
     try:
-        results = json.load(sys.stdin)
-    except ValueError as exc:
-        print(f"error: stdin is not JSON: {exc}", file=sys.stderr)
-        return 2
-    if not isinstance(results, dict):
-        print("error: stdin must be a JSON object of check id to severity", file=sys.stderr)
-        return 2
-    try:
-        out = score(profile, results)
+        out = score(profile, json.load(sys.stdin))
     except InvalidResults as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(f"error: stdin is not JSON: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(out, indent=2))
     return 0

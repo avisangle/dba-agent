@@ -78,11 +78,21 @@ def parse_csv(text: str) -> tuple[list[str], list[list[str]], str]:
 
     `footer` is the row-count line (`6 rows selected.`, `no rows selected`) or ""
     when SQLcl printed none. Text with no quoted header line yields ([], [], "").
+    SQLcl prints a NULL number as an empty field, so in a one-column result an
+    empty line is a NULL row, [''], except the one blank line SQLcl writes after
+    the last record. With two or more columns, empty lines are skipped.
     """
     lines, head, foot = _layout(text)
     if head is None:
         return [], [], ""
-    body = "\n".join(lines[head:foot])
-    records = [r for r in csv.reader(io.StringIO(body, newline="")) if r]
+    body = "\n".join(lines[head:foot]) + ("\n" if foot is not None else "")
+    records = list(csv.reader(io.StringIO(body, newline="")))
+    header = records[0]
+    if len(header) == 1:
+        rows = [r or [""] for r in records[1:]]
+        if records[-1] == [] and len(records) > 1:
+            rows.pop()  # the blank line after the last record
+    else:
+        rows = [r for r in records[1:] if r]
     footer = lines[foot].strip() if foot is not None else ""
-    return records[0], records[1:], footer
+    return header, rows, footer

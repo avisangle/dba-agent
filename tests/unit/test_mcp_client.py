@@ -230,6 +230,31 @@ def test_mcp_argv_pins_restrict_level_4():
     assert sqlcl.mcp_argv("/h") == ["-home", "/h", "-R", "4", "-mcp"]
 
 
+def test_sqlcl_bin_path_to_the_shell_script_starts_sql_exe_on_windows(tmp_path, monkeypatch):
+    """DBA-21 AC6, found on the windows-latest probe run: SQLcl's bin/ holds the
+    shell script `sql` beside `sql.exe`, and SQLCL_BIN=<bin>\\sql failed with
+    WinError 193. On Windows that path becomes the sql.exe beside it; any other
+    value, and every value off Windows, passes through. SqlclSession starts the
+    result. Runs on every OS."""
+    sqlcl = _mod("tools.sqlcl")
+    bin_dir = tmp_path / "sqlcl" / "bin"
+    bin_dir.mkdir(parents=True)
+    script, exe = bin_dir / "sql", bin_dir / "sql.exe"
+    script.write_text("#!/bin/sh\n")
+    exe.write_bytes(b"MZ")
+    lone = tmp_path / "sql"
+    lone.write_text("#!/bin/sh\n")
+
+    assert sqlcl.launcher(str(script), windows=True) == str(exe)
+    assert sqlcl.launcher(str(script), windows=False) == str(script)
+    assert sqlcl.launcher(str(exe), windows=True) == str(exe)
+    assert sqlcl.launcher(str(lone), windows=True) == str(lone)
+
+    monkeypatch.setattr(sqlcl, "launcher", lambda sql_bin: f"{sql_bin}.resolved")
+    session = sqlcl.SqlclSession(str(script), "/h")
+    assert session._client.command == [f"{script}.resolved", "-home", "/h", "-R", "4", "-mcp"]
+
+
 @pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
 def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
     """AC: SqlclSession starts exactly [sql_bin, "-home", home, "-R", "4", "-mcp"];

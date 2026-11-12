@@ -459,7 +459,8 @@ def test_resolve_check_finds_one_id_with_user_precedence(tmp_path):
 
     entry = resolve.resolve_check(checks_root, user_root, "tablespace_usage")  # no user folder
     assert entry.source == "builtin"
-    assert entry.check.path.resolve() == (checks_root / "storage" / "tablespace_usage.sql").resolve()
+    builtin = checks_root / "storage" / "tablespace_usage.sql"
+    assert entry.check.path.resolve() == builtin.resolve()
     assert resolve.resolve_check(checks_root, user_root, "no_such_check") is None
 
     user_file = _write_user_override(home, checks_root / "storage" / "tablespace_usage.sql")

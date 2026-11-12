@@ -30,8 +30,8 @@ def launcher(sql_bin: str, windows: bool = os.name == "nt") -> str:
     """`sql_bin` as CreateProcess can start it. SQLcl's bin/ holds the shell script
     `sql` beside the native `sql.exe`; on Windows a path to the script fails with
     WinError 193, so it becomes the `sql.exe` beside it."""
-    exe = Path(sql_bin).with_suffix(".exe")
-    if windows and not Path(sql_bin).suffix and exe.is_file():
+    path = Path(sql_bin)
+    if windows and not path.suffix and (exe := path.with_suffix(".exe")).is_file():
         return str(exe)
     return sql_bin
 

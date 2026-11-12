@@ -231,19 +231,16 @@ def test_mcp_argv_pins_restrict_level_4():
 
 
 def test_sqlcl_bin_path_to_the_shell_script_starts_sql_exe_on_windows(tmp_path, monkeypatch):
-    """DBA-21 AC6, found on the windows-latest probe run: SQLcl's bin/ holds the
-    shell script `sql` beside `sql.exe`, and SQLCL_BIN=<bin>\\sql failed with
-    WinError 193. On Windows that path becomes the sql.exe beside it; any other
-    value, and every value off Windows, passes through. SqlclSession starts the
-    result. Runs on every OS."""
+    """DBA-21 AC6: on Windows only, launcher swaps a path to SQLcl's `sql` script
+    for the sql.exe beside it; SqlclSession starts the result. Runs on every OS."""
     sqlcl = _mod("tools.sqlcl")
     bin_dir = tmp_path / "sqlcl" / "bin"
     bin_dir.mkdir(parents=True)
     script, exe = bin_dir / "sql", bin_dir / "sql.exe"
-    script.write_text("#!/bin/sh\n")
-    exe.write_bytes(b"MZ")
+    script.touch()
+    exe.touch()
     lone = tmp_path / "sql"
-    lone.write_text("#!/bin/sh\n")
+    lone.touch()
 
     assert sqlcl.launcher(str(script), windows=True) == str(exe)
     assert sqlcl.launcher(str(script), windows=False) == str(script)

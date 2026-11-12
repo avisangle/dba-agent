@@ -6,7 +6,7 @@
 
 **Decision:** A check is one file `plugin/checks/<category>/<id>.sql`: a header of `-- key: value` lines with a fixed key set (`id`, `title`, `category`, `mode`, `min_version`, `max_rows`, `pack`, `remediation`, optional `max_version`), then exactly one SQL statement. The statement must alias a column `AS severity` whose literal values are limited to `CRITICAL`, `WARNING`, `OK`, `INFO`, and must end with `FETCH FIRST <max_rows> ROWS`. `python -m tools lint` enforces this as codes L001 to L014.
 
-**Why:** The model sends the SQL unchanged through SQLcl's `run-sql` at restrict level 4, where output is always CSV and SQL*Plus commands are refused (`spike/RESULTS.md`). A computed `severity` column makes the result itself the verdict, and the `FETCH FIRST` cap bounds output size in the database rather than in the client.
+**Why:** The model sends the SQL unchanged through SQLcl's `run-sql` at restrict level 4, which the pack sets explicitly with `-R 4` (D-DBA-15-sqlcl-explicit-restrict-level-4), where output is always CSV and SQL*Plus commands are refused (`spike/RESULTS.md`). A computed `severity` column makes the result itself the verdict, and the `FETCH FIRST` cap bounds output size in the database rather than in the client.
 
 **Rejected:** Free-form headers: cannot be linted. Thresholds in a separate config file: the plan doc keeps thresholds in the check's SQL so `run-sql` output is a verdict without a second lookup.
 

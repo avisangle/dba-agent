@@ -1,5 +1,5 @@
 # D-DBA-4: Tools and tests reach the database only through `sql -mcp`
-**Status:** Accepted
+**Status:** Superseded by D-DBA-15-sqlcl-explicit-restrict-level-4
 **Date:** 2026-11-11
 **Issue:** DBA-4
 **Confluence:** none (design in epic DBA-1; evidence in `spike/RESULTS.md`)

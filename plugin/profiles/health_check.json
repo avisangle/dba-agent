@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {"id": "db_overview", "weight": 1},
+    {"id": "instance_info", "weight": 1},
+    {"id": "alert_log_errors", "weight": 2},
+    {"id": "invalid_objects", "weight": 1},
+    {"id": "unusable_indexes", "weight": 1},
+    {"id": "failed_jobs", "weight": 1},
+    {"id": "dictionary_stats_age", "weight": 1},
+    {"id": "tablespace_usage", "weight": 2},
+    {"id": "datafile_autoextend", "weight": 1},
+    {"id": "temp_usage", "weight": 1},
+    {"id": "undo_usage", "weight": 1},
+    {"id": "fra_usage", "weight": 2},
+    {"id": "blocking_tree", "weight": 1},
+    {"id": "idle_in_transaction", "weight": 1},
+    {"id": "system_stats", "weight": 1}
+  ]
+}

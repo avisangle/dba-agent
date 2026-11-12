@@ -154,9 +154,15 @@ def _fake_sqlcl(tmp_path: Path) -> tuple[Path, Path]:
             "disconnect": {"text": "Disconnected."},
         },
     }))
-    exe = tmp_path / "fake-sql"
-    exe.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKE_SERVER}" "{script}" "$@"\n')
-    exe.chmod(0o755)
+    if os.name == "nt":
+        # CreateProcess cannot start a shell script (WinError 193) but starts a
+        # .cmd by its extension. `@echo off` keeps cmd.exe off stdout, the MCP channel.
+        exe = tmp_path / "fake-sql.cmd"
+        exe.write_text(f'@echo off\n"{sys.executable}" "{FAKE_SERVER}" "{script}" %*\n')
+    else:
+        exe = tmp_path / "fake-sql"
+        exe.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKE_SERVER}" "{script}" "$@"\n')
+        exe.chmod(0o755)
     return exe, log
 
 

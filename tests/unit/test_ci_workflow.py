@@ -38,7 +38,10 @@ INSTALL_SCRIPT = REPO_ROOT / ".github" / "scripts" / "install-sqlcl.sh"
 UNIT_SYSTEMS = {"ubuntu-latest", "macos-latest", "windows-latest"}
 UNIT_PYTHONS = {"3.10", "3.13"}
 JAVA_VERSIONS = {"17", "21"}
-SQLCL_VERSIONS = {"25.2", "latest"}
+SQLCL_VERSIONS = {"25.3.2", "latest"}
+# D-DBA-8-minimum-sqlcl-25-3-2: the oldest supported build, pinned with its hash.
+PINNED_ZIP = "sqlcl-25.3.2.317.1117.zip"
+PINNED_SHA256 = "0af1ecb1da1a840d800cfe88fe20a35aeb9ceac9ff38729be0025b937b101d7e"
 SHA_PINNED = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}$")
 SHA256_LITERAL = re.compile(r"\b[0-9a-fA-F]{64}\b")
 
@@ -242,9 +245,10 @@ def test_lint_and_unit_jobs():
 
 
 def test_integration_job_matrix_and_steps():
-    """AC: `integration` on ubuntu-latest, matrix Java 17/21 by SQLcl 25.2 and
-    latest; installs SQLcl via install-sqlcl.sh <matrix version>; starts the DB
-    with `docker compose -f tests/docker-compose.yml up -d --wait`; runs
+    """AC: `integration` on ubuntu-latest, matrix Java 17/21 by exactly SQLcl
+    25.3.2 and latest (25.2 or a third entry fails); installs SQLcl via
+    install-sqlcl.sh <matrix version>; starts the DB with
+    `docker compose -f tests/docker-compose.yml up -d --wait`; runs
     `pytest -m integration` with REQUIRE_INTEGRATION set to the string "1"."""
     wf = _workflow()
     job = _job(wf, "integration")
@@ -329,14 +333,18 @@ def test_install_sqlcl_latest_downloads_unpacks_and_exports_sqlcl_bin(tmp_path):
 
 @posix_only
 def test_install_sqlcl_rejects_checksum_mismatch_and_missing_version(tmp_path):
-    """AC: a pinned version (25.2) has its SHA-256 recorded in the script and is
-    verified: a download that does not match fails and exports nothing. Running
-    with no version fails before downloading anything."""
-    assert SHA256_LITERAL.search(INSTALL_SCRIPT.read_text()), "no SHA-256 recorded for 25.2"
+    """AC2/AC3: the script records exactly one SHA-256, the 25.3.2 zip's, and
+    verifies it: `install-sqlcl.sh 25.3.2` requests sqlcl-25.3.2.317.1117.zip
+    from download.oracle.com, and a zip that does not match fails and exports
+    nothing. Running with no version fails before downloading anything."""
+    recorded = set(SHA256_LITERAL.findall(INSTALL_SCRIPT.read_text()))
+    assert recorded == {PINNED_SHA256}, f"recorded SHA-256 literals: {sorted(recorded)}"
 
-    result, env_file, log, _ = _run_install(tmp_path / "mismatch", "25.2")
+    result, env_file, log, _ = _run_install(tmp_path / "mismatch", "25.3.2")
     assert result.returncode != 0, "a zip with the wrong SHA-256 was accepted"
-    assert "25.2" in log.read_text(), "pinned download URL does not name the version"
+    urls = [urlparse(u) for u in re.findall(r"https?://\S+", log.read_text())]
+    requested = {(u.hostname, Path(u.path).name) for u in urls}
+    assert ("download.oracle.com", PINNED_ZIP) in requested, f"requested: {sorted(requested)}"
     assert _exported_sqlcl_bin(env_file) is None
 
     result, env_file, log, _ = _run_install(tmp_path / "noarg")
@@ -344,6 +352,35 @@ def test_install_sqlcl_rejects_checksum_mismatch_and_missing_version(tmp_path):
     assert (result.stderr + result.stdout).strip(), "missing version must explain itself"
     assert log.read_text() == "", "downloaded without a version argument"
     assert _exported_sqlcl_bin(env_file) is None
+
+
+@posix_only
+def test_install_sqlcl_rejects_25_2_without_downloading(tmp_path):
+    """AC4: 25.2 is below the supported minimum and no longer a pinned case:
+    `install-sqlcl.sh 25.2` exits non-zero, downloads nothing, exports nothing."""
+    result, env_file, log, _ = _run_install(tmp_path, "25.2")
+    assert result.returncode != 0, "25.2 is still accepted"
+    assert log.read_text() == "", f"25.2 was downloaded: {log.read_text()!r}"
+    assert _exported_sqlcl_bin(env_file) is None
+
+
+@posix_only
+def test_install_sqlcl_usage_names_supported_versions(tmp_path):
+    """AC5: with no argument the script exits non-zero without downloading, and
+    its usage text names 25.3.2 and latest and not 25.2."""
+    result, _, log, _ = _run_install(tmp_path)
+    output = result.stdout + result.stderr
+    assert result.returncode != 0
+    assert log.read_text() == "", "downloaded without a version argument"
+    assert "25.3.2" in output and "latest" in output, output
+    assert "25.2" not in output, output
+
+
+def test_readme_states_minimum_sqlcl_25_3_2():
+    """AC6: README states the minimum as SQLcl 25.3.2 and no longer says 25.2+."""
+    readme = (REPO_ROOT / "README.md").read_text()
+    assert "SQLcl 25.3.2" in readme
+    assert "25.2+" not in readme
 
 
 # --- contract test -----------------------------------------------------------

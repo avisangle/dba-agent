@@ -18,16 +18,17 @@ USERNAME; blocking_tree TREE_LEVEL (1 for a root blocker) and ROLE (BLOCKER or
 WAITER); idle_in_transaction IDLE_SECONDS.
 
 The scenario uses a throwaway schema AGENT_TEST_APP (CREATE SESSION and a quota
-only; `admin` creates its one-row table) and two extra SqlclSessions as that
-user, opened with `tests/support/extra_session.py`. Session 2's blocked update
-goes through `run_sql(..., asynchronous=True)`; its sessions use a short
-timeout, so a call that does not go asynchronous fails fast instead of hanging.
+only; `admin` creates its one-row table T(id, v1, v2)) and two extra
+SqlclSessions as that user, opened with `tests/support/extra_session.py`.
+Session 2's blocked update goes through `run_sql(..., asynchronous=True)`; its
+sessions use a short timeout, so a call that does not go asynchronous fails fast
+instead of hanging.
 
-Measured on the test container (SQLcl 26.3.1, 23.26.3) during the red phase: a DML
-statement through run-sql returns "1 row inserted. Commit Failed ORA-17273: Could
-not commit with auto-commit enabled." The connection auto-commits, so as written
-session 1 holds no open transaction. Finding the setting that keeps it open is
-part of the issue; the scenario stays red until then.
+Through SQLcl MCP, a session saved with `?oracle.jdbc.autoCommit=false` holds a
+DML change and its row lock only until that session's next call, which commits
+it, whatever the call is (`rollback` included). Without the property, DML
+commits at once and reports ORA-17273. Detail:
+docs/decisions/D-DBA-12-manual-commit-through-saved-url.md.
 
 Not driven here: the 300 s, 900 s and 3600 s thresholds need a session that old
 and no seam exists to age one, so only the lowest branch of each severity rule
@@ -104,25 +105,26 @@ def _poll(fn, until, seconds=15.0):
 
 
 @pytest.fixture
-def app_schema(admin, tmp_path_factory):
-    """Create AGENT_TEST_APP with table T(id, v) holding one row; yield an opener
-    for extra sessions as that user; afterwards kill its sessions and drop it."""
-    from conftest import DSN, SQLCL_BIN
+def app_schema(admin, sqlcl_bin_and_dsn, tmp_path_factory):
+    """Create AGENT_TEST_APP with table T(id, v1, v2) holding one row; yield an
+    opener for extra sessions as that user; afterwards kill its sessions and drop it."""
     from extra_session import extra_session
 
+    sqlcl_bin, dsn = sqlcl_bin_and_dsn
     password = "P" + secrets.token_hex(12)
     _ok(admin, f"drop user if exists {APP_USER} cascade")
     try:
         _ok(admin, f'create user {APP_USER} identified by "{password}" quota 10M on users')
         _ok(admin, f"grant create session to {APP_USER}")
-        # DDL, not INSERT: run-sql DML reports ORA-17273 (see module docstring)
-        _ok(admin, f"create table {APP_USER}.t as select 1 as id, 0 as v from dual")
+        # DDL, not INSERT: admin's connection has no autoCommit property, so
+        # run-sql DML reports ORA-17273 (see the module docstring)
+        _ok(admin, f"create table {APP_USER}.t as select 1 as id, 0 as v1, 0 as v2 from dual")
 
         opened = []
 
         def open_app_session(name):
             home = tmp_path_factory.mktemp(f"sqlcl-home-{name}")
-            ctx = extra_session(SQLCL_BIN, str(home), name, APP_USER, password, DSN,
+            ctx = extra_session(sqlcl_bin, str(home), name, APP_USER, password, dsn,
                                 timeout=EXTRA_TIMEOUT)
             opened.append(ctx)
             return ctx.__enter__()
@@ -205,32 +207,40 @@ def test_long_ops_runs_clean(ro):
     assert {row["SEVERITY"] for row in rows} <= {"INFO", "WARNING"}, rows
 
 
-def test_idle_transaction_then_blocking_tree_scenario(ro, app_schema):
-    """AC (scenario): session 1 updates the row without committing ->
-    idle_in_transaction lists it OK; session 2 updates the same row with
-    run_sql(asynchronous=True), which returns raw text while the statement waits ->
-    active_sessions lists session 2 INFO, and blocking_tree returns exactly
-    session 1 BLOCKER at level 1 and session 2 WAITER at level 2, both WARNING;
-    session 1 rolls back -> blocking_tree returns zero rows."""
+def test_idle_transaction_then_blocking_tree_scenario(admin, ro, app_schema):
+    """AC (scenario): session 1 updates v1 and makes no further call -> admin
+    still reads the old v1 and idle_in_transaction lists session 1 OK; session 2
+    updates v2 of the same row with run_sql(asynchronous=True), which returns raw
+    text while the statement waits -> active_sessions lists session 2 INFO, and
+    blocking_tree returns exactly session 1 BLOCKER at level 1 and session 2
+    WAITER at level 2, both WARNING; one more call on session 1 (`select 1 from
+    dual`) commits its change -> blocking_tree returns zero rows and admin reads
+    the new v1."""
+    table = f"{APP_USER.lower()}.t"
     s1 = app_schema("agent_test_app_1")
     s2 = app_schema("agent_test_app_2")
-    sid1 = _own_sid(s1)
+    sid1 = _own_sid(s1)  # before the update: any later call on s1 commits it
 
-    # 1-2: an open transaction, idle for seconds -> OK
-    update = s1.run_sql(f"update {APP_USER.lower()}.t set v = v + 1 where id = 1")
+    def committed_v1():
+        return _ok(admin, f"select v1 from {table} where id = 1").rows[0][0]
+
+    # 1: from here until step 5, no call on s1
+    update = s1.run_sql(f"update {table} set v1 = 1 where id = 1")
     assert update.error is None, (
         f"session 1's update: {update.error}. ORA-17273 means the connection "
-        f"auto-commits, so no transaction stays open (see module docstring).\n{update.text}")
+        f"auto-commits (see module docstring).\n{update.text}")
+
+    # 2: the change is held open, idle for seconds -> OK
+    assert committed_v1() == "0", "session 1's change is visible before its next call"
     idle = [r for r in _check_rows(ro, "idle_in_transaction") if r["SID"] == sid1]
-    assert len(idle) == 1, ("session 1 has no open transaction; does SQLcl autocommit "
-                            f"run-sql DML? rows: {idle}")
+    assert len(idle) == 1, f"session 1 has no open transaction; rows: {idle}"
     assert idle[0]["SEVERITY"] == "OK", idle[0]
     assert float(idle[0]["IDLE_SECONDS"]) < 900, f"fixture precondition: {idle[0]}"
 
-    # 3: the blocked update must not hold the call open
+    # 3: the blocked update must not hold the call open; it changes v2 only, so
+    # step 5's read of v1 does not depend on what happens to it once unblocked
     started = time.monotonic()
-    text = s2.run_sql(f"update {APP_USER.lower()}.t set v = v + 10 where id = 1",
-                      asynchronous=True)
+    text = s2.run_sql(f"update {table} set v2 = 10 where id = 1", asynchronous=True)
     assert time.monotonic() - started < ASYNC_LIMIT, "asynchronous call did not return early"
     assert isinstance(text, str), type(text)
 
@@ -250,7 +260,8 @@ def test_idle_transaction_then_blocking_tree_scenario(ro, app_schema):
     assert active[waiter["SID"]]["USERNAME"] == APP_USER, active[waiter["SID"]]
     assert active[waiter["SID"]]["SEVERITY"] == "INFO", active[waiter["SID"]]
 
-    # 5: nothing blocked after the rollback
-    _ok(s1, "rollback")
+    # 5: session 1's next call commits its change and releases the lock
+    _ok(s1, "select 1 from dual")
     tree = _poll(lambda: _check_rows(ro, "blocking_tree"), lambda rows: rows == [])
     assert tree == [], tree
+    assert committed_v1() == "1", "the lock went away but session 1's change was not committed"

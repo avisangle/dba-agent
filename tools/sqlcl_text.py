@@ -7,13 +7,28 @@ import re
 _FOOTER = re.compile(r"no rows selected|\d+ rows? selected\.")
 _ERROR = re.compile(r"\b(?:ORA-\d{5}|SP2-\d{4})\b.*")
 _REPORT = "\nError report -"
+_ECHO_START = "Error starting at line"
+
+
+def _header_index(lines: list[str]) -> int | None:
+    """First line opening with a quote outside an echoed statement, which runs from
+    an `Error starting at line` line to the `Error report -` line."""
+    echo = False
+    for i, ln in enumerate(lines):
+        if ln.startswith(_ECHO_START):
+            echo = True
+        elif ln.strip() == _REPORT.strip():
+            echo = False
+        elif not echo and ln.startswith('"'):
+            return i
+    return None
 
 
 def _layout(text: str) -> tuple[list[str], int | None, int | None]:
-    """Lines of `text`, the index of the CSV header (first line opening with a quote)
-    and of the row-count footer after it; each index is None when absent."""
+    """Lines of `text`, the index of the CSV header (see `_header_index`) and of the
+    row-count footer after it; each index is None when absent."""
     lines = text.replace("\r\n", "\n").split("\n")
-    head = next((i for i, ln in enumerate(lines) if ln.startswith('"')), None)
+    head = _header_index(lines)
     foot = None
     if head is not None:
         foot = next(

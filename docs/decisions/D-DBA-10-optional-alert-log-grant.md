@@ -1,0 +1,17 @@
+# D-DBA-10: A read-only check may widen its report with one optional object grant
+**Status:** Accepted
+**Date:** 2026-11-12
+**Issue:** DBA-10
+**Confluence:** none (design in epic DBA-1)
+
+**Decision:** A read-only check that can report more with one extra read grant gets an optional grant. The grant is a single object-level `SELECT` on a named object, printed by `setup-sql` only behind its own flag and in its own commented block, and never part of the default tier script (`db/tiers/read-only.sql`) or of `tools.tiers`. The check must run clean without it and then return one `INFO` row whose message starts `not available:` and names the missing grant. First use: `GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO <user>` for `alert_log_errors`, printed by `python -m tools setup-sql --tier read-only --alert-log`.
+
+**Why:** Measured on Oracle 23ai Free 23.26.3 in FREEPDB1 as `dba_agent_ro`: `v$diag_alert_ext` and `gv$diag_alert_ext` return `ORA-00942`, and in `DBA_TAB_PRIVS` only the `DBA` role holds `SELECT` on `SYS.V_$DIAG_ALERT_EXT`; `SELECT_CATALOG_ROLE` does not. The user decided on 2026-11-12 to keep the check and make the grant optional. Database privileges stay the guard, and the default tier stays at the two privileges of D-DBA-5-read-only-grants.
+
+The check decides by itself, in one statement, because nothing sits between the model and the database: it probes `ALL_TAB_PRIVS` (grants to the user, `PUBLIC` and enabled roles, so the `DBA` role counts), `SESSION_PRIVS` (`SELECT ANY DICTIONARY`) and the session user (`SYS`), then runs either the alert log query or an empty one through `DBMS_XMLGEN.GETXMLTYPE`, read back with `XMLTABLE`, plus a `UNION ALL` branch for the not-available row. A plain `FROM v$diag_alert_ext` fails to parse without the grant, and `WITH FUNCTION` needs `;` in its body, which lint rule L009 rejects.
+
+Measured on the same container: SYSTEM gets `ORA-01031` running the grant, SYS succeeds, so the printed block says to run it as SYS. The grant takes effect in an already-open session. Lines written with `sys.dbms_system.ksdwrt(2, ...)` as SYSDBA in FREEPDB1 appear at once in that PDB's `v$diag_alert_ext`, so the tests plant tagged lines to drive the severity mapping. The 19c object name `SYS.V_$DIAG_ALERT_EXT` is an assumption from Oracle's naming of fixed views (`V$X` is a public synonym for `SYS.V_$X`); no 19c database was available to measure it.
+
+**Rejected:** `v$diag_trace_file_contents` as the source: readable, but untested as an alert log source and not the alert log. Moving the check to a later tier: the health report would have no alert log view in this epic. Adding the grant to the default tier: it replaces D-DBA-5 for one check. `SELECT ANY DICTIONARY` or the `DBA` role as the optional grant: far broader than one view.
+
+**Impact:** Later checks that need one more read grant follow this pattern and cite this record; they do not supersede D-DBA-5-read-only-grants. An optional grant is an object privilege only, never a system privilege or a role, so `SESSION_PRIVS` and `SESSION_ROLES` do not change and doctor's `grants` and `excess-privileges` checks are unaffected. A check's result for the missing grant is an `INFO` row, never an error and never `ORA-` text. A grant that would be a system privilege or a role is not optional under this rule: it needs a new tier or a record that supersedes D-DBA-5. The grant statement lives in one constant, `ALERT_LOG_SQL` in `tools/commands/setup_sql.py`.

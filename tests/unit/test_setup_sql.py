@@ -213,6 +213,87 @@ def test_ro_fixture_applies_generated_script_not_ad_hoc_sql():
     assert re.search(r"\bdba_users\b", joined, re.I), "fixture does not check DBA_USERS"
 
 
+# --- DBA-10: optional alert log grant (`--alert-log`) ------------------------
+
+ALERT_GRANT_RE = r'GRANT SELECT ON SYS\.V_\$DIAG_ALERT_EXT TO "?{user}"?;'
+
+
+def _render_default():
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    tiers = importlib.import_module("tools.tiers")
+    return setup_sql.render(tiers.TIERS["read-only"])
+
+
+def test_setup_sql_without_alert_log_is_unchanged_and_holds_no_grant():
+    """AC (DBA-10): without `--alert-log` the output equals
+    render(TIERS["read-only"]) and no code line mentions DIAG_ALERT; the default
+    tier keeps its two privileges. Falsifier: put the grant into
+    db/tiers/read-only.sql."""
+    script = _setup_sql()
+    assert script == _render_default()
+    assert not [ln for ln in _code_lines(script) if re.search("DIAG_ALERT", ln, re.I)]
+    template = (REPO_ROOT / "db" / "tiers" / "read-only.sql").read_text()
+    assert not re.search("DIAG_ALERT", template, re.I), "grant must not be in the tier template"
+
+
+def test_setup_sql_alert_log_appends_one_commented_optional_grant():
+    """AC (DBA-10): with `--alert-log` the code lines are the default script's
+    plus exactly one `GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO <user>;`, after
+    them; `--user dba_x` makes dba_x the grantee; the added block's comment
+    lines say it is optional, name alert_log_errors and say "run as SYS".
+    render() takes `alert_log` as a keyword."""
+    for args, user in (((), DEFAULT_USER), (("--user", "dba_x"), "dba_x")):
+        plain = _setup_sql(*args)
+        script = _setup_sql(*args, "--alert-log")
+        assert script.startswith(plain), "the alert log block must follow the default script"
+        base, added = _code_lines(plain), _code_lines(script)
+        assert added[: len(base)] == base, added
+        extra = added[len(base):]
+        assert len(extra) == 1, extra
+        assert re.fullmatch(ALERT_GRANT_RE.format(user=re.escape(user)), extra[0], re.I), extra
+
+        block = script[len(plain):]
+        comments = [ln for ln in block.splitlines() if ln.strip().startswith("--")]
+        assert any(re.search("optional", c, re.I) for c in comments), comments
+        assert any("alert_log_errors" in c for c in comments), comments
+        # measured on 23.26.3: SYSTEM gets ORA-01031, SYS succeeds
+        assert any(re.search(r"run as SYS\b", c, re.I) for c in comments), comments
+
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    tiers = importlib.import_module("tools.tiers")
+    rendered = setup_sql.render(tiers.TIERS["read-only"], alert_log=True)
+    assert rendered == _setup_sql("--alert-log")
+
+
+def test_setup_sql_alert_log_block_comes_before_audit_block():
+    """AC (DBA-10): `--alert-log --audit` holds both blocks, the grant line
+    before CREATE AUDIT POLICY; the default script still comes first."""
+    script = _setup_sql("--alert-log", "--audit")
+    code = _code_lines(script)
+    grant = [i for i, ln in enumerate(code) if re.search("DIAG_ALERT_EXT", ln, re.I)]
+    audit = [i for i, ln in enumerate(code) if re.match(r"CREATE\s+AUDIT\s+POLICY", ln, re.I)]
+    assert len(grant) == 1 and len(audit) == 1, code
+    assert grant[0] < audit[0], code
+    assert code[: len(_code_lines(_setup_sql()))] == _code_lines(_setup_sql())
+
+
+def test_alert_log_grant_statement_lives_in_one_constant():
+    """AC (DBA-10, whole-codebase scan): the grant on V_$DIAG_ALERT_EXT is
+    written once under tools/ and db/, in tools/commands/setup_sql.py, which
+    also keeps AUDIT_SQL."""
+    hits = []
+    for root in ("tools", "db"):
+        for path in (REPO_ROOT / root).rglob("*"):
+            if path.suffix in (".py", ".sql") and path.is_file():
+                text = path.read_text(encoding="utf-8")
+                hits += [str(path.relative_to(REPO_ROOT))] * len(
+                    re.findall(r"GRANT\s+SELECT\s+ON\s+SYS\.V_\$DIAG_ALERT_EXT", text, re.I)
+                )
+    assert hits == ["tools/commands/setup_sql.py"], hits
+    source = (REPO_ROOT / "tools/commands/setup_sql.py").read_text()
+    assert "AUDIT_SQL" in source
+
+
 # --- contract test -----------------------------------------------------------
 
 

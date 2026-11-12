@@ -71,27 +71,27 @@ class SqlclSession:
         self.model = model
         self._client = McpStdioClient([launcher(sql_bin), *mcp_argv(home)], timeout)
         self._tool_names: dict[str, str] = {}
-        self._offered: list[str] = []
         self._schemas: dict[str, dict] = {}
 
     def __enter__(self):
         self._client.__enter__()
         try:
             self._schemas = self._client.list_tool_schemas()
-            self._offered = list(self._schemas)
-            offered = set(self._offered)
         except BaseException:
             self._client.close()
             raise
-        self._tool_names = {old: new for old, new in _RENAMED.items() if new in offered}
+        self._tool_names = {old: new for old, new in _RENAMED.items() if new in self._schemas}
         return self
 
     def __exit__(self, *exc):
         self._client.close()
 
+    def _resolve(self, tool: str) -> str:
+        """The offered name for logical tool name `tool`."""
+        return self._tool_names.get(tool, tool)
+
     def _call(self, tool: str, **arguments) -> ToolResult:
-        name = self._tool_names.get(tool, tool)
-        return self._client.call_tool(name, {**arguments, "model": self.model})
+        return self._client.call_tool(self._resolve(tool), {**arguments, "model": self.model})
 
     def list_connections(self) -> list[str]:
         names = re.split(r"[,\n]", self._call("list-connections").text)
@@ -119,7 +119,7 @@ class SqlclSession:
         return SqlResult(result.text, *parse_csv(result.text), None)
 
     def _execution_type_arg(self) -> str:
-        name = self._tool_names.get("run-sql", "run-sql")
+        name = self._resolve("run-sql")
         properties = self._schemas.get(name, {}).get("properties", {})
         for arg in _EXECUTION_TYPE_ARGS:
             if arg in properties:
@@ -127,14 +127,15 @@ class SqlclSession:
         declared = ", ".join(sorted(properties)) or "none declared"
         raise AsynchronousUnsupported(
             f"SQLcl's {name} offers no asynchronous execution (arguments: {declared}); "
-            "SQLcl 25.3.2 and 25.4 lack it, 26.1 and later accept executionType")
+            "SQLcl 25.3.2 and 25.4 lack it; 26.1 and later declare executionType or "
+            "execution_type")
 
     def disconnect(self) -> None:
         self._call("disconnect")
 
     def list_tools(self) -> list[str]:
         """Tool names the server offered at start, as this SQLcl release names them."""
-        return list(self._offered)
+        return list(self._schemas)
 
     def run_sqlcl(self, command: str) -> SqlResult:
         """Run an SQLcl command (not SQL) through `run-sqlcl`."""

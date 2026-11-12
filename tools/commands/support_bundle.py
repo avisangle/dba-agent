@@ -28,15 +28,16 @@ def run(args):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = args.out or Path(f"{PACK_NAME}-support-{stamp}.zip")
     files = build(RealEnv(), args.tier)
+    names = sorted(files)
     try:
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as bundle:
-            for name in sorted(files):
+            for name in names:
                 bundle.writestr(name, files[name])
     except OSError as exc:
         print(f"error: could not write {out}: {exc}", file=sys.stderr)
         return 1
     print(f"wrote {out}:")
-    for name in sorted(files):
+    for name in names:
         print(f"  {name}")
     print(REVIEW)
     return 0

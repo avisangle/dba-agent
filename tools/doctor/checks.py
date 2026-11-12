@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.doctor.env import Env, sqlcl_bin
+from tools.doctor.env import Env, java_bin, sqlcl_bin
 from tools.mcp_client import McpError, McpTimeout
 from tools.sqlcl import _RENAMED, mcp_argv
 from tools.tiers import Tier
@@ -71,14 +71,8 @@ def check_sqlcl(env: Env) -> Result:
     return Result("sqlcl", PASS, version)
 
 
-def _java() -> str:
-    """The java SQLcl's launcher prefers: $JAVA_HOME/bin/java, else java on PATH."""
-    java_home = os.environ.get("JAVA_HOME")
-    return str(Path(java_home) / "bin" / "java") if java_home else "java"
-
-
 def check_java(env: Env) -> Result:
-    java = _java()
+    java = java_bin()
     fix = "install Java 17 or 21 and put it on PATH, or set JAVA_HOME to it"
     code, out, err = env.run([java, "-version"])
     if code == 127:

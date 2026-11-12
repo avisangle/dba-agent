@@ -18,6 +18,12 @@ def sqlcl_bin() -> str:
     return os.environ.get("SQLCL_BIN", "sql")
 
 
+def java_bin() -> str:
+    """The java SQLcl's launcher prefers: $JAVA_HOME/bin/java, else java on PATH."""
+    java_home = os.environ.get("JAVA_HOME")
+    return str(Path(java_home) / "bin" / "java") if java_home else "java"
+
+
 class Env(Protocol):
     def run(self, cmd: list[str]) -> tuple[int, str, str]:
         """(exit code, stdout, stderr); 127 when the program is not installed."""

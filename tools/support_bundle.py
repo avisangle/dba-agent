@@ -8,11 +8,10 @@ from dataclasses import asdict
 
 from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError
-from tools.checks.index import discover
 from tools.checks.resolve import resolve_checks
 from tools.config import PACK_NAME, VERSION
-from tools.doctor.checks import PASS, _java, run_all
-from tools.doctor.env import Env, sqlcl_bin
+from tools.doctor.checks import _first_line, run_all
+from tools.doctor.env import Env, java_bin, sqlcl_bin
 from tools.redact import collect, redact
 from tools.tiers import Tier
 
@@ -42,34 +41,47 @@ the bundle to an issue.
 """
 
 
-def _first_line(text: str) -> str:
-    return next((line.strip() for line in text.splitlines() if line.strip()), "")
+class _Recorded:
+    """`env` with `run` answered once per command, so the version lines reuse
+    the `sql -V` and `java -version` doctor already ran."""
+
+    def __init__(self, env: Env):
+        self._env, self._runs = env, {}
+
+    def run(self, cmd: list[str]) -> tuple[int, str, str]:
+        key = tuple(map(str, cmd))
+        if key not in self._runs:
+            self._runs[key] = self._env.run(cmd)
+        return self._runs[key]
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
 
 
-def _version_line(env: Env, cmd: list[str], stderr_first=False) -> str:
+def _version_line(env: Env, cmd: list[str]) -> str:
     code, out, err = env.run(cmd)
-    return _first_line(f"{err}\n{out}" if stderr_first else f"{out}\n{err}") or f"exit {code}"
+    return _first_line(out) or _first_line(err) or f"exit {code}"
 
 
 def _checks() -> dict:
     try:
-        builtin = {c.id for c in discover(CHECKS_ROOT)}
         resolved = resolve_checks(CHECKS_ROOT, user_checks_root())
     except CheckFormatError as exc:
         return {"error": str(exc)}
     user = sorted(i for i, r in resolved.items() if r.source == "user")
-    overridden = len(builtin.intersection(user))
-    return {"builtin": len(builtin), "overridden": overridden,
-            "added": len(user) - overridden, "user_check_ids": user}
+    builtin = sum(1 for _ in CHECKS_ROOT.rglob("*.sql"))  # one id per file (L014)
+    added = len(resolved) - builtin
+    return {"builtin": builtin, "overridden": len(user) - added, "added": added,
+            "user_check_ids": user}
 
 
 def _connections(results: list[dict]) -> list[str]:
-    """Saved connection names: the `connections` list, then `<check>:<name>` suffixes."""
+    """Saved connection names, from the `<check>:<name>` results doctor gives each."""
     names = []
     for r in results:
-        if r["check"] == "connections" and r["status"] == PASS:
-            names += r["detail"].split(", ")
-        names += [r["check"].partition(":")[2]] if ":" in r["check"] else []
+        _, sep, name = r["check"].partition(":")
+        if sep:
+            names.append(name)
     return names
 
 
@@ -87,13 +99,14 @@ def _redacted(value, known):
 
 def build(env: Env, tier: Tier) -> dict[str, str]:
     """File name -> redacted text, for every file of the bundle."""
+    env = _Recorded(env)
     results = [asdict(r) for r in run_all(env, tier)]
     versions = {
         "pack": f"{PACK_NAME} {VERSION}",
         "python": platform.python_version(),
         "os": f"{platform.system()} {platform.release()}",
         "sqlcl": _version_line(env, [sqlcl_bin(), "-V"]),
-        "java": _version_line(env, [_java(), "-version"], stderr_first=True),
+        "java": _version_line(env, [java_bin(), "-version"]),
     }
     doctor_text = "\n".join(v for r in results for v in r.values())
     known = collect(doctor_text, connections=_connections(results), db_users=[tier.db_user])

@@ -6,14 +6,14 @@ quad is an address unless its context says version
 (docs/decisions/D-DBA-17-redaction-fails-closed.md).
 """
 
+import functools
 import getpass
 import os
 import re
 import socket
-from collections.abc import Iterable
-from dataclasses import dataclass, field
 from pathlib import Path
 
+_OS_CASE = re.I if os.name == "nt" else 0  # paths and user names ignore case on Windows
 HOME, OS_USER, HOST, IP, CONNECT = "<home>", "<os-user>", "<host>", "<ip>", "<connect-string>"
 
 _OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
@@ -45,34 +45,26 @@ FILE_TYPES = frozenset({
     "bat", "cfg", "cmd", "csv", "exe", "html", "ini", "jar", "json", "log", "ora", "ps1",
     "sql", "toml", "txt", "xml", "yaml", "yml",
 })
-# (Known field, token label, matched in any case): Oracle folds unquoted identifiers.
-_KINDS = (("connections", "connection", False), ("db_users", "db-user", True),
-          ("db_names", "db-name", True), ("services", "service", True))
 
 
-@dataclass(frozen=True)
 class Known:
     """Names collected at run time. Each kind is numbered in order of first
-    appearance, so the same name always gets the same token."""
-    connections: Iterable[str] = ()
-    db_users: Iterable[str] = ()
-    db_names: Iterable[str] = ()
-    services: Iterable[str] = ()
-    _subs: tuple = field(default=(), init=False, repr=False, compare=False)
+    appearance, so the same name always gets the same token. Oracle folds
+    unquoted identifiers, so database names match in any case."""
 
-    def __post_init__(self):
-        subs = []
-        for attr, label, fold in _KINDS:
-            names = tuple(n for n in getattr(self, attr) if n)
-            object.__setattr__(self, attr, names)
+    def __init__(self, connections=(), db_users=(), db_names=(), services=()):
+        self.subs = []  # (pattern, replacement function), applied in this order
+        for names, label, fold in ((connections, "connection", False),
+                                   (db_users, "db-user", True), (db_names, "db-name", True),
+                                   (services, "service", True)):
+            key = str.upper if fold else str
             tokens = {}
-            for name in names:
-                tokens.setdefault(name.upper() if fold else name, f"<{label}-{len(tokens) + 1}>")
+            for name in filter(None, names):
+                tokens.setdefault(key(name), f"<{label}-{len(tokens) + 1}>")
             if tokens:
                 alts = "|".join(map(re.escape, sorted(tokens, key=len, reverse=True)))
                 pattern = re.compile(rf"(?<![\w$#-])(?:{alts})(?![\w$#-])", re.I if fold else 0)
-                subs.append((pattern, tokens, fold))
-        object.__setattr__(self, "_subs", tuple(subs))
+                self.subs.append((pattern, lambda m, t=tokens, k=key: t[k(m[0])]))
 
 
 def collect(text: str, connections=(), db_users=()) -> Known:
@@ -81,7 +73,7 @@ def collect(text: str, connections=(), db_users=()) -> Known:
     ORA-12514 names."""
     users, services = list(db_users), []
     for m in _EZCONNECT.finditer(text):
-        services += [s for s in (m["service"], m["service2"], m["sid"]) if s]
+        services += filter(None, m.groups())  # service name or SID
         if user := _USER_AT.search(text, 0, m.start()):
             users.append(user[1])
     services += _DESCRIPTION_NAMES.findall(text) + _UNREGISTERED.findall(text)
@@ -113,17 +105,18 @@ def _word(name: str, flags=0) -> re.Pattern:
     return re.compile(rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])", flags)
 
 
-def _home_patterns() -> list[re.Pattern]:
+@functools.cache
+def _home_patterns() -> tuple[re.Pattern, ...]:
     """The home path, as written by this OS and resolved; none when home is a root."""
     home = Path.home()
     if home == Path(home.anchor):  # a home of `/` would match every path
-        return []
-    fold = re.I if os.name == "nt" else 0
+        return ()
     paths = dict.fromkeys((str(home), str(home.resolve()), home.as_posix()))
-    return [re.compile(rf"{re.escape(path)}(?![\w.-])", fold) for path in paths]
+    return tuple(re.compile(rf"{re.escape(path)}(?![\w.-])", _OS_CASE) for path in paths)
 
 
-def _identity_patterns() -> list[tuple[re.Pattern, str]]:
+@functools.cache
+def _identity_patterns() -> tuple[tuple[re.Pattern, str], ...]:
     """This machine's name, with and without its domain, and the OS user."""
     machine = socket.gethostname()
     pats = [(_word(name, re.I), HOST)
@@ -133,8 +126,8 @@ def _identity_patterns() -> list[tuple[re.Pattern, str]]:
     except (OSError, KeyError):  # no login name, e.g. a container without a passwd entry
         user = ""
     if user:
-        pats.append((_word(user, re.I if os.name == "nt" else 0), OS_USER))
-    return pats
+        pats.append((_word(user, _OS_CASE), OS_USER))
+    return tuple(pats)
 
 
 def redact(text: str, known: Known) -> str:
@@ -143,8 +136,8 @@ def redact(text: str, known: Known) -> str:
     for pattern in _home_patterns():
         text = pattern.sub(HOME, text)
     text = _EZCONNECT.sub(CONNECT, _descriptions(text))
-    for pattern, tokens, fold in known._subs:
-        text = pattern.sub(lambda m, t=tokens, f=fold: t[m[0].upper() if f else m[0]], text)
+    for pattern, replace in known.subs:
+        text = pattern.sub(replace, text)
     text = _IPV4_RE.sub(_ipv4, text)
     text = _IPV6_RE.sub(lambda m: m[0] if m[0] == "::" else IP, text)
     text = _FQDN_RE.sub(lambda m: m[0] if m["tld"].lower() in FILE_TYPES else HOST, text)

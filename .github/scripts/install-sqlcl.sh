@@ -9,7 +9,7 @@ set -euo pipefail
 BASE_URL="https://download.oracle.com/otn_software/java/sqldeveloper"
 
 if [ "$#" -ne 1 ] || [ -z "$1" ]; then
-  echo "usage: $0 <version>   (25.2 or latest)" >&2
+  echo "usage: $0 <version>   (25.3.2 or latest)" >&2
   exit 2
 fi
 version="$1"
@@ -19,9 +19,9 @@ case "$version" in
     zip_name="sqlcl-latest.zip"
     sha256=""
     ;;
-  25.2)
-    zip_name="sqlcl-25.2.2.199.0918.zip"
-    sha256="62c20426441779520006c0973417d3e9665bad7babd61a046458fdec9bc61d5f"
+  25.3.2)
+    zip_name="sqlcl-25.3.2.317.1117.zip"
+    sha256="0af1ecb1da1a840d800cfe88fe20a35aeb9ceac9ff38729be0025b937b101d7e"
     ;;
   *)
     echo "error: no SHA-256 recorded for SQLcl $version; add it to $0" >&2

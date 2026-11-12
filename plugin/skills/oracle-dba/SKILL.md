@@ -48,12 +48,12 @@ Connect by saved connection name only: call the connection-listing tool, then `c
 
 Before writing any SQL of your own:
 
-1. Read the check index once per conversation and reuse it: `<pack_home>/checks/INDEX.md` if it exists, otherwise `plugin/checks/INDEX.md`. `<pack_home>` is the folder named by the environment variable `<PACK NAME>_HOME` when set, otherwise `~/.` followed by the pack name that `python -m tools version` prints. The user index includes the user's own checks and overrides, with absolute file paths; the built-in index gives paths relative to `plugin/checks/`.
+1. Read the check index once per conversation and reuse it: `<pack_home>/checks/INDEX.md` if it exists, otherwise `plugin/checks/INDEX.md`. `<pack_home>` is the folder named by the environment variable named after the pack in upper case plus `_HOME`, when set, otherwise `~/.` followed by the pack name that `python -m tools version` prints. The user index includes the user's own checks and overrides, with absolute file paths; the built-in index gives paths relative to `plugin/checks/`.
 2. Pick a check by its id.
 3. Read its `.sql` file.
 4. Send the whole file through the SQL-running tool unchanged, header comments included. Do not reformat it, drop the comments, change a threshold or add a filter: the tested check is only what runs if the text is the same.
 
-A check result already in this conversation answers for that check; run it again only when the user wants fresh figures.
+A check result already in this conversation answers for that check; run it again only when the user wants fresh figures. A health check runs every check fresh.
 
 Read the header before running: if `min_version` is above the database version (from the `connect` result or `db_overview`), do not run the check and say why; if `pack` is not `none`, rule 8 applies.
 

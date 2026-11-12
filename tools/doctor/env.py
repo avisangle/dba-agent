@@ -23,7 +23,7 @@ class Env(Protocol):
         """(exit code, stdout, stderr); 127 when the program is not installed."""
 
     def open_session(self, home: Path):
-        """An unentered `sql -home <home> -mcp` session (a SqlclSession)."""
+        """An unentered `sql -home <home> -R 4 -mcp` session (a SqlclSession)."""
 
     def home_path(self, tier: Tier) -> Path: ...
 

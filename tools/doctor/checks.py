@@ -11,13 +11,15 @@ from pathlib import Path
 
 from tools.doctor.env import Env, sqlcl_bin
 from tools.mcp_client import McpError, McpTimeout
-from tools.sqlcl import _RENAMED
+from tools.sqlcl import _RENAMED, mcp_argv
 from tools.tiers import Tier
 
 PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
 MCP_TOOLS = ("list-connections", "connect", "run-sql", "disconnect")
 PER_CONNECTION = ("connect", "db-version", "grants", "excess-privileges", "restrict-level")
-PROBE = "@doctor_probe.sql"  # refused at restrict level 3 and above; the file need not exist
+# Refused at restrict level 3 and above. The file need not exist; `host` is sent
+# only after `@` was refused, so doctor never runs it on an under-restricted server.
+PROBES = ("@doctor_probe.sql", "host echo doctor-probe")
 REFUSED = "SP2-0738"
 
 
@@ -177,14 +179,21 @@ def check_grants(session, tier: Tier, name: str) -> list[Result]:
     ]
 
 
-def check_restrict_level(session, name: str) -> Result:
+def _mcp_command(home: Path) -> str:
+    return " ".join([sqlcl_bin(), *mcp_argv(str(home))])
+
+
+def check_restrict_level(session, name: str, home: Path) -> Result:
     check = f"restrict-level:{name}"
-    result = session.run_sqlcl(PROBE)
-    if REFUSED in result.text:
-        return Result(check, PASS, f"{PROBE} refused ({REFUSED})")
-    answer = result.error or _first_line(result.text) or "no output"
-    return Result(check, FAIL, f"{PROBE} was not refused: {answer}",
-                  "start SQLcl's MCP server with `-R 4` (restrict level 3 or higher)")
+    for probe in PROBES:
+        result = session.run_sqlcl(probe)
+        if REFUSED not in result.text:
+            answer = result.error or _first_line(result.text) or "no output"
+            return Result(check, FAIL, f"`{probe}` was not refused: {answer}",
+                          f"SQLcl's MCP server must run at restrict level 4: start it as "
+                          f"`{_mcp_command(home)}`, in the pack and in your MCP client "
+                          "configuration")
+    return Result(check, PASS, f"{' and '.join(f'`{p}`' for p in PROBES)} refused ({REFUSED})")
 
 
 def _skips(checks: list[str], names: list[str] | None, reason: str) -> list[Result]:
@@ -194,7 +203,7 @@ def _skips(checks: list[str], names: list[str] | None, reason: str) -> list[Resu
     return [Result(c, SKIP, reason) for c in [*checks, *per]]
 
 
-def _connection_checks(session, tier: Tier, name: str) -> list[Result]:
+def _connection_checks(session, tier: Tier, name: str, home: Path) -> list[Result]:
     results = [check_connect(session, tier, name)]
     if results[0].status == FAIL:
         return results + [Result(f"{c}:{name}", SKIP, f"connect:{name} failed")
@@ -202,7 +211,7 @@ def _connection_checks(session, tier: Tier, name: str) -> list[Result]:
     try:
         results.append(check_db_version(session, name))
         results.extend(check_grants(session, tier, name))
-        results.append(check_restrict_level(session, name))
+        results.append(check_restrict_level(session, name, home))
     except (McpError, McpTimeout) as exc:
         i = len(results)
         results.append(Result(f"{PER_CONNECTION[i]}:{name}", FAIL,
@@ -227,7 +236,7 @@ def run_all(env: Env, tier: Tier, connection: str | None = None) -> list[Result]
                                 f"{' and '.join(failed)} failed")
 
     home = env.home_path(tier)
-    start_fix = f"run `{sqlcl_bin()} -home {home} -mcp` by hand to see SQLcl's error"
+    start_fix = f"run `{_mcp_command(home)}` by hand to see SQLcl's error"
     with contextlib.ExitStack() as stack:
         try:
             session = stack.enter_context(env.open_session(home))
@@ -255,5 +264,5 @@ def run_all(env: Env, tier: Tier, connection: str | None = None) -> list[Result]
         results.append(Result("connections", PASS, ", ".join(saved)))
 
         for name in names or saved:
-            results.extend(_connection_checks(session, tier, name))
+            results.extend(_connection_checks(session, tier, name, home))
     return results

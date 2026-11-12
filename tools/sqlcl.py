@@ -1,4 +1,4 @@
-"""A SQLcl MCP server session (`sql -home <home> -mcp`) with typed SQL results."""
+"""A SQLcl MCP server session (`sql -home <home> -R 4 -mcp`) with typed SQL results."""
 
 import re
 from dataclasses import dataclass
@@ -13,6 +13,13 @@ _RENAMED = {
     "run-sql": "sql_run",
     "run-sqlcl": "sqlcl_run",
 }
+
+
+def mcp_argv(home: str) -> list[str]:
+    """SQLcl's arguments for an MCP server on `home` at restrict level 4 (no `@`,
+    `host` or `spool`); the only source of this list
+    (D-DBA-15-sqlcl-explicit-restrict-level-4)."""
+    return ["-home", home, "-R", "4", "-mcp"]
 
 
 def _error(result: ToolResult) -> str | None:
@@ -34,8 +41,8 @@ class SqlResult:
 
 
 class SqlclSession:
-    """One `sql -mcp` process. Every tool call carries `model`, which SQLcl puts in
-    V$SESSION.MODULE. SQLcl runs at its default restrict level (no `-R`).
+    """One `sql -home <home> -R 4 -mcp` process. Every tool call carries `model`,
+    which SQLcl puts in V$SESSION.MODULE.
 
     Use as a context manager. `timeout` bounds each tool call; `connect` alone
     takes about 10 seconds.
@@ -43,7 +50,7 @@ class SqlclSession:
 
     def __init__(self, sql_bin: str, home: str, model: str = "pack-tools", timeout: float = 120.0):
         self.model = model
-        self._client = McpStdioClient([sql_bin, "-home", home, "-mcp"], timeout)
+        self._client = McpStdioClient([sql_bin, *mcp_argv(home)], timeout)
         self._tool_names: dict[str, str] = {}
         self._offered: list[str] = []
 

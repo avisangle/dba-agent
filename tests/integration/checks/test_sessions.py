@@ -20,9 +20,9 @@ WAITER); idle_in_transaction IDLE_SECONDS.
 The scenario uses a throwaway schema AGENT_TEST_APP (CREATE SESSION and a quota
 only; `admin` creates its one-row table T(id, v1, v2)) and two extra
 SqlclSessions as that user, opened with `tests/support/extra_session.py`.
-Session 2's blocked update goes through `run_sql(..., asynchronous=True)`; its
-sessions use a short timeout, so a call that does not go asynchronous fails fast
-instead of hanging.
+Session 2's blocked update goes through `run_sql(..., asynchronous=True)` where
+SQLcl offers it (26.1 and later); where it raises AsynchronousUnsupported (25.3.2,
+25.4), the update runs synchronously on a background thread (DBA-22).
 
 Through SQLcl MCP, a session saved with `?oracle.jdbc.autoCommit=false` holds a
 DML change and its row lock only until that session's next call, which commits
@@ -39,6 +39,7 @@ import importlib
 import inspect
 import secrets
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -66,6 +67,9 @@ CATALOGUE = {
 APP_USER = "AGENT_TEST_APP"
 EXTRA_TIMEOUT = 30.0  # seconds per tool call on the AGENT_TEST_APP sessions
 ASYNC_LIMIT = 20.0  # an asynchronous call must return well inside EXTRA_TIMEOUT
+# Session 2's timeout: on the background path its one call stays open from step 3
+# to step 5 (two 15 s polls plus several check runs)
+BLOCKED_TIMEOUT = 120.0
 
 
 def _helpers():
@@ -92,6 +96,31 @@ def _check_rows(ro, check_id) -> list[dict[str, str]]:
 
 def _own_sid(session) -> str:
     return _ok(session, "select sys_context('userenv', 'sid') as sid from dual").rows[0][0]
+
+
+def _in_background(fn, *args):
+    """Run fn(*args) on a daemon thread. The returned join(seconds) waits at most
+    `seconds`, fails if the thread is still running, re-raises its exception, and
+    otherwise returns its result."""
+    outcome = {}
+
+    def target():
+        try:
+            outcome["result"] = fn(*args)
+        except BaseException as exc:  # noqa: B036  (re-raised by join)
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+
+    def join(seconds):
+        thread.join(seconds)
+        assert not thread.is_alive(), f"background call still running after {seconds}s"
+        if "error" in outcome:
+            raise outcome["error"]
+        return outcome["result"]
+
+    return join
 
 
 def _poll(fn, until, seconds=15.0):
@@ -122,10 +151,10 @@ def app_schema(admin, sqlcl_bin_and_dsn, tmp_path_factory):
 
         opened = []
 
-        def open_app_session(name):
+        def open_app_session(name, timeout=EXTRA_TIMEOUT):
             home = tmp_path_factory.mktemp(f"sqlcl-home-{name}")
             ctx = extra_session(sqlcl_bin, str(home), name, APP_USER, password, dsn,
-                                timeout=EXTRA_TIMEOUT)
+                                timeout=timeout)
             opened.append(ctx)
             return ctx.__enter__()
 
@@ -211,14 +240,19 @@ def test_idle_transaction_then_blocking_tree_scenario(admin, ro, app_schema):
     """AC (scenario): session 1 updates v1 and makes no further call -> admin
     still reads the old v1 and idle_in_transaction lists session 1 OK; session 2
     updates v2 of the same row with run_sql(asynchronous=True), which returns raw
-    text while the statement waits -> active_sessions lists session 2 INFO, and
+    text while the statement waits, or, where SQLcl has no asynchronous form, raises
+    AsynchronousUnsupported at once and the update runs on a background thread
+    (DBA-22 AC7) -> active_sessions lists session 2 INFO, and
     blocking_tree returns exactly session 1 BLOCKER at level 1 and session 2
     WAITER at level 2, both WARNING; one more call on session 1 (`select 1 from
     dual`) commits its change -> blocking_tree returns zero rows and admin reads
-    the new v1."""
+    the new v1. The background update is joined after step 5; its exception
+    fails the test."""
+    from tools.sqlcl import AsynchronousUnsupported
+
     table = f"{APP_USER.lower()}.t"
     s1 = app_schema("agent_test_app_1")
-    s2 = app_schema("agent_test_app_2")
+    s2 = app_schema("agent_test_app_2", timeout=BLOCKED_TIMEOUT)
     sid1 = _own_sid(s1)  # before the update: any later call on s1 commits it
 
     def committed_v1():
@@ -238,11 +272,22 @@ def test_idle_transaction_then_blocking_tree_scenario(admin, ro, app_schema):
     assert float(idle[0]["IDLE_SECONDS"]) < 900, f"fixture precondition: {idle[0]}"
 
     # 3: the blocked update must not hold the call open; it changes v2 only, so
-    # step 5's read of v1 does not depend on what happens to it once unblocked
+    # step 5's read of v1 does not depend on what happens to it once unblocked.
+    # Only AsynchronousUnsupported selects the background path: a timeout or a
+    # server error still fails the test.
+    update2 = f"update {table} set v2 = 10 where id = 1"
+    background = None
     started = time.monotonic()
-    text = s2.run_sql(f"update {table} set v2 = 10 where id = 1", asynchronous=True)
+    try:
+        text = s2.run_sql(update2, asynchronous=True)
+    except AsynchronousUnsupported:
+        text = None
     assert time.monotonic() - started < ASYNC_LIMIT, "asynchronous call did not return early"
-    assert isinstance(text, str), type(text)
+    if text is None:
+        # no call on s2 from the main thread until this one is joined
+        background = _in_background(s2.run_sql, update2)
+    else:
+        assert isinstance(text, str), type(text)
 
     # 4: exactly the two sessions, blocker first
     tree = _poll(lambda: _check_rows(ro, "blocking_tree"), lambda rows: len(rows) == 2)
@@ -265,3 +310,5 @@ def test_idle_transaction_then_blocking_tree_scenario(admin, ro, app_schema):
     tree = _poll(lambda: _check_rows(ro, "blocking_tree"), lambda rows: rows == [])
     assert tree == [], tree
     assert committed_v1() == "1", "the lock went away but session 1's change was not committed"
+    if background is not None:
+        background(EXTRA_TIMEOUT)  # the unblocked update returned, without raising

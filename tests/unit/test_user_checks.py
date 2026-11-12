@@ -340,3 +340,181 @@ def test_contract_for_dba16_and_dba17(tmp_path):
     assert index_md.is_file()
     tables = _tables(index_md.read_text(encoding="utf-8"))
     assert tables and all("source" in rows[0] for rows in tables.values()), tables
+
+
+# --- DBA-20 items 3 and 4: check-test resolves one id ------------------------
+#
+# check-test <id> must parse only `<id>.sql` files (lint L003 ties the id to the
+# file stem), so an unrelated malformed user file cannot break it, and two user
+# files for one id are refused (L014) instead of one being used silently.
+# Precedence stays in tools/checks/resolve.py (D-DBA-14).
+
+
+def _copy_fixture(home: Path, fixture: str, rel: str) -> Path:
+    """Copy tests/fixtures/checks/<fixture>/<rel> to <home>/checks/<rel>."""
+    dest = home / "checks" / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FIXTURES / fixture / rel, dest)
+    return dest
+
+
+def _check_test(repo: Path, home: Path, workdir: Path, check_id: str):
+    """(process, SQL texts run-sql received) for `check-test <check_id>` against a
+    fresh fake server whose files live in `workdir`."""
+    workdir.mkdir()
+    exe, log = _fake_sqlcl(workdir)
+    proc = _run_tools(repo, home, "check-test", check_id, "--connection", "admin",
+                      "--home", str(workdir / "sqlcl-home"), extra_env={"SQLCL_BIN": str(exe)})
+    return proc, (_sql_sent(log) if log.exists() else [])
+
+
+def _names(text: str, path: Path) -> bool:
+    return str(path) in text or str(path.resolve()) in text
+
+
+def test_check_test_ignores_an_unrelated_malformed_user_file(tmp_path):
+    """DBA-20 AC3: with a malformed user file for another id (fixture L001),
+    check-test for a user id and for a built-in id behaves as without it: same
+    exit code and same stdout."""
+    repo, _, home = _setup(tmp_path)
+    mine = home / "checks" / "custom" / "my_check.sql"
+    mine.parent.mkdir(parents=True)
+    mine.write_text(CUSTOM_CHECK, encoding="utf-8")
+    ids = ("my_check", "tablespace_usage")
+
+    clean = {i: _check_test(repo, home, tmp_path / f"clean-{i}", i)[0] for i in ids}
+    for i, proc in clean.items():
+        assert proc.returncode == 0, f"precondition {i}: " + proc.stdout + proc.stderr
+
+    _copy_fixture(home, "L001", "storage/l001_missing_key.sql")
+    for i in ids:
+        proc, sent = _check_test(repo, home, tmp_path / f"dirty-{i}", i)
+        assert (proc.returncode, proc.stdout) == (clean[i].returncode, clean[i].stdout), (
+            f"{i}: " + proc.stdout + proc.stderr
+        )
+        assert len(sent) == 1, sent
+
+
+def test_check_test_refuses_a_malformed_user_file_for_the_requested_id(tmp_path):
+    """DBA-20 AC3: when the malformed user file is `<id>.sql`, check-test <id>
+    exits 1 naming that file and does not fall back to the built-in check;
+    `index --user` still refuses a folder holding a malformed file."""
+    repo, _, home = _setup(tmp_path)
+    bad = home / "checks" / "storage" / "tablespace_usage.sql"
+    bad.parent.mkdir(parents=True)
+    shutil.copyfile(FIXTURES / "L001" / "storage" / "l001_missing_key.sql", bad)
+
+    proc, sent = _check_test(repo, home, tmp_path / "run", "tablespace_usage")
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "L001" in proc.stderr and _names(proc.stderr, bad), proc.stderr
+    assert sent == [], "fell back to the built-in check"
+
+    indexed = _run_tools(repo, home, "index", "--user")
+    assert indexed.returncode == 1, indexed.stdout + indexed.stderr
+
+
+def test_check_test_refuses_two_user_files_for_one_id(tmp_path):
+    """DBA-20 AC4a: two user files for one id (fixture L014 layout) make
+    check-test <id> exit 1, naming L014 and both paths on stderr, with no run-sql
+    call."""
+    repo, _, home = _setup(tmp_path)
+    paths = [_copy_fixture(home, "L014", f"{c}/dup_check.sql") for c in ("health", "storage")]
+
+    proc, sent = _check_test(repo, home, tmp_path / "run", "dup_check")
+
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "L014" in proc.stderr, proc.stderr
+    assert all(_names(proc.stderr, p) for p in paths), proc.stderr
+    assert sent == [], f"run-sql was called: {sent}"
+
+
+def test_index_user_refuses_a_user_check_that_parses_but_fails_lint(tmp_path):
+    """DBA-20 AC4b: a user file that parse_check accepts but lint rejects (L010,
+    `&` in the body) makes `index --user` exit 1 with the finding printed and an
+    existing merged index byte-for-byte unchanged. (Falsifier: `findings = []`
+    in tools/commands/index.py `_run_user`.)"""
+    repo, _, home = _setup(tmp_path)
+    bad = _copy_fixture(home, "L010-amp", "storage/l010_amp.sql")
+    parse_check(bad)  # precondition: only the lint gate can refuse it
+    index_md = home / "checks" / "INDEX.md"
+    index_md.write_bytes(b"previous merged index\n")
+
+    proc = _run_tools(repo, home, "index", "--user")
+
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 1, out
+    assert "L010" in out and "l010_amp.sql" in out, out
+    assert index_md.read_bytes() == b"previous merged index\n", "merged index was rewritten"
+
+
+def test_resolve_check_finds_one_id_with_user_precedence(tmp_path):
+    """DBA-20: resolve_check(builtin_root, user_root, check_id) parses only
+    `<check_id>.sql`: the user file wins, the built-in one is used without it,
+    None for an unknown id, CheckFormatError for a malformed chosen file, and
+    CheckFormatError L014 naming both paths for two user files with the id."""
+    resolve = importlib.import_module("tools.checks.resolve")
+    header = importlib.import_module("tools.checks.header")
+    _, checks_root, home = _setup(tmp_path)
+    user_root = home / "checks"
+
+    entry = resolve.resolve_check(checks_root, user_root, "tablespace_usage")  # no user folder
+    assert entry.source == "builtin"
+    assert entry.check.path.resolve() == (checks_root / "storage" / "tablespace_usage.sql").resolve()
+    assert resolve.resolve_check(checks_root, user_root, "no_such_check") is None
+
+    user_file = _write_user_override(home, checks_root / "storage" / "tablespace_usage.sql")
+    entry = resolve.resolve_check(checks_root, user_root, "tablespace_usage")
+    assert (entry.source, entry.check.title) == ("user", USER_TITLE)
+    assert entry.check.path.resolve() == user_file.resolve()
+
+    shutil.copyfile(FIXTURES / "L001" / "storage" / "l001_missing_key.sql", user_file)
+    try:
+        resolve.resolve_check(checks_root, user_root, "tablespace_usage")
+    except header.CheckFormatError as exc:
+        assert exc.code == "L001" and _names(str(exc), user_file), str(exc)
+    else:
+        raise AssertionError("malformed user file was not refused")
+
+    dups = [_copy_fixture(home, "L014", f"{c}/dup_check.sql") for c in ("health", "storage")]
+    try:
+        resolve.resolve_check(checks_root, user_root, "dup_check")
+    except header.CheckFormatError as exc:
+        assert exc.code == "L014", str(exc)
+        assert all(_names(str(exc), p) for p in dups), str(exc)
+    else:
+        raise AssertionError("two user files for one id were not refused")
+
+
+# --- DBA-20 contract test for dependents -------------------------------------
+
+
+def test_contract_for_dependents_dba20(tmp_path):
+    """Contract from DBA-20 (DBA-8, DBA-10, DBA-16, DBA-17 consume these). Shape only:
+    - unchanged: find_error(text), parse_csv(text) -> (list, list, str),
+      resolve_checks(builtin_root, user_root), parse_max_rows(value),
+      McpStdioClient(command, timeout);
+    - new: tools.checks.resolve.resolve_check(builtin_root, user_root, check_id)
+      -> ResolvedCheck | None; with a malformed unrelated user file it still
+      returns the built-in check for a built-in id."""
+    params = lambda fn: list(inspect.signature(fn).parameters)  # noqa: E731
+    sqlcl_text = importlib.import_module("tools.sqlcl_text")
+    header = importlib.import_module("tools.checks.header")
+    mcp_client = importlib.import_module("tools.mcp_client")
+    resolve = importlib.import_module("tools.checks.resolve")
+
+    assert params(sqlcl_text.find_error) == ["text"]
+    assert params(sqlcl_text.parse_csv) == ["text"]
+    head, rows, footer = sqlcl_text.parse_csv('"N"\n1\n\n')
+    assert isinstance(head, list) and isinstance(rows, list) and isinstance(footer, str)
+    assert params(resolve.resolve_checks) == ["builtin_root", "user_root"]
+    assert params(header.parse_max_rows) == ["value"]
+    assert params(mcp_client.McpStdioClient)[:2] == ["command", "timeout"]
+
+    assert hasattr(resolve, "resolve_check"), "tools.checks.resolve.resolve_check missing"
+    assert params(resolve.resolve_check) == ["builtin_root", "user_root", "check_id"]
+    _, checks_root, home = _setup(tmp_path)
+    _copy_fixture(home, "L001", "storage/l001_missing_key.sql")
+    entry = resolve.resolve_check(checks_root, home / "checks", "tablespace_usage")
+    assert isinstance(entry, resolve.ResolvedCheck) and isinstance(entry.check, Check)
+    assert entry.source == "builtin"
+    assert resolve.resolve_check(checks_root, home / "checks", "no_such_check") is None

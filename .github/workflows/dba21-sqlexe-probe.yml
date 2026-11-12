@@ -1,0 +1,46 @@
+name: DBA-21 sql.exe probe (throwaway, never merge)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sqlexe:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install SQLcl 25.3.2
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\sqlcl.zip"
+          Invoke-WebRequest -Uri https://download.oracle.com/otn_software/java/sqldeveloper/sqlcl-25.3.2.317.1117.zip -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "0af1ecb1da1a840d800cfe88fe20a35aeb9ceac9ff38729be0025b937b101d7e") { throw "sha256 $hash" }
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\sq"
+          Get-ChildItem "$env:RUNNER_TEMP\sq\sqlcl\bin" | Format-Table Name, Length
+          New-Item -ItemType Directory "$env:RUNNER_TEMP\home" | Out-Null
+      - name: check-test through sql.exe (three spellings of SQLCL_BIN)
+        shell: pwsh
+        run: |
+          $bin = "$env:RUNNER_TEMP\sq\sqlcl\bin"
+          $failed = 0
+          foreach ($case in @("$bin\sql", "$bin\sql.exe", "<unset, bare sql on PATH>")) {
+            if ($case.StartsWith("<")) { Remove-Item Env:SQLCL_BIN -ErrorAction SilentlyContinue; $env:PATH = "$bin;$env:PATH" }
+            else { $env:SQLCL_BIN = $case }
+            $out = python -m tools check-test db_overview --connection nosuch --home "$env:RUNNER_TEMP\home" 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            Write-Output "=== SQLCL_BIN=$case exit=$code"
+            Write-Output $out
+            if ($code -ne 2 -or $out -notmatch "error: no connection nosuch in") { $failed = 1 }
+          }
+          exit $failed

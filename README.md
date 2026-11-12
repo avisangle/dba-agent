@@ -22,7 +22,7 @@ plan lives in the "Oracle DBA AI Agent: Product & Build Plan" doc on claude.ai.
 
 ## Running the spike
 
-Needs SQLcl 25.2+, Java 17 or 21, Python 3.10+, and a non-production Oracle
+Needs SQLcl 25.3.2+, Java 17 or 21, Python 3.10+, and a non-production Oracle
 database. Follow `spike/HANDOFF.md` step by step.
 
 ## Known limitations

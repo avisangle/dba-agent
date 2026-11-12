@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 dependencies = []  # user-facing tools are stdlib only
 
 [dependency-groups]
-dev = ["pytest", "ruff", "pyyaml"]
+dev = ["pytest", "ruff", "pyyaml", "tomli; python_version < '3.11'"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

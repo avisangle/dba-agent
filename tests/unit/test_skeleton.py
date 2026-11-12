@@ -99,6 +99,7 @@ def test_config_pack_home_defaults_to_dot_name_and_honours_env_override(
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))  # Path.home() on Windows reads this
     monkeypatch.delenv(env_var, raising=False)
     assert Path(config.pack_home()) == fake_home / f".{config.PACK_NAME}"
 

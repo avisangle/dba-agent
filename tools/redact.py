@@ -39,10 +39,11 @@ _LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
 _FQDN_RE = re.compile(
     rf"(?<![\w.-])(?:{_LABEL}\.)+(?P<tld>[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9])(?![\w-]|\.\w)")
 _HOST_PORT = re.compile(r"\b(host )([^\s<]\S*?)( port \d)")  # ORA-12541: "at host X port N"
-# Last parts that make a dotted word a file name, not a host name.
+# Last parts that make a dotted word a file name, not a host name. None is a
+# top-level domain: md, py, sh and zip are, so `notes.md` is redacted as a host.
 FILE_TYPES = frozenset({
-    "bat", "cfg", "cmd", "csv", "exe", "html", "ini", "jar", "json", "log", "md", "ora",
-    "ps1", "py", "sh", "sql", "toml", "txt", "xml", "yaml", "yml", "zip",
+    "bat", "cfg", "cmd", "csv", "exe", "html", "ini", "jar", "json", "log", "ora", "ps1",
+    "sql", "toml", "txt", "xml", "yaml", "yml",
 })
 # (Known field, token label, matched in any case): Oracle folds unquoted identifiers.
 _KINDS = (("connections", "connection", False), ("db_users", "db-user", True),

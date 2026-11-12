@@ -15,6 +15,9 @@ from tools.sqlcl import _RENAMED, mcp_argv
 from tools.tiers import Tier
 
 PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
+# Oldest supported build (D-DBA-8-minimum-sqlcl-25-3-2).
+SQLCL_MIN = (25, 3, 2)
+SQLCL_MIN_TEXT = ".".join(map(str, SQLCL_MIN))
 MCP_TOOLS = ("list-connections", "connect", "run-sql", "disconnect")
 PER_CONNECTION = ("connect", "db-version", "grants", "excess-privileges", "restrict-level")
 # Refused at restrict level 3 and above. The file need not exist; `host` is sent
@@ -58,7 +61,7 @@ def check_python(env: Env) -> Result:
 
 def check_sqlcl(env: Env) -> Result:
     sql = sqlcl_bin()
-    fix = "install SQLcl 25.2 or newer and put `sql` on PATH, or set SQLCL_BIN to it"
+    fix = f"install SQLcl {SQLCL_MIN_TEXT} or newer and put `sql` on PATH, or set SQLCL_BIN to it"
     code, out, err = env.run([sql, "-V"])
     if code == 127:
         return Result("sqlcl", FAIL, f"{sql} not found", fix)
@@ -66,8 +69,8 @@ def check_sqlcl(env: Env) -> Result:
     if version is None:
         return Result("sqlcl", FAIL, f"`{sql} -V` reported no SQLcl version: "
                                      f"{_first_line(err or out) or f'exit {code}'}", fix)
-    if _numbers(version)[:2] < (25, 2):
-        return Result("sqlcl", FAIL, f"{version}, older than 25.2", fix)
+    if _numbers(version)[:len(SQLCL_MIN)] < SQLCL_MIN:
+        return Result("sqlcl", FAIL, f"{version}, older than {SQLCL_MIN_TEXT}", fix)
     return Result("sqlcl", PASS, version)
 
 
@@ -249,7 +252,7 @@ def run_all(env: Env, tier: Tier, connection: str | None = None) -> list[Result]
             return results + _skips(["connections"], names, "mcp-start failed")
         if missing:
             results.append(Result("mcp-start", FAIL, f"tools missing: {', '.join(missing)}",
-                                  "install SQLcl 25.2 or newer"))
+                                  f"install SQLcl {SQLCL_MIN_TEXT} or newer"))
             return results + _skips(["connections"], names, "mcp-start failed")
         results.append(Result("mcp-start", PASS, f"offers {', '.join(MCP_TOOLS)}"))
 

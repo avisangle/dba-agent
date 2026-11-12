@@ -32,6 +32,7 @@ Before anything was written, these were replaced in every file:
   database user, database and service names
                                           <db-user-N>, <db-name-N>, <service-N>
   your home folder and OS user name       <home>, <os-user>
+  the TNS admin folder in connect errors  <path>
 The same name gets the same number in every file.
 
 Nothing was read from SQLcl's home folders: no saved connection, password or

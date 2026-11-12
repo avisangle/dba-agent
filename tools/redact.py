@@ -15,6 +15,7 @@ from pathlib import Path
 
 _OS_CASE = re.I if os.name == "nt" else 0  # paths and user names ignore case on Windows
 HOME, OS_USER, HOST, IP, CONNECT = "<home>", "<os-user>", "<host>", "<ip>", "<connect-string>"
+PATH = "<path>"
 
 _OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
 _IPV4 = rf"(?:{_OCTET}\.){{3}}{_OCTET}"
@@ -44,6 +45,9 @@ _FQDN_RE = re.compile(
     rf"(?<![\w.-])(?:{_LABEL}\.)+(?P<tld>[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9])(?![\w-]|\.\w)")
 _HOST_PORT = re.compile(r"\b(host )([^\s<]\S*?)( port \d)")  # ORA-12541: "at host X port N"
 _UNKNOWN_HOST = re.compile(r"(Unknown host specified\.?\s*:\s*)[^\s:<]+")  # ORA-17868
+# The TNS admin folder ORA-12154 and ORA-12263 name; an ADB wallet's is `Wallet_<DBNAME>`.
+_TNS_PATH = re.compile(r"(\bfind alias \S+ in |\bconfigured as TNS admin: ).+?(?=\.(?:\s|$)|$)",
+                       re.M)
 # Last parts that make a dotted word a file name, not a host name. None is a
 # top-level domain: md, py, sh and zip are, so `notes.md` is redacted as a host.
 FILE_TYPES = frozenset({
@@ -138,8 +142,9 @@ def _identity_patterns() -> tuple[tuple[re.Pattern, str], ...]:
 
 
 def redact(text: str, known: Known) -> str:
-    """`text` with connect strings, addresses, host names, the home path, the OS
-    user and every name in `known` replaced by tokens."""
+    """`text` with connect strings, addresses, host names, the home path, the TNS
+    admin folder of a connect error, the OS user and every name in `known`
+    replaced by tokens."""
     for pattern in _home_patterns():
         text = pattern.sub(HOME, text)
     text = _EZCONNECT.sub(CONNECT, _descriptions(text))
@@ -150,6 +155,7 @@ def redact(text: str, known: Known) -> str:
     text = _FQDN_RE.sub(lambda m: m[0] if m["tld"].lower() in FILE_TYPES else HOST, text)
     text = _HOST_PORT.sub(rf"\1{HOST}\3", text)
     text = _UNKNOWN_HOST.sub(rf"\1{HOST}", text)
+    text = _TNS_PATH.sub(rf"\1{PATH}", text)
     for pattern, token in _identity_patterns():
         text = pattern.sub(token, text)
     return text

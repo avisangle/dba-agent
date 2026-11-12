@@ -1,0 +1,8 @@
+{
+  "checks": [
+    {"id": "alpha", "weight": 2},
+    {"id": "beta", "weight": 1},
+    {"id": "gamma", "weight": 1},
+    {"id": "delta", "weight": 1}
+  ]
+}

@@ -12,6 +12,15 @@ Dictionary columns used (Oracle 23ai reference):
   DBA_TS_QUOTAS(USERNAME, TABLESPACE_NAME)
   DBA_PROFILES(PROFILE, RESOURCE_NAME, LIMIT)
   V$SESSION, DBA_TABLESPACE_USAGE_METRICS (read as the tier user)
+  DBA_TAB_PRIVS(GRANTEE, OWNER, TABLE_NAME, PRIVILEGE); SESSION_PRIVS(PRIVILEGE),
+  SESSION_ROLES(ROLE) (DBA-10)
+
+DBA-10, the optional statement printed by `setup-sql --alert-log`, measured on
+23.26.3 in FREEPDB1: SYSTEM gets ORA-01031 applying it, SYS AS SYSDBA succeeds
+(the `alert_log_grantor` fixture); `ro` reads v$diag_alert_ext in its
+already-open session; its SESSION_PRIVS stay {CREATE SESSION} and SESSION_ROLES
+{SELECT_CATALOG_ROLE, HS_ADMIN_SELECT_ROLE}; as `ro` with it, gv$diag_alert_ext
+gives ORA-00942, DELETE from the view ORA-02030, CREATE TABLE ORA-01031.
 """
 
 import importlib
@@ -136,3 +145,67 @@ def test_tier_user_cannot_write_by_ddl_dml_or_with_function(admin, ro, probe):
         result = ro.run_sql(sql)
         assert result.error is not None and result.error.startswith("ORA-"), (label, result.text)
     assert _probe_rows(admin) == 0
+
+
+# --- DBA-10: the optional alert log statement (`setup-sql --alert-log`) ------
+
+ALERT_VIEW_COUNT = "select count(*) as n from v$diag_alert_ext"
+OPTIONAL_GRANT = ("SYS", "V_$DIAG_ALERT_EXT", "SELECT")
+
+
+def _tab_privs(session, user) -> set[tuple[str, ...]]:
+    result = session.run_sql(
+        f"select owner, table_name, privilege from dba_tab_privs where grantee = '{user}'"
+    )
+    assert result.error is None, result.text
+    return {tuple(row) for row in result.rows}
+
+
+def _session_set(ro, sql) -> set[str]:
+    result = ro.run_sql(sql)
+    assert result.error is None, result.text
+    return {row[0] for row in result.rows}
+
+
+def _refused_with(result, code: str) -> bool:
+    return result.error is not None and result.error.startswith(code)
+
+
+def test_optional_alert_log_statement_opens_exactly_v_diag_alert_ext(
+    alert_log_grantor, ro, user, alert_log_grant
+):
+    """AC (DBA-10): before the statement `ro` gets ORA-00942 on v$diag_alert_ext;
+    with it, in the already-open session, the count returns one numeric row; the
+    user's DBA_TAB_PRIVS gain exactly (SYS, V_$DIAG_ALERT_EXT, SELECT); after
+    the revoke ORA-00942 again. Falsifier: also grant GV_$DIAG_ALERT_EXT or
+    SELECT ANY DICTIONARY."""
+    assert _refused_with(ro.run_sql(ALERT_VIEW_COUNT), "ORA-00942")
+    before = _tab_privs(alert_log_grantor, user)
+
+    with alert_log_grant():
+        granted = ro.run_sql(ALERT_VIEW_COUNT)
+        assert granted.error is None, granted.text
+        assert len(granted.rows) == 1 and granted.rows[0][0].isdigit(), granted.text
+        assert _tab_privs(alert_log_grantor, user) - before == {OPTIONAL_GRANT}
+
+    assert _refused_with(ro.run_sql(ALERT_VIEW_COUNT), "ORA-00942")
+    assert _tab_privs(alert_log_grantor, user) == before
+
+
+def test_optional_alert_log_statement_changes_no_session_privilege_or_role(ro, alert_log_grant):
+    """AC (DBA-10): with the statement applied, `ro`'s SESSION_PRIVS and
+    SESSION_ROLES (what doctor compares) are the same sets as before; and `ro`
+    still gets an ORA- error on gv$diag_alert_ext, on DELETE from
+    v$diag_alert_ext and on CREATE TABLE."""
+    privs_sql, roles_sql = "select privilege from session_privs", "select role from session_roles"
+    privs, roles = _session_set(ro, privs_sql), _session_set(ro, roles_sql)
+
+    with alert_log_grant():
+        assert _session_set(ro, privs_sql) == privs
+        assert _session_set(ro, roles_sql) == roles
+        for sql in (
+            "select count(*) as n from gv$diag_alert_ext",
+            "delete from v$diag_alert_ext",
+            "create table dba10_ro_t (x number)",
+        ):
+            assert _refused_with(ro.run_sql(sql), "ORA-"), sql

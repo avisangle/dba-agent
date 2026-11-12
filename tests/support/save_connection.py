@@ -9,10 +9,12 @@ import subprocess
 
 
 def save_connection(
-    sql_bin: str, home: str, name: str, user: str, password: str, dsn: str, timeout: float = 120.0
+    sql_bin: str, home: str, name: str, user: str, password: str, dsn: str, timeout: float = 120.0,
+    as_sysdba: bool = False,
 ) -> None:
     """Save `user` at `dsn` (host:port/service) as connection `name` in `home`."""
-    script = f'conn -save {name} -savepwd {user}/"{password}"@//{dsn}\nexit\n'
+    role = " as sysdba" if as_sysdba else ""
+    script = f'conn -save {name} -savepwd {user}/"{password}"@//{dsn}{role}\nexit\n'
     proc = subprocess.run(
         [sql_bin, "-home", str(home), "/nolog"],
         input=script, capture_output=True, text=True, timeout=timeout, check=False,

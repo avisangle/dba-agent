@@ -13,8 +13,10 @@ import inspect
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -133,27 +135,81 @@ def test_jsonrpc_error_raises_mcp_error(tmp_path):
     assert "Connection not found: nope" in exc.value.message
 
 
+def _alive(pid: int) -> bool:
+    """Whether process `pid` exists. POSIX: signal 0, which also succeeds on an
+    unreaped zombie, so the client must kill AND wait. Windows has no signal-0
+    probe (0 is CTRL_C_EVENT, any other value terminates), so ask the kernel."""
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+    if not handle:
+        return False
+    try:
+        return kernel32.WaitForSingleObject(ctypes.c_void_p(handle), 0) == 0x102  # WAIT_TIMEOUT
+    finally:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
+
+
+def _end(pid: int) -> None:
+    """Clean-up only: end a process the client left behind."""
+    try:
+        os.kill(pid, signal.SIGTERM if os.name == "nt" else signal.SIGKILL)
+    except OSError:
+        pass
+
+
 def test_no_reply_within_timeout_raises_mcp_timeout_and_kills_server(tmp_path):
-    """AC: no reply within `timeout` raises McpTimeout and kills the process."""
+    """AC: no reply within `timeout` raises McpTimeout and kills the process.
+    DBA-20 AC6c: the liveness check is valid on Windows, and the call runs in a
+    thread so a client that waits on a live server fails here instead of hanging.
+    (Falsifier: remove `self._proc.kill()` from the timeout path of `_request`.)
+    A failure prints the pid Popen holds and the pid the server logged: they differ
+    when the interpreter is started through a launcher."""
     mc = _mod("tools.mcp_client")
     script, log = _script(tmp_path, calls={"run-sql": {"hang": True}})
-    start = time.monotonic()
-    with pytest.raises(mc.McpTimeout):
-        with _client(script, timeout=1.0) as client:
-            client.call_tool("run-sql", {"sql": "select 1 from dual"})
-    assert time.monotonic() - start < 15, "timeout was not enforced"
+    client = _client(script, timeout=1.0)
+    raised = []
 
+    def call():
+        try:
+            client.__enter__()
+            client.call_tool("run-sql", {"sql": "select 1 from dual"})
+        except BaseException as exc:  # noqa: B036  (reported by the main thread)
+            raised.append((exc, client._proc.poll()))  # before close() can kill it
+        finally:
+            client.close()
+
+    worker = threading.Thread(target=call, daemon=True)
+    worker.start()
+    worker.join(15)
     header, _ = _received(log)
     pid = header["pid"]
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        try:
-            os.kill(pid, 0)  # also succeeds on an unreaped zombie: kill AND wait
-        except ProcessLookupError:
-            break
-        time.sleep(0.1)
-    else:
-        pytest.fail(f"fake server pid {pid} still exists after McpTimeout")
+    popen_pid = client._proc.pid if client._proc else None
+    try:
+        assert not worker.is_alive(), (
+            f"timeout was not enforced (Popen pid {popen_pid}, server pid {pid})"
+        )
+        assert len(raised) == 1 and isinstance(raised[0][0], mc.McpTimeout), raised
+        assert raised[0][1] is not None, "McpTimeout raised while the server process still runs"
+
+        deadline = time.monotonic() + 5
+        while _alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert not _alive(pid), (
+            f"fake server pid {pid} still exists after McpTimeout (Popen pid {popen_pid})"
+        )
+    finally:
+        for leftover in {pid, popen_pid} - {None}:
+            if _alive(leftover):
+                _end(leftover)
 
 
 # --- SqlclSession against the fake server -----------------------------------
@@ -391,5 +447,6 @@ def test_contract_for_dependents_dba5_dba6_dba7_dba8_dba15():
     ).stdout
     for name in ("admin", "ro"):
         assert re.search(
-            rf"^{name} \[session scope\] -- tests/integration/conftest\.py", fixtures, re.M
+            rf"^{name} \[session scope\] -- tests[/\\]integration[/\\]conftest\.py", fixtures,
+            re.M,
         ), f"session-scoped fixture {name!r} missing from tests/integration/conftest.py"

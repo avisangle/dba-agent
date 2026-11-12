@@ -6,14 +6,30 @@ import re
 
 _FOOTER = re.compile(r"no rows selected|\d+ rows? selected\.")
 _ERROR = re.compile(r"\b(?:ORA-\d{5}|SP2-\d{4})\b.*")
-_REPORT = "\nError report -"
+_REPORT_LINE = "Error report -"
+_REPORT = "\n" + _REPORT_LINE
+_ECHO_START = "Error starting at line"
+
+
+def _header_index(lines: list[str]) -> int | None:
+    """First line opening with a quote outside an echoed statement, which runs from
+    an `Error starting at line` line to the `Error report -` line."""
+    echo = False
+    for i, ln in enumerate(lines):
+        if ln.startswith(_ECHO_START):
+            echo = True
+        elif ln.strip() == _REPORT_LINE:
+            echo = False
+        elif not echo and ln.startswith('"'):
+            return i
+    return None
 
 
 def _layout(text: str) -> tuple[list[str], int | None, int | None]:
-    """Lines of `text`, the index of the CSV header (first line opening with a quote)
-    and of the row-count footer after it; each index is None when absent."""
+    """Lines of `text`, the index of the CSV header (see `_header_index`) and of the
+    row-count footer after it; each index is None when absent."""
     lines = text.replace("\r\n", "\n").split("\n")
-    head = next((i for i, ln in enumerate(lines) if ln.startswith('"')), None)
+    head = _header_index(lines)
     foot = None
     if head is not None:
         foot = next(
@@ -32,7 +48,7 @@ def _block_end(lines: list[str], head: int, foot: int | None) -> int:
         return foot + 1
     quoted = False
     for i in range(head, len(lines)):
-        if not quoted and lines[i].strip() in ("", _REPORT.strip()):
+        if not quoted and lines[i].strip() in ("", _REPORT_LINE):
             return i
         quoted ^= lines[i].count('"') % 2 == 1
     return len(lines)
@@ -63,11 +79,21 @@ def parse_csv(text: str) -> tuple[list[str], list[list[str]], str]:
 
     `footer` is the row-count line (`6 rows selected.`, `no rows selected`) or ""
     when SQLcl printed none. Text with no quoted header line yields ([], [], "").
+    SQLcl prints a NULL number as an empty field, so in a one-column result an
+    empty line is a NULL row, [''], except the one blank line SQLcl writes after
+    the last record. With two or more columns, empty lines are skipped.
     """
     lines, head, foot = _layout(text)
     if head is None:
         return [], [], ""
-    body = "\n".join(lines[head:foot])
-    records = [r for r in csv.reader(io.StringIO(body, newline="")) if r]
+    body = "\n".join(lines[head:foot]) + ("\n" if foot is not None else "")
+    records = list(csv.reader(io.StringIO(body, newline="")))
+    header = records[0]
+    if len(header) == 1:
+        rows = [r or [""] for r in records[1:]]
+        if records[-1] == []:
+            rows.pop()  # the blank line after the last record
+    else:
+        rows = [r for r in records[1:] if r]
     footer = lines[foot].strip() if foot is not None else ""
-    return records[0], records[1:], footer
+    return header, rows, footer

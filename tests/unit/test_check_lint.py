@@ -141,6 +141,31 @@ def test_parse_check_rejects_max_rows_that_lint_rejects():
     assert str(header.MAX_ROWS_LIMIT) in excinfo.value.message
 
 
+def test_max_rows_zero_is_rejected_by_parser_and_lint(tmp_path):
+    """DBA-20 AC8: the lower bound of max_rows is 1. parse_max_rows("0") is None,
+    parse_check raises L008 for `max_rows: 0`, and `lint` reports L008 for it.
+    (Falsifier: `0 <= int(value)` in tools/checks/header.py parse_max_rows.)"""
+    header = _header()
+    assert header.parse_max_rows("0") is None
+    assert header.parse_max_rows("1") == 1
+
+    src = FIXTURES / "L008" / "storage" / "l008_max_rows.sql"
+    text = src.read_text(encoding="utf-8")
+    assert "-- max_rows: 5000\n" in text, "fixture precondition"
+    path = tmp_path / "storage" / src.name
+    path.parent.mkdir()
+    path.write_text(text.replace("-- max_rows: 5000\n", "-- max_rows: 0\n"), encoding="utf-8")
+
+    with pytest.raises(header.CheckFormatError) as excinfo:
+        header.parse_check(path)
+    assert (excinfo.value.code, excinfo.value.line) == ("L008", 6)
+
+    proc = _run_tools("lint", str(path))
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    codes = {m["code"] for m in map(OUTPUT_LINE.match, proc.stdout.splitlines()) if m}
+    assert "L008" in codes, proc.stdout
+
+
 @pytest.mark.parametrize("root", _rule_roots(), ids=lambda p: p.name)
 def test_each_rule_fixture_reports_only_its_own_code(root):
     """AC: rules L001-L014 each have their own code and a file that breaks only

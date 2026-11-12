@@ -31,22 +31,29 @@ command. A user check with a built-in id replaces it. `file` is an absolute path
 """
 
 
+def load_check(path) -> Check:
+    """`parse_check(path)`, with the path in the message of a `CheckFormatError`."""
+    try:
+        return parse_check(path)
+    except CheckFormatError as exc:
+        raise CheckFormatError(exc.code, exc.line, f"{path}: {exc.message}") from exc
+
+
 def discover(root) -> list[Check]:
     """A `Check` for every `.sql` file under `root`, in path order."""
-    checks = []
-    for path in sorted(Path(root).rglob("*.sql")):
-        try:
-            checks.append(parse_check(path))
-        except CheckFormatError as exc:
-            raise CheckFormatError(exc.code, exc.line, f"{path}: {exc.message}") from exc
-    return checks
+    return [load_check(path) for path in sorted(Path(root).rglob("*.sql"))]
+
+
+def find_checks(root, check_id: str) -> list[Check]:
+    """The checks under `root` whose id is `check_id`, in path order. Lint L003 ties
+    the id to the file name, so only `<id>.sql` files are parsed."""
+    checks = map(load_check, sorted(Path(root).rglob(f"{check_id}.sql")))
+    return [c for c in checks if c.id == check_id]
 
 
 def find_check(root, check_id: str) -> Check | None:
-    """The check under `root` whose id is `check_id`, or None. Lint L003 ties the id
-    to the file name, so only `<id>.sql` files are parsed."""
-    candidates = (parse_check(p) for p in sorted(Path(root).rglob(f"{check_id}.sql")))
-    return next((c for c in candidates if c.id == check_id), None)
+    """The first of `find_checks(root, check_id)`, or None."""
+    return next(iter(find_checks(root, check_id)), None)
 
 
 def _row(cells) -> str:

@@ -89,3 +89,13 @@ def test_session_refuses_scripts_and_host_without_a_database(tmp_path):
     assert "SP2-0738" in at.text, at.text
     assert "SP2-0738" in host.text, host.text
     assert "doctor-probe" not in [line.strip() for line in host.text.splitlines()], host.text
+
+
+def test_one_column_null_row_is_a_row(admin):
+    """DBA-20 AC2: a NULL row of a one-column result is kept by run_sql."""
+    result = admin.run_sql(
+        "select cast(null as number) n from dual union all select 1 from dual"
+    )
+    assert result.error is None, result.text
+    assert result.header == ["N"]
+    assert result.rows == [[""], ["1"]], result.text

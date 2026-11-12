@@ -6,6 +6,8 @@ The script is a JSON object:
   log        path; the first line is {"argv": [...], "pid": n}, then every
              message received, one JSON object per line
   tools      tool names returned by tools/list
+  schemas    optional {tool: inputSchema} for tools/list; a tool without an
+             entry gets {"type": "object"}
   calls      {tool: {"text": str, "isError": bool}
                    | {"error": {"code": int, "message": str}}
                    | {"hang": true}}
@@ -25,6 +27,7 @@ import time
 
 def main():
     script = json.loads(open(sys.argv[1]).read())
+    schemas = script.get("schemas", {})
     log = open(script["log"], "a", buffering=1)
     log.write(json.dumps({"argv": sys.argv[2:], "pid": os.getpid()}) + "\n")
 
@@ -48,7 +51,8 @@ def main():
             }})
         elif method == "tools/list":
             send({"jsonrpc": "2.0", "id": msg_id, "result": {"tools": [
-                {"name": n, "inputSchema": {"type": "object"}} for n in script["tools"]
+                {"name": n, "inputSchema": schemas.get(n, {"type": "object"})}
+                for n in script["tools"]
             ]}})
         elif method == "tools/call":
             spec = script["calls"].get(msg["params"]["name"])

@@ -15,8 +15,13 @@ _RENAMED = {
     "run-sql": "sql_run",
     "run-sqlcl": "sqlcl_run",
 }
-# Arguments renamed with them; applied only when the renamed tool is called.
-_RENAMED_ARGS = {"executionType": "execution_type"}
+# Execution type argument names a run tool may declare: 26.1 `executionType`,
+# 26.3 `execution_type`. 25.3 and 25.4 declare neither (D-DBA-22).
+_EXECUTION_TYPE_ARGS = ("executionType", "execution_type")
+
+
+class AsynchronousUnsupported(Exception):
+    """The offered run tool declares no execution type argument; nothing was sent."""
 
 
 def mcp_argv(home: str) -> list[str]:
@@ -66,27 +71,27 @@ class SqlclSession:
         self.model = model
         self._client = McpStdioClient([launcher(sql_bin), *mcp_argv(home)], timeout)
         self._tool_names: dict[str, str] = {}
-        self._offered: list[str] = []
+        self._schemas: dict[str, dict] = {}
 
     def __enter__(self):
         self._client.__enter__()
         try:
-            self._offered = self._client.list_tools()
-            offered = set(self._offered)
+            self._schemas = self._client.list_tool_schemas()
         except BaseException:
             self._client.close()
             raise
-        self._tool_names = {old: new for old, new in _RENAMED.items() if new in offered}
+        self._tool_names = {old: new for old, new in _RENAMED.items() if new in self._schemas}
         return self
 
     def __exit__(self, *exc):
         self._client.close()
 
+    def _resolve(self, tool: str) -> str:
+        """The offered name for logical tool name `tool`."""
+        return self._tool_names.get(tool, tool)
+
     def _call(self, tool: str, **arguments) -> ToolResult:
-        name = self._tool_names.get(tool, tool)
-        if name != tool:
-            arguments = {_RENAMED_ARGS.get(k, k): v for k, v in arguments.items()}
-        return self._client.call_tool(name, {**arguments, "model": self.model})
+        return self._client.call_tool(self._resolve(tool), {**arguments, "model": self.model})
 
     def list_connections(self) -> list[str]:
         names = re.split(r"[,\n]", self._call("list-connections").text)
@@ -101,21 +106,36 @@ class SqlclSession:
 
     def run_sql(self, sql: str, asynchronous: bool = False) -> SqlResult | str:
         """Run `sql`. With `asynchronous`, SQLcl starts it in the background and the
-        call returns SQLcl's raw text (the task id) without waiting for the statement."""
+        call returns SQLcl's raw text (the task id) without waiting for the statement.
+        Raises AsynchronousUnsupported, sending nothing, when the offered run tool's
+        input schema declares no execution type argument (D-DBA-22)."""
         if asynchronous:
-            return self._call("run-sql", sql=sql, executionType="ASYNCHRONOUS").text
+            arg = self._execution_type_arg()
+            return self._call("run-sql", sql=sql, **{arg: "ASYNCHRONOUS"}).text
         result = self._call("run-sql", sql=sql)
         error = _error(result)
         if error is not None:
             return SqlResult(result.text, [], [], "", error)
         return SqlResult(result.text, *parse_csv(result.text), None)
 
+    def _execution_type_arg(self) -> str:
+        name = self._resolve("run-sql")
+        properties = self._schemas.get(name, {}).get("properties", {})
+        for arg in _EXECUTION_TYPE_ARGS:
+            if arg in properties:
+                return arg
+        declared = ", ".join(sorted(properties)) or "none declared"
+        raise AsynchronousUnsupported(
+            f"SQLcl's {name} offers no asynchronous execution (arguments: {declared}); "
+            "SQLcl 25.3.2 and 25.4 lack it; 26.1 and later declare executionType or "
+            "execution_type")
+
     def disconnect(self) -> None:
         self._call("disconnect")
 
     def list_tools(self) -> list[str]:
         """Tool names the server offered at start, as this SQLcl release names them."""
-        return list(self._offered)
+        return list(self._schemas)
 
     def run_sqlcl(self, command: str) -> SqlResult:
         """Run an SQLcl command (not SQL) through `run-sqlcl`."""

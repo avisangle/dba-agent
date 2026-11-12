@@ -48,15 +48,18 @@ def _mod(name):
     return importlib.import_module(name)
 
 
-def _script(tmp_path, calls=None, tools=None, notify=False):
+def _script(tmp_path, calls=None, tools=None, notify=False, schemas=None):
     log = tmp_path / "fake.log"
     script = tmp_path / "script.json"
-    script.write_text(json.dumps({
+    body = {
         "log": str(log),
         "tools": tools or ["list-connections", "connect", "run-sql", "disconnect"],
         "calls": calls or {},
         "notify": notify,
-    }))
+    }
+    if schemas is not None:
+        body["schemas"] = schemas
+    script.write_text(json.dumps(body))
     return script, log
 
 
@@ -304,39 +307,237 @@ def test_sqlcl_session_argv_model_tag_and_sql_result(tmp_path):
 
 # Real SQLcl text for an asynchronous run-sql (spike/results/raw/s6_async.json).
 ASYNC_ACCEPTED = "Task has been set to run in background successfully with id: 0"
+EXECUTION_TYPE_ARGS = {"executionType", "execution_type"}
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
-@pytest.mark.parametrize("run_tool, arg_name", [
-    ("sql_run", "execution_type"),  # SQLcl 26.3 and later (D-DBA-4)
-    ("run-sql", "executionType"),   # earlier releases, as in the spike
-])
-def test_run_sql_asynchronous_sets_execution_type_for_the_offered_tool(
-        tmp_path, run_tool, arg_name):
-    """DBA-12 AC: run_sql(sql, asynchronous=True) sends the execution type
-    ASYNCHRONOUS under the argument name the offered run tool uses, and returns
-    the raw text; the default call sends no execution type."""
+def _props(*names):
+    return {"type": "object", "properties": {n: {"type": "string"} for n in names}}
+
+
+# DBA-22: tools/list as each SQLcl release offers it, run tool first in each entry.
+# 25.3.2 and 25.4.2: listed by the orchestrator with no database (issue DBA-22,
+# Context table). 26.1: spike/results/raw/s1_tools.json. 26.3.1: listed by
+# /tdd-prep from the local SQLcl 26.3.1.301.1413 (`sql -home <tmp> -R 4 -mcp`,
+# initialize then tools/list, no database).
+_SHAPE_25_3_2 = {
+    "list-connections": None, "connect": None, "run-sql": _props("model", "sql"),
+    "run-sqlcl": None, "disconnect": None,
+}
+SHAPES = {
+    "25.3.2": ("run-sql", _SHAPE_25_3_2),
+    "25.4.2": ("run-sql", {**_SHAPE_25_3_2,
+                           "run-sql-async": _props("command", "model", "task")}),
+    "26.1": ("run-sql", {
+        "list-connections": _props("definition_type", "model", "name", "show_details",
+                                   "username"),
+        "connect": _props("connection_name", "model"),
+        "disconnect": _props("model"),
+        "run-sqlcl": _props("executionType", "model", "sqlcl"),
+        "run-sql": _props("executionType", "model", "sql"),
+        "schema-information": _props("executionType", "filter", "level", "model",
+                                     "objects_list", "schema"),
+        "dbtools-get-tool-request": _props("model", "toolRequestId"),
+    }),
+    "26.3.1": ("sql_run", {
+        "connections_list": _props("definition_type", "model", "name", "show_details",
+                                   "username"),
+        "connect": _props("connection_name", "model"),
+        "disconnect": _props("model"),
+        "sqlcl_run": _props("execution_type", "model", "sqlcl"),
+        "sql_run": _props("execution_type", "model", "sql"),
+        "schema_information": _props("execution_type", "filter", "level", "model",
+                                     "objects_list", "schema"),
+        "request_status": _props("model", "tool_request_id"),
+    }),
+}
+
+
+def _shape_session(tmp_path, tools: dict, reply=ASYNC_ACCEPTED):
+    """(SqlclSession, log) on a fake server offering `tools` ({name: inputSchema or
+    None for the default}); every tool replies `reply`."""
     sqlcl = _mod("tools.sqlcl")
-    sql = "update t set v = 1 where id = 1"
-    script, log = _script(tmp_path, tools=["connect", run_tool, "disconnect"],
-                          calls={run_tool: {"text": ASYNC_ACCEPTED}})
+    schemas = {name: schema for name, schema in tools.items() if schema is not None}
+    script, log = _script(tmp_path, tools=list(tools), schemas=schemas,
+                          calls={name: {"text": reply} for name in tools})
     home = tmp_path / "home"
     home.mkdir()
+    return sqlcl.SqlclSession(str(_fake_sql_bin(tmp_path, script)), str(home)), log
 
-    with sqlcl.SqlclSession(str(_fake_sql_bin(tmp_path, script)), str(home)) as session:
+
+def _tool_calls(log):
+    _, msgs = _received(log)
+    return [m["params"] for m in msgs if m.get("method") == "tools/call"]
+
+
+def _assert_async_sent(tmp_path, tools: dict, run_tool: str, arg_name: str):
+    """run_sql(asynchronous=True) on a server offering `tools` sends `arg_name`
+    ASYNCHRONOUS (and no other execution type argument) to `run_tool` and returns
+    the reply unchanged; a following run_sql(sql) sends no execution type."""
+    sql = "update t set v = 1 where id = 1"
+    session, log = _shape_session(tmp_path, tools)
+    with session:
         text = session.run_sql(sql, asynchronous=True)
         session.run_sql(sql)
 
     assert text == ASYNC_ACCEPTED
-    _, msgs = _received(log)
-    calls = [m["params"] for m in msgs if m.get("method") == "tools/call"]
-    assert [c["name"] for c in calls] == [run_tool, run_tool]
+    calls = _tool_calls(log)
+    assert [c["name"] for c in calls] == [run_tool, run_tool], calls
     async_args, sync_args = calls[0]["arguments"], calls[1]["arguments"]
-    assert async_args["sql"] == sql and async_args["model"] == "pack-tools"
-    assert async_args[arg_name] == "ASYNCHRONOUS", async_args
-    names = {"executionType", "execution_type"}
-    assert names & set(async_args) == {arg_name}, async_args
-    assert names & set(sync_args) == set(), sync_args
+    assert async_args["sql"] == sql and async_args["model"] == "pack-tools", async_args
+    assert async_args.get(arg_name) == "ASYNCHRONOUS", async_args
+    assert EXECUTION_TYPE_ARGS & set(async_args) == {arg_name}, async_args
+    assert EXECUTION_TYPE_ARGS & set(sync_args) == set(), sync_args
+
+
+def _assert_async_refused(tmp_path, tools: dict, run_tool: str):
+    """run_sql(asynchronous=True) on a server offering `tools` raises
+    AsynchronousUnsupported naming `run_tool`, and sends no tools/call."""
+    sqlcl = _mod("tools.sqlcl")
+    session, log = _shape_session(tmp_path, tools)
+    with session:
+        with pytest.raises(sqlcl.AsynchronousUnsupported) as exc:
+            session.run_sql("update t set v = 1 where id = 1", asynchronous=True)
+
+    message = str(exc.value)
+    assert run_tool in message, message
+    assert "SQLcl" in message, message
+    assert re.search(r"\basynchronous\b", message, re.I), message
+    assert _tool_calls(log) == [], "nothing may be sent when the asynchronous form is missing"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
+@pytest.mark.parametrize("release", ["25.3.2", "25.4.2"])
+def test_run_sql_asynchronous_raises_without_calling_when_sqlcl_lacks_it(tmp_path, release):
+    """DBA-22 AC1, AC2: on SQLcl 25.3.2 (run-sql takes model, sql) and 25.4.2 (the
+    same plus run-sql-async), run_sql(asynchronous=True) raises
+    tools.sqlcl.AsynchronousUnsupported naming the offered run tool, SQLcl and
+    asynchronous, and sends no tools/call: neither run-sql nor run-sql-async.
+    (Falsifier: today's unconditional executionType send, or routing to
+    run-sql-async.)"""
+    run_tool, tools = SHAPES[release]
+    _assert_async_refused(tmp_path, tools, run_tool)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
+@pytest.mark.parametrize("release, arg_name", [
+    ("26.1", "executionType"),     # run-sql, as in the spike
+    ("26.3.1", "execution_type"),  # sql_run (D-DBA-4)
+])
+def test_run_sql_asynchronous_sends_the_declared_execution_type(tmp_path, release, arg_name):
+    """DBA-22 AC3 (replaces DBA-12's parametrised execution type test): where the
+    offered run tool declares an execution type argument, run_sql(asynchronous=True)
+    sends exactly that argument with ASYNCHRONOUS, plus sql and model, and returns
+    the reply text unchanged; the default call sends no execution type."""
+    run_tool, tools = SHAPES[release]
+    _assert_async_sent(tmp_path, tools, run_tool, arg_name)
+
+
+_BARE = {"connect": None, "disconnect": None}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
+@pytest.mark.parametrize("run_tool, schema, arg_name", [
+    ("run-sql", _props("model", "sql"), None),
+    ("run-sql", None, None),  # {"type": "object"}: no properties key, not declared
+    ("run-sql", _props("executionType", "model", "sql"), "executionType"),
+    ("run-sql", _props("execution_type", "model", "sql"), "execution_type"),
+    ("sql_run", _props("model", "sql"), None),
+    ("sql_run", _props("executionType", "model", "sql"), "executionType"),
+], ids=["run-sql-undeclared", "run-sql-no-properties", "run-sql-executionType",
+        "run-sql-execution_type", "sql_run-undeclared", "sql_run-executionType"])
+def test_run_sql_asynchronous_is_decided_by_the_schema_alone(
+        tmp_path, run_tool, schema, arg_name):
+    """DBA-22 AC4: the same tool name raises or sends depending only on whether its
+    input schema declares executionType or execution_type, and the argument sent is
+    the name the schema declares, whatever the tool is called. So neither the tool
+    name (nor the old rename table keyed on it) nor a version decides. The modules
+    that make the choice never run `sql -V`."""
+    tools = {**_BARE, run_tool: schema}
+    if arg_name is None:
+        _assert_async_refused(tmp_path, tools, run_tool)
+    else:
+        _assert_async_sent(tmp_path, tools, run_tool, arg_name)
+
+    for module in ("tools/sqlcl.py", "tools/mcp_client.py"):
+        source = (REPO_ROOT / module).read_text()
+        assert not re.search(r"""["']-V["']""", source), f"{module} runs `sql -V`"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shell wrapper stands in for the sql binary")
+@pytest.mark.parametrize("release", list(SHAPES))
+def test_run_sql_synchronous_unchanged_on_every_shape(tmp_path, release):
+    """DBA-22 AC5: run_sql(sql) returns a parsed SqlResult from the offered run tool
+    on every release's shape and sends no execution type; SqlclSession.list_tools()
+    and McpStdioClient.list_tools() still return the offered names as a list."""
+    sqlcl = _mod("tools.sqlcl")
+    run_tool, tools = SHAPES[release]
+    session, log = _shape_session(tmp_path, tools, reply=CLEAN_ONE_ROW)
+    with session:
+        result = session.run_sql("select 1 as spoolprobe from dual")
+        names = session.list_tools()
+
+    assert isinstance(result, sqlcl.SqlResult), type(result)
+    assert (result.header, result.rows, result.error) == (["SPOOL_PROBE"], [["1"]], None)
+    assert names == list(tools)
+    calls = _tool_calls(log)
+    assert [c["name"] for c in calls] == [run_tool], calls
+    assert EXECUTION_TYPE_ARGS & set(calls[0]["arguments"]) == set(), calls[0]
+
+    script = tmp_path / "script.json"
+    with _client(script) as client:
+        assert client.list_tools() == list(tools)
+
+
+def test_fake_server_returns_scripted_schemas_and_defaults_the_rest(tmp_path):
+    """DBA-22 AC6: tests/support/fake_mcp_server.py takes an optional `schemas`
+    script key; tools/list returns each tool's scripted inputSchema and
+    {"type": "object"} for a tool without one, and for every tool when the key is
+    absent (existing scripts)."""
+    declared = _props("executionType", "model", "sql")
+
+    def listed(**schemas_kw):
+        script, _ = _script(tmp_path, tools=["connect", "run-sql"], **schemas_kw)
+        request = [
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        ]
+        out = subprocess.run(
+            [sys.executable, str(FAKE_SERVER), str(script)],
+            input="".join(json.dumps(m) + "\n" for m in request),
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout
+        reply = next(m for m in map(json.loads, out.splitlines()) if m.get("id") == 2)
+        return {t["name"]: t["inputSchema"] for t in reply["result"]["tools"]}
+
+    assert listed(schemas={"run-sql": declared}) == {
+        "connect": {"type": "object"}, "run-sql": declared,
+    }
+    assert listed() == {"connect": {"type": "object"}, "run-sql": {"type": "object"}}
+
+
+def test_contract_for_dependents_dba8_asynchronous_run_sql():
+    """Contract for DBA-8 (its CI cells need the scenario green on 25.3.2) and any
+    caller of asynchronous SQL (DBA-22 output_for_dependents). Shape only:
+    tools.sqlcl.AsynchronousUnsupported is an Exception and not an McpError;
+    SqlclSession.run_sql(sql, asynchronous=False); SqlclSession.list_tools and
+    McpStdioClient.list_tools unchanged; the decision record exists."""
+    mc = _mod("tools.mcp_client")
+    sqlcl = _mod("tools.sqlcl")
+
+    err = sqlcl.AsynchronousUnsupported
+    assert isinstance(err, type) and issubclass(err, Exception), err
+    assert not issubclass(err, mc.McpError), "McpError means a JSON-RPC error from the server"
+
+    params = inspect.signature(sqlcl.SqlclSession.run_sql).parameters
+    assert list(params) == ["self", "sql", "asynchronous"], list(params)
+    assert params["asynchronous"].default is False
+    for cls in (sqlcl.SqlclSession, mc.McpStdioClient):
+        assert list(inspect.signature(cls.list_tools).parameters) == ["self"], cls
+
+    record = REPO_ROOT / "docs" / "decisions" / (
+        "D-DBA-22-asynchronous-run-sql-from-tool-schema.md")
+    assert record.is_file(), f"missing {record.relative_to(REPO_ROOT)}"
+    assert re.search(r"^\*\*Status:\*\*", record.read_text(), re.M), "no **Status:** line"
 
 
 # --- sqlcl_text --------------------------------------------------------------

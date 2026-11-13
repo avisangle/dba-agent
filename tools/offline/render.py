@@ -75,8 +75,21 @@ def capped(table, max_rows: int) -> dict:
     }
 
 
-def _md_cell(text: str) -> str:
-    return text.replace("|", "\\|")
+def _md_row(cells) -> str:
+    return "| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |"
+
+
+def md_table(columns, rows) -> list[str]:
+    """A Markdown pipe table, `|` in cells escaped."""
+    return [_md_row(columns), "|" + "---|" * len(columns), *map(_md_row, rows)]
+
+
+def md_section(name: str, title: str, table: dict) -> list[str]:
+    """Heading, table and dropped-rows line of one capped(...) section."""
+    out = ["", f"## {name}: {title}", "", *md_table(table["columns"], table["rows"])]
+    if table["dropped"]:
+        out += ["", f"{table['dropped']} more rows dropped (--max-rows {len(table['rows'])})."]
+    return out
 
 
 def markdown(heading, summary, sections, not_found) -> str:
@@ -84,12 +97,7 @@ def markdown(heading, summary, sections, not_found) -> str:
     out = [f"# {heading}", "", "## Summary", ""]
     out += [f"- {label}: {value}" for label, value in summary.items()]
     for name, (title, table) in sections.items():
-        out += ["", f"## {name}: {title}", ""]
-        out.append("| " + " | ".join(_md_cell(c) for c in table["columns"]) + " |")
-        out.append("|" + "---|" * len(table["columns"]))
-        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in table["rows"]]
-        if table["dropped"]:
-            out += ["", f"{table['dropped']} more rows dropped (--max-rows {len(table['rows'])})."]
+        out += md_section(name, title, table)
     if not_found:
         out += ["", "## Sections not found", ""]
         out += [f"- {name}" for name in not_found]

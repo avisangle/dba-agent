@@ -10,21 +10,22 @@ covered (pending.md).
 
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from tools.offline.awr import Table
 
 TEXT_LIMIT = 200
+# Section name -> (title, columns).
 SECTIONS = {
-    "ora_errors": "ORA- codes, most frequent first",
-    "events": "Instance starts, shutdowns and ALTER commands",
-    "recent_errors": "Latest records with an ORA- code",
+    "ora_errors": (
+        "ORA- codes, most frequent first",
+        ["code", "count", "first_time", "last_time", "message"],
+    ),
+    "events": ("Instance starts, shutdowns and ALTER commands", ["time", "event", "text"]),
+    "recent_errors": ("Latest records with an ORA- code", ["time", "text"]),
 }
-COLUMNS = {
-    "ora_errors": ["code", "count", "first_time", "last_time", "message"],
-    "events": ["time", "event", "text"],
-    "recent_errors": ["time", "text"],
-}
+SINCE_FORMATS = ("%Y-%m-%d", "%Y-%m-%dT%H:%M")
 
 _TIMESTAMP = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+[+-]\d\d:\d\d")
 _ORA = re.compile(r"\bORA-\d{5}\b")
@@ -47,6 +48,17 @@ class NotAlertLog(ValueError):
 class AlertLog:
     summary: dict
     sections: dict[str, Table]
+
+
+def check_since(value: str) -> str:
+    """`value` when it is a valid YYYY-MM-DD or YYYY-MM-DDTHH:MM, else ValueError."""
+    for fmt in SINCE_FORMATS:
+        try:
+            if datetime.strptime(value, fmt).strftime(fmt) == value:
+                return value
+        except ValueError:
+            pass
+    raise ValueError(f"not YYYY-MM-DD or YYYY-MM-DDTHH:MM: {value!r}")
 
 
 def _cut(text: str) -> str:
@@ -73,7 +85,9 @@ def parse_alert_log(path, since: str | None = None) -> AlertLog:
     """Summarise the log; the tables and the switch and checkpoint counts cover the
     records whose timestamp, cut to the length of `since` (YYYY-MM-DD or
     YYYY-MM-DDTHH:MM), is at or after it. Raises NotAlertLog for a file with no
-    record."""
+    record or ValueError for a bad `since`."""
+    if since is not None:
+        check_since(since)
     first = last = None
     records = window = switches = checkpoints = 0
     codes = {}  # code -> [count, first_time, last_time, message]
@@ -95,22 +109,21 @@ def parse_alert_log(path, since: str | None = None) -> AlertLog:
                 if match:
                     events.append([time, event, _cut(match[1])])
             for code in _ORA.findall(line):
-                error_at = i if error_at is None else error_at
+                if error_at is None:
+                    error_at = i
                 if code in seen:
                     continue
                 seen.add(code)
-                if code in codes:
-                    codes[code][0] += 1
-                    codes[code][2] = time
-                else:
-                    codes[code] = [1, time, time, _cut(line)]
+                entry = codes.setdefault(code, [0, time, time, _cut(line)])
+                entry[0] += 1
+                entry[2] = time
         if error_at is not None:
             recent.append([time, _cut(" ".join(ln.strip() for ln in lines[error_at:]))])
     if first is None:
         raise NotAlertLog(path)
 
-    ora_rows = [[code, str(n), t1, t2, msg] for code, (n, t1, t2, msg) in codes.items()]
-    ora_rows.sort(key=lambda row: -int(row[1]))  # stable: ties stay in order of first sight
+    by_count = sorted(codes.items(), key=lambda item: -item[1][0])  # ties: first seen first
+    ora_rows = [[code, str(n), t1, t2, msg] for code, (n, t1, t2, msg) in by_count]
     tables = {"ora_errors": ora_rows, "events": events, "recent_errors": recent[::-1]}
     summary = {
         "first_time": first,
@@ -121,5 +134,7 @@ def parse_alert_log(path, since: str | None = None) -> AlertLog:
         "log_switches": switches,
         "checkpoint_not_complete": checkpoints,
     }
-    sections = {name: Table(SECTIONS[name], COLUMNS[name], tables[name]) for name in SECTIONS}
+    sections = {
+        name: Table(title, columns, tables[name]) for name, (title, columns) in SECTIONS.items()
+    }
     return AlertLog(summary, sections)

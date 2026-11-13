@@ -3,10 +3,9 @@
 import argparse
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 
-from tools.offline.alert_log import SECTIONS, NotAlertLog, parse_alert_log
+from tools.offline.alert_log import NotAlertLog, check_since, parse_alert_log
 from tools.offline.render import capped, markdown
 
 NAME = "extract-alert-log"
@@ -21,17 +20,13 @@ SUMMARY_LABELS = {
     "log_switches": "Log switches",
     "checkpoint_not_complete": "Checkpoint not complete",
 }
-_SINCE_FORMATS = ("%Y-%m-%d", "%Y-%m-%dT%H:%M")
 
 
 def _since(value: str) -> str:
-    for fmt in _SINCE_FORMATS:
-        try:
-            if datetime.strptime(value, fmt).strftime(fmt) == value:
-                return value
-        except ValueError:
-            pass
-    raise argparse.ArgumentTypeError(f"not YYYY-MM-DD or YYYY-MM-DDTHH:MM: {value!r}")
+    try:
+        return check_since(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
 
 
 def _max_rows(value: str) -> int:
@@ -53,7 +48,11 @@ def add_arguments(parser):
         help="tables and counts cover only records at or after this log-local time",
     )
     parser.add_argument(
-        "--max-rows", type=_max_rows, default=20, metavar="N", help="data rows per table (default 20)"
+        "--max-rows",
+        type=_max_rows,
+        default=20,
+        metavar="N",
+        help="data rows per table (default 20)",
     )
     parser.add_argument("--format", choices=("md", "json"), default="md", help="default md")
 
@@ -68,7 +67,7 @@ def run(args):
         print(f"error: {args.file}: not an alert log", file=sys.stderr)
         return 1
 
-    tables = {name: capped(log.sections[name], args.max_rows) for name in SECTIONS}
+    tables = {name: capped(table, args.max_rows) for name, table in log.sections.items()}
     if args.format == "json":
         print(json.dumps({"summary": log.summary, "sections": tables}, indent=1))
     else:

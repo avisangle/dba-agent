@@ -179,10 +179,10 @@ def main() -> int:
                 for _ in range(SWITCHES):
                     _sql(root, "alter system switch logfile")
                 lines = _cut(_docker("exec", container, "cat", alert))
-                if not _missing(lines, run):
+                missing = _missing(lines, run)
+                if not missing:
                     break
 
-    missing = _missing(lines, run)
     if missing:
         print(f"error: the alert log lacks: {'; '.join(missing)}", file=sys.stderr)
         return 1

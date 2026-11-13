@@ -8,6 +8,7 @@ The privilege outcome of the script is asserted from the data dictionary in
 tests/integration/test_read_only_tier.py.
 """
 
+import argparse
 import ast
 import dataclasses
 import importlib
@@ -23,6 +24,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 DEFAULT_USER = "dba_agent_ro"
+ADV_USER = "dba_agent_adv"
 NO_TIER = "tier not available in this release"
 
 
@@ -107,12 +109,17 @@ def test_setup_sql_prints_password_free_script_with_hidden_accept(tmp_path):
 
 
 def test_setup_sql_rejects_other_tiers_and_unsafe_user_names():
-    """AC: `--tier` other than read-only exits 2 with "tier not available in this
-    release"; `--user` must match ^[A-Za-z][A-Za-z0-9_$#]{0,29}$, else exit 2."""
-    for tier in ("advisory", "read-write", "execute"):
+    """AC: `--tier` other than read-only or advisory (DBA-26) exits 2 with "tier
+    not available in this release"; `--tier advisory` prints its script;
+    `--user` must match ^[A-Za-z][A-Za-z0-9_$#]{0,29}$, else exit 2."""
+    for tier in ("read-write", "execute", "no-such-tier"):
         result = _run_tools("setup-sql", "--tier", tier)
         assert result.returncode == 2, (tier, result.stdout)
         assert NO_TIER in result.stderr + result.stdout, (tier, result.stderr)
+
+    result = _run_tools("setup-sql", "--tier", "advisory")
+    assert result.returncode == 0, result.stderr
+    assert re.search(rf"CREATE\s+USER\s+\"?{ADV_USER}\b", result.stdout, re.I), result.stdout
 
     longest_ok = "a" + "b" * 29
     for user in ("dba_x", "A$1#_", longest_ok):
@@ -294,6 +301,123 @@ def test_alert_log_grant_statement_lives_in_one_constant():
     assert "AUDIT_SQL" in source
 
 
+# --- DBA-26: the advisory tier ---------------------------------------------------
+
+LIMITED = ("SESSIONS_PER_USER", "IDLE_TIME", "CPU_PER_CALL")
+OBJECT_GRANT_RE = re.compile(
+    r"GRANT\s+(SELECT)\s+ON\s+(SYS)\.([A-Z0-9_$#]+)\s+TO\s+\"?(\w+)\"?;", re.I
+)
+PLAIN_GRANT_RE = re.compile(r"GRANT\s+([A-Z_ ]+?)\s+TO\s+\"?(\w+)\"?;", re.I)
+
+
+def _advisory():
+    return importlib.import_module("tools.tiers").TIERS["advisory"]
+
+
+def _setup_adv(*args):
+    result = _run_tools("setup-sql", "--tier", "advisory", *args)
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+def test_advisory_tier_table_entry():
+    """AC (DBA-26): TIERS["advisory"] is user dba_agent_adv, home `advisory`,
+    sys_privs {CREATE SESSION, ADVISOR}, roles {SELECT_CATALOG_ROLE}; its
+    object_grants are `SELECT ON SYS.<object>` strings; read-only has none and
+    its grants do not change (D-DBA-5)."""
+    adv, ro = _advisory(), importlib.import_module("tools.tiers").TIERS["read-only"]
+    assert adv.db_user == ADV_USER and adv.home_name == "advisory"
+    assert {v.upper() for v in adv.sys_privs} == {"CREATE SESSION", "ADVISOR"}
+    assert {v.upper() for v in adv.roles} == {"SELECT_CATALOG_ROLE"}
+    assert adv.object_grants, "no object grant recorded"
+    for grant in adv.object_grants:
+        assert re.fullmatch(r"SELECT ON SYS\.[A-Z0-9_$#]+", grant), grant
+    assert ro.object_grants == frozenset()
+    assert adv.template.name == "advisory.sql" and adv.template.is_file()
+
+
+def test_setup_sql_advisory_prints_tier_grants_then_object_grants_as_sys():
+    """AC (DBA-26): `setup-sql --tier advisory` prints db/tiers/advisory.sql: the
+    same shape as read-only (ACCEPT ... HIDE, own profile with finite
+    SESSIONS_PER_USER, IDLE_TIME, CPU_PER_CALL, no quota, plain `;` statements)
+    granting exactly the tier's sys_privs and roles, then one `GRANT SELECT ON
+    SYS.<object> TO <user>;` per object grant, in a block after them whose
+    comment says to run it as SYS. `--user` names the grantee throughout.
+    Falsifier: drop one object grant from the template or from TIERS."""
+    adv = _advisory()
+    for args, user in (((), ADV_USER), (("--user", "dba_x"), "dba_x")):
+        script = _setup_adv(*args)
+        code = _code_lines(script)
+        assert "{{" not in script and "}}" not in script, "unrendered template placeholder"
+        accept = [ln for ln in code if ln.upper().startswith("ACCEPT ")]
+        assert len(accept) == 1 and re.fullmatch(
+            r"ACCEPT agent_password CHAR PROMPT '[^']+' HIDE", accept[0], re.I), accept
+        assert re.search(rf"CREATE\s+USER\s+\"?{user}\b.*IDENTIFIED\s+BY\s+\"&agent_password\"",
+                         script, re.I), script
+        profile = [ln for ln in code if re.match(r"CREATE\s+PROFILE\b", ln, re.I)]
+        assert len(profile) == 1, code
+        for resource in LIMITED:
+            limit = re.search(rf"\b{resource}\s+(\S+)", profile[0], re.I)
+            assert limit and limit.group(1).isdigit() and int(limit.group(1)) > 0, profile
+        assert not re.search(r"\bQUOTA\b", " ".join(code), re.I), "the tier gets no quota"
+        statements = [ln for ln in code if not ln.upper().startswith(("ACCEPT ", "SET "))]
+        assert "/" not in statements and all(ln.endswith(";") for ln in statements), statements
+
+        objects = [(i, OBJECT_GRANT_RE.fullmatch(ln)) for i, ln in enumerate(code)]
+        objects = [(i, m) for i, m in objects if m]
+        plain = [(i, PLAIN_GRANT_RE.fullmatch(ln)) for i, ln in enumerate(code)]
+        plain = [(i, m) for i, m in plain if m]
+        assert {m.group(4).lower() for _, m in objects} == {user.lower()}
+        assert {m.group(2).lower() for _, m in plain} == {user.lower()}
+        assert {f"SELECT ON SYS.{m.group(3).upper()}" for _, m in objects} == adv.object_grants
+        assert len(objects) == len(adv.object_grants), "an object grant is repeated"
+        assert {m.group(1).strip().upper() for _, m in plain} == {
+            v.upper() for v in adv.sys_privs | adv.roles}
+        assert max(i for i, _ in plain) < min(i for i, _ in objects), "object grants come last"
+
+        lines = script.splitlines()
+        first = next(i for i, ln in enumerate(lines) if OBJECT_GRANT_RE.fullmatch(ln.strip()))
+        last_plain = max(i for i, ln in enumerate(lines) if PLAIN_GRANT_RE.fullmatch(ln.strip()))
+        block_comments = [ln for ln in lines[last_plain + 1:first] if ln.strip().startswith("--")]
+        assert any(re.search(r"\bas SYS\b", c, re.I) for c in block_comments), block_comments
+
+
+def test_setup_sql_advisory_alert_log_and_audit_follow_the_default_script():
+    """AC (DBA-26): `--alert-log` and `--audit` work for the advisory tier as
+    for read-only: each block follows the whole default script (object grants
+    included), the alert log grant names dba_agent_adv, the audit policy is
+    BY dba_agent_adv, the alert log block before the audit block."""
+    plain = _setup_adv()
+    script = _setup_adv("--alert-log", "--audit")
+    assert script.startswith(plain), "optional blocks must follow the default script"
+    extra = _code_lines(script[len(plain):])
+    grant = [i for i, ln in enumerate(extra) if re.fullmatch(
+        ALERT_GRANT_RE.format(user=ADV_USER), ln, re.I)]
+    audit = [i for i, ln in enumerate(extra)
+             if re.search(rf"\bAUDIT\s+POLICY\s+\w+\s+BY\s+\"?{ADV_USER}\b", ln, re.I)]
+    assert len(grant) == 1 and len(audit) == 1, extra
+    assert grant[0] < audit[0], extra
+
+
+def test_setup_home_advisory_creates_its_own_folder_and_prints_adv_save_steps(tmp_path):
+    """AC (DBA-26): `setup-home --tier advisory` creates <pack_home>/homes/advisory
+    (mode 0700), leaves homes/read-only alone, and prints the save steps for
+    dba_agent_adv."""
+    config = importlib.import_module("tools.config")
+    pack_home = tmp_path / "pack"
+    env = _env(**{f"{config.PACK_NAME.upper()}_HOME": str(pack_home), "HOME": str(tmp_path)})
+    result = _run_tools("setup-home", "--tier", "advisory", env=env)
+    assert result.returncode == 0, result.stderr
+    home = pack_home / "homes" / "advisory"
+    assert home.is_dir() and not (pack_home / "homes" / "read-only").exists()
+    if os.name == "posix":
+        assert stat.S_IMODE(home.stat().st_mode) == 0o700, oct(home.stat().st_mode)
+    out = result.stdout
+    assert f"sql -home {home} /nolog" in out, out
+    assert re.search(rf"conn -save \S+ -savepwd {ADV_USER}@//\S+:\S+/\S+", out), out
+    assert DEFAULT_USER not in out, out
+
+
 # --- DBA-27: optional Statspack grants (`--statspack`) -----------------------
 
 STATSPACK_CHECK = REPO_ROOT / "plugin" / "checks" / "performance" / "statspack_report.sql"
@@ -443,6 +567,41 @@ def test_tiers_read_only_grants_match_decision_record():
     assert {v.upper() for v in ro.sys_privs} == {"CREATE SESSION"}
     assert {v.upper() for v in ro.roles} == {"SELECT_CATALOG_ROLE"}
     assert ro.db_user.lower() == DEFAULT_USER
+
+
+def test_contract_advisory_tier_for_dba36_dba40_dba42_dba44():
+    """Contract for DBA-36 (`adv` fixture, advisory home), DBA-40 (ADVISOR on the
+    advisory user), DBA-42 (tier rules) and DBA-44 (the advisory tier to install).
+    Shape only: tools.tiers.Tier has a field `object_grants` defaulting to an
+    empty frozenset; TIERS["advisory"] is a Tier whose object_grants is a
+    frozenset of str; tier_arg("advisory") returns it; `setup-sql`,
+    `setup-home` and `doctor` accept `--tier advisory`;
+    tests/integration/conftest.py defines a session-scoped fixture `adv`."""
+    tiers = importlib.import_module("tools.tiers")
+    fields = {f.name: f for f in dataclasses.fields(tiers.Tier)}
+    assert "object_grants" in fields, list(fields)
+    assert fields["object_grants"].default == frozenset(), fields["object_grants"]
+    advisory = tiers.TIERS["advisory"]
+    assert isinstance(advisory, tiers.Tier)
+    assert isinstance(advisory.object_grants, frozenset)
+    assert all(isinstance(g, str) for g in advisory.object_grants)
+    assert isinstance(advisory.home, Path)
+    assert tiers.tier_arg("advisory") is advisory
+
+    for module in ("setup_sql", "setup_home", "doctor"):
+        parser = argparse.ArgumentParser()
+        importlib.import_module(f"tools.commands.{module}").add_arguments(parser)
+        assert parser.parse_known_args(["--tier", "advisory"])[0].tier is advisory, module
+
+    tree = ast.parse((REPO_ROOT / "tests/integration/conftest.py").read_text())
+    fixture = next((n for n in tree.body
+                    if isinstance(n, ast.FunctionDef) and n.name == "adv"), None)
+    assert fixture is not None, "conftest.py defines no `adv` fixture"
+    scopes = [kw.value.value for d in fixture.decorator_list if isinstance(d, ast.Call)
+              for kw in d.keywords if kw.arg == "scope"]
+    assert scopes == ["session"], ast.dump(fixture.decorator_list[0])
+    assert re.search(r"TIERS\[\s*[\"']advisory[\"']\s*\]", ast.unparse(tree)), (
+        "the adv fixture does not build from the advisory tier")
 
 
 def test_contract_dba27_for_dba38_and_dba44():

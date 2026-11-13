@@ -3,12 +3,9 @@
 import sys
 from pathlib import Path
 
-from tools.checks import CHECKS_ROOT, user_checks_root
-from tools.checks.header import CheckFormatError
-from tools.checks.index import load_check
-from tools.checks.lint import lint_file
-from tools.checks.resolve import resolve_check
+from tools.checks.params import ParamError, bind
 from tools.checks.run import run_check, validate_result
+from tools.checks.target import add_param_argument, load_target, parse_values
 from tools.mcp_client import McpError, McpTimeout
 from tools.sqlcl import SqlclSession, sqlcl_bin
 from tools.tiers import tier_arg
@@ -17,7 +14,7 @@ NAME = "check-test"
 HELP = (
     "run one check (by id or file path) on a saved connection and print the raw result; "
     "exit 1 if the check fails lint or its result is not a valid verdict, "
-    "2 if the check or connection does not exist"
+    "2 if the check or connection does not exist or a parameter value is bad"
 )
 
 
@@ -29,42 +26,18 @@ def add_arguments(parser):
                         help="tier whose home is used without --home (default: %(default)s)")
     parser.add_argument("--home", type=Path, metavar="DIR",
                         help="SQLcl home (default: the tier's home under <pack home>/homes)")
-
-
-def _resolve(target: str):
-    """The check named by `target`, a file path or an id (a user check overriding a
-    built-in one wins), or None."""
-    path = Path(target)
-    if path.suffix == ".sql" or len(path.parts) > 1:
-        return load_check(path) if path.is_file() else None
-    entry = resolve_check(CHECKS_ROOT, user_checks_root(), target)
-    return entry.check if entry else None
-
-
-def _fails_lint(path) -> bool:
-    """Print the lint findings for `path` to stderr; True if there are any."""
-    findings = lint_file(path)
-    for finding in findings:
-        print(finding, file=sys.stderr)
-    if findings:
-        print(f"error: {path} fails lint; not run", file=sys.stderr)
-    return bool(findings)
+    add_param_argument(parser)
 
 
 def run(args):
-    try:
-        check = _resolve(args.target)
-    except CheckFormatError as exc:
-        # Lint reports every problem in the file; the parser stops at the first.
-        # L014 (two user files for one id) carries no path: it is not a per-file finding.
-        if exc.path is None or not _fails_lint(exc.path):
-            print(f"error: {exc}", file=sys.stderr)
-        return 1
+    check, status = load_target(args.target)
     if check is None:
-        print(f"error: no check {args.target}", file=sys.stderr)
+        return status
+    try:
+        check = bind(check, parse_values(args.param))
+    except ParamError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
-    if _fails_lint(check.path):
-        return 1
 
     home = args.home or args.tier.home
     try:

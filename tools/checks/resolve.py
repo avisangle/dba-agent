@@ -6,8 +6,9 @@ nowhere else: a user check with a built-in id replaces it; a new id adds one.
 from dataclasses import dataclass
 from pathlib import Path
 
+from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import Check, CheckFormatError, split_check
-from tools.checks.index import discover, find_checks
+from tools.checks.index import discover, find_checks, load_check
 
 
 @dataclass(frozen=True)
@@ -48,3 +49,14 @@ def resolve_check(builtin_root, user_root, check_id: str) -> ResolvedCheck | Non
         return ResolvedCheck(user[0], "user")
     builtin = find_checks(builtin_root, check_id)
     return ResolvedCheck(builtin[0], "builtin") if builtin else None
+
+
+def resolve_target(target: str) -> Check | None:
+    """The check named by `target`, a file path or an id (a user check overriding a
+    built-in one wins), or None."""
+    path = Path(target)
+    if path.suffix == ".sql" or len(path.parts) > 1:
+        return load_check(path) if path.is_file() else None
+    entry = resolve_check(CHECKS_ROOT, user_checks_root(), target)
+    return entry.check if entry else None
+

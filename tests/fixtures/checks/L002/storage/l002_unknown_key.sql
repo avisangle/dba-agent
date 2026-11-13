@@ -5,7 +5,7 @@
 -- min_version: 12.1
 -- max_rows: 200
 -- pack: none
--- params: threshold=85
+-- threshold: 85
 -- remediation: Fixture only; nothing to fix.
 SELECT tablespace_name,
        CASE WHEN used_percent >= 95 THEN 'CRITICAL'

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from tools.offline.awr import NotAwrReport, parse_awr
 from tools.offline.awr_compare import compare
-from tools.offline.render import capped
+from tools.offline.render import capped, md_section, md_table
 
 NAME = "compare-awr"
 HELP = "compare two AWR reports (HTML or text): summary, load profile, top events, top SQL"
@@ -58,24 +58,15 @@ def run(args):
         out = {"summary": result.summary, "notes": result.notes, "sections": sections}
         print(json.dumps(out, indent=1))
     else:
-        titles = {name: table.title for name, table in result.sections.items()}
-        print(_markdown(args.first.name, args.second.name, result, sections, titles))
+        print(_markdown(args.first.name, args.second.name, result, sections))
     return 0
 
 
-def _row(cells) -> str:
-    return "| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |"
-
-
-def _table(columns, rows) -> list[str]:
-    return [_row(columns), "|" + "---|" * len(columns), *map(_row, rows)]
-
-
-def _markdown(first_name, second_name, result, sections, titles) -> str:
+def _markdown(first_name, second_name, result, sections) -> str:
     first, second = result.summary["first"], result.summary["second"]
     out = [f"# AWR report comparison: {first_name} (FIRST) vs {second_name} (SECOND)", ""]
     out += ["## Summary", ""]
-    out += _table(
+    out += md_table(
         ["", "FIRST", "SECOND"],
         [[label, first[key], second[key]] for key, label in SUMMARY_LABELS.items()],
     )
@@ -83,8 +74,5 @@ def _markdown(first_name, second_name, result, sections, titles) -> str:
         out += ["", *(f"- {note}" for note in result.notes)]
     out += ["", "Difference is SECOND minus FIRST; % change is relative to FIRST."]
     for name, table in sections.items():
-        out += ["", f"## {name}: {titles[name]}", ""]
-        out += _table(table["columns"], table["rows"])
-        if table["dropped"]:
-            out += ["", f"{table['dropped']} more rows dropped (--max-rows {len(table['rows'])})."]
+        out += md_section(name, result.sections[name].title, table)
     return "\n".join(out)

@@ -4,7 +4,6 @@ events and SQL by elapsed time joined by row label, event name and SQL id."""
 from dataclasses import dataclass
 
 from tools.offline.awr import AwrReport, Table
-from tools.offline.render import SQL_TEXT_LIMIT
 
 LOAD_PROFILE_COLUMNS = [
     "Statistic",
@@ -86,20 +85,21 @@ def _larger(*cells: str) -> float:
 def _load_profile(first: Table | None, second: Table | None) -> Table:
     label = lambda s: s.strip().rstrip(":").strip()  # noqa: E731
     a, b = _rows_by(first, 0, label), _rows_by(second, 0, label)
-    rows = []
+    keyed = []  # (sort key, row): largest |% change| first, rows without one last
     for key in _union(a, b):
         cell_a = a.get(key, {}).get("Per Second", "")
         cell_b = b.get(key, {}).get("Per Second", "")
         x, y = number(cell_a), number(cell_b)
         diff = change = ""
+        order = float("inf")
         if x is not None and y is not None:
             diff = _fmt(y - x, 2)
             if x:
-                change = _fmt((y - x) / x * 100, 1)
-        rows.append([key, cell_a, cell_b, diff, change])
-    # largest |% change| first; rows without one last
-    rows.sort(key=lambda r: -abs(number(r[4])) if r[4] else float("inf"))
-    return Table("Load Profile", LOAD_PROFILE_COLUMNS, rows)
+                pct = (y - x) / x * 100
+                change, order = _fmt(pct, 1), -abs(round(pct, 1))
+        keyed.append((order, [key, cell_a, cell_b, diff, change]))
+    keyed.sort(key=lambda item: item[0])
+    return Table("Load Profile", LOAD_PROFILE_COLUMNS, [row for _, row in keyed])
 
 
 def _top_events(first: Table | None, second: Table | None) -> Table:
@@ -124,7 +124,7 @@ def _sql_by_elapsed(first: Table | None, second: Table | None) -> Table:
             cells = side.get(sql_id, {})
             row += [cells.get("Elapsed Time (s)", ""), cells.get("Executions", "")]
             text = text or cells.get("SQL Text", "")
-        rows.append([*row, text[:SQL_TEXT_LIMIT]])
+        rows.append([*row, text])
     rows.sort(key=lambda r: -_larger(r[1], r[3]))
     return Table("SQL ordered by Elapsed Time", SQL_COLUMNS, rows)
 

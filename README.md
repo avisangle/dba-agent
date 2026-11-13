@@ -7,7 +7,7 @@ plan lives in the "Oracle DBA AI Agent: Product & Build Plan" doc on claude.ai.
 
 Prerequisites, installed from Oracle and python.org; the pack bundles none of them:
 
-- SQLcl 25.3.2 or newer (`docs/decisions/D-DBA-8-minimum-sqlcl-25-3-2.md`)
+- SQLcl 25.3.2 or newer (`docs/decisions/D-DBA-8-minimum-sqlcl-25-3-2.md` in the source repository)
 - Java 17 or 21, for SQLcl
 - Python 3.10+, for the tools (standard library only)
 
@@ -24,8 +24,7 @@ command below from the unzipped folder.
    `sql -home <read-only home> /nolog`, then
    `conn -save dba_agent_ro -savepwd dba_agent_ro@//<host>:<port>/<service>`.
 4. `python -m tools config --client <client>` prints the MCP configuration for
-   one client (`claude-code`, `claude-desktop`, `cursor`, `vscode-copilot`,
-   `cline`, `codex`), which registers SQLcl's MCP server as
+   one client, which registers SQLcl's MCP server as
    `sql -home <read-only home> -R 4 -mcp`. Keep `-R 4`: without it SQLcl 26.3.1
    runs operating system commands sent through its MCP server. The snippets and
    where each client keeps them are in `plugin/config/README.md`.
@@ -33,7 +32,9 @@ command below from the unzipped folder.
    connection, its grants and its restrict level, and prints the fix for each
    problem.
 
-In Claude Code, load the skills with `claude --plugin-dir <unzipped folder>/plugin`.
+In Claude Code, start `claude --plugin-dir plugin` from the unzipped folder. The
+skills run `python -m tools` and read `plugin/checks/` relative to the folder
+Claude Code starts in.
 
 ## Layout
 

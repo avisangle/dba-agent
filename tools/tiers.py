@@ -7,10 +7,10 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.config import pack_home
+from tools.config import PACK_ROOT, pack_home
 
 NO_TIER = "tier not available in this release"
-TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "db" / "tiers"
+TEMPLATE_DIR = PACK_ROOT / "db" / "tiers"
 
 
 @dataclass(frozen=True)

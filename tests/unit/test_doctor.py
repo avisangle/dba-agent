@@ -322,9 +322,10 @@ def test_real_env_starts_programs_through_launcher(tmp_path, monkeypatch):
     .exe beside them on Windows."""
     env_module = importlib.import_module("tools.doctor.env")
     seen = []
-    monkeypatch.setattr(env_module, "launcher", lambda path: seen.append(path) or sys.executable)
+    monkeypatch.setattr(importlib.import_module("tools.sqlcl"), "launcher",
+                        lambda path: seen.append(path) or sys.executable)
     code, out, _ = env_module.RealEnv().run([str(tmp_path / "bin" / "sql"), "-c", "print('ran')"])
-    assert seen == [str(tmp_path / "bin" / "sql")], seen
+    assert seen[0] == str(tmp_path / "bin" / "sql"), seen
     assert (code, out.strip()) == (0, "ran")
 
 

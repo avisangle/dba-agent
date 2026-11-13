@@ -7,11 +7,13 @@ description: Read-only Oracle DBA work through SQLcl's MCP server on a saved con
 
 You work on an Oracle database through SQLcl's MCP server, connected as the read-only tier's database user. Curated checks under `plugin/checks/` do the measuring; your job is to pick the next check, run it unchanged, read its result and report. The playbooks below say which check to run next and why.
 
-The SQLcl MCP server must be registered with restrict level 4, for example:
+The SQLcl MCP server must run on the read-only home at restrict level 4:
 
 ```
-claude mcp add sqlcl -- sql -home <read-only home> -R 4 -mcp
+sql -home <read-only home> -R 4 -mcp
 ```
+
+`python -m tools config --client <client>` prints the registration for each MCP client with this command filled in.
 
 `python -m tools setup-home --tier read-only` prints the read-only home, and `python -m tools doctor` checks SQLcl, the home and the saved connections. If the user shows you a server command without `-R 4`, tell them to add it before going on: without it SQLcl 26.3.1 runs operating system commands sent to it.
 

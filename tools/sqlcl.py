@@ -2,11 +2,16 @@
 
 import os
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 from tools.mcp_client import McpError, McpStdioClient, ToolResult
 from tools.sqlcl_text import find_error, parse_csv
+
+SQLCL_MIN = (25, 3, 2)  # D-DBA-8-minimum-sqlcl-25-3-2
+SQLCL_MIN_TEXT = ".".join(map(str, SQLCL_MIN))
+INSTALL_FIX = f"install SQLcl {SQLCL_MIN_TEXT} or newer and put `sql` on PATH"
 
 # SQLcl 26.3 renamed these tools; earlier releases (the spike ran 26.1) use the
 # hyphenated names. The server's tools/list decides which one is called.
@@ -26,8 +31,8 @@ class AsynchronousUnsupported(Exception):
 
 def mcp_argv(home: str) -> list[str]:
     """SQLcl's arguments for an MCP server on `home` at restrict level 4 (no `@`,
-    `host` or `spool`); the only source of this list
-    (D-DBA-15-sqlcl-explicit-restrict-level-4)."""
+    `host` or `spool`); the only source of this list, which the snippets in
+    plugin/config/ copy under test (D-DBA-15-sqlcl-explicit-restrict-level-4)."""
     return ["-home", home, "-R", "4", "-mcp"]
 
 
@@ -39,6 +44,14 @@ def launcher(sql_bin: str, windows: bool = os.name == "nt") -> str:
     if windows and not path.suffix and (exe := path.with_suffix(".exe")).is_file():
         return str(exe)
     return sql_bin
+
+
+def find_executable(name: str) -> str | None:
+    """`name` as a full path CreateProcess can start, or None when not found.
+    launcher goes first because shutil.which before 3.12 does not try `.exe` for a
+    path with a directory, and again for a `sql` script found on PATH."""
+    found = shutil.which(launcher(name))
+    return launcher(found) if found else None
 
 
 def _error(result: ToolResult) -> str | None:

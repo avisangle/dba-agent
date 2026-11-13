@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from tools.config import pack_home
+from tools.config import PACK_ROOT, pack_home
 
-CHECKS_ROOT = Path(__file__).resolve().parents[2] / "plugin" / "checks"
+CHECKS_ROOT = PACK_ROOT / "plugin" / "checks"
 
 
 def user_checks_root() -> Path:

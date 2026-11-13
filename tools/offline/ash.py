@@ -31,10 +31,17 @@ SECTIONS = {
     "top_service_module": "Top Service/Module",
     "activity_over_time": "Activity Over Time",
 }
-SUMMARY_KEYS = (
-    "db_name", "instance", "release", "begin_time", "end_time",
-    "sample_count", "average_active_sessions",
-)
+# Summary key -> label (extract-ash).
+SUMMARY_LABELS = {
+    "db_name": "DB name",
+    "instance": "Instance",
+    "release": "Release",
+    "begin_time": "Analysis begin time",
+    "end_time": "Analysis end time",
+    "sample_count": "Sample count",
+    "average_active_sessions": "Average active sessions",
+}
+SUMMARY_KEYS = tuple(SUMMARY_LABELS)
 _MARKER = "ASH Report For"
 _SUMMARY_LINES = [
     re.compile(r"\s*Analysis Begin Time:\s+(?P<begin_time>\S+ \S+)"),

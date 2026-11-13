@@ -34,7 +34,7 @@ GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO {user};
 # Optional object grants (docs/decisions/D-DBA-27-statspack-optional-grants.md):
 # exactly the PERFSTAT tables the statspack_report check reads.
 STATSPACK_SQL = """\
--- Optional on the read-only tier: lets the statspack_report check read Statspack
+-- Optional: lets the statspack_report check read Statspack
 -- snapshots (PERFSTAT schema, installed by spcreate.sql). Skip it and that check
 -- reports "not available". Run as SYS or PERFSTAT.
 GRANT SELECT ON PERFSTAT.STATS$SNAPSHOT TO {user};

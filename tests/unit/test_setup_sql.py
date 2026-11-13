@@ -521,6 +521,22 @@ def test_statspack_grants_live_in_one_constant_and_combine_with_other_flags():
     assert any(re.match(r"CREATE\s+AUDIT\s+POLICY", ln, re.I) for ln in code), code
 
 
+def test_setup_sql_advisory_statspack_grants_to_adv_user_with_tier_neutral_comments():
+    """/integrate 1: `--statspack` works for the advisory tier: the block follows
+    the default script and grants to dba_agent_adv. No optional block's comment
+    says it is for the read-only tier, since each is appended for any tier.
+    Falsifier: restore "Optional on the read-only tier" in STATSPACK_SQL."""
+    _, _, extra = _statspack_block("--tier", "advisory")  # the later --tier wins
+    matches = [STATSPACK_GRANT_RE.fullmatch(ln) for ln in extra]
+    assert extra and all(matches), extra
+    assert {m.group(2).lower() for m in matches} == {ADV_USER.lower()}, extra
+
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    for name in ("AUDIT_SQL", "ALERT_LOG_SQL", "STATSPACK_SQL"):
+        comments = [ln for ln in getattr(setup_sql, name).splitlines() if ln.startswith("--")]
+        assert not any(re.search(r"read-only tier", c, re.I) for c in comments), (name, comments)
+
+
 def test_performance_playbook_routes_past_periods_to_statspack_report():
     """AC (DBA-27): plugin/skills/oracle-dba/playbooks/performance.md names
     statspack_report for a past period when AWR is not in use, and says the

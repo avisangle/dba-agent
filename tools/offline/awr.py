@@ -23,10 +23,19 @@ SECTIONS = {
     "segments_by_physical_reads": r"Segments by Physical Reads\b",
     "init_params": r"Parameters modified by this container\b",
 }
-SUMMARY_KEYS = (
-    "db_name", "instance", "release", "begin_snap_id", "end_snap_id",
-    "begin_time", "end_time", "elapsed", "db_time",
-)
+# Summary key -> label (extract-awr, extract-statspack, awr_compare).
+SUMMARY_LABELS = {
+    "db_name": "DB name",
+    "instance": "Instance",
+    "release": "Release",
+    "begin_snap_id": "Begin snapshot id",
+    "end_snap_id": "End snapshot id",
+    "begin_time": "Begin snapshot time",
+    "end_time": "End snapshot time",
+    "elapsed": "Elapsed",
+    "db_time": "DB time",
+}
+SUMMARY_KEYS = tuple(SUMMARY_LABELS)
 PAIR_COLUMNS = ["Statistic", "Value"]  # instance_efficiency: label/value pairs, no header
 
 _SNAP_LINES = [

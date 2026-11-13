@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from tools.offline.alert_log import NotAlertLog, check_since, parse_alert_log
-from tools.offline.render import capped, markdown
+from tools.offline.render import capped, markdown, output_arguments
 
 NAME = "extract-alert-log"
 HELP = "extract ORA- codes, instance events and recent errors from a text alert log"
@@ -29,16 +29,6 @@ def _since(value: str) -> str:
         raise argparse.ArgumentTypeError(str(exc)) from None
 
 
-def _max_rows(value: str) -> int:
-    try:
-        n = int(value)
-    except ValueError:
-        n = 0
-    if n < 1:
-        raise argparse.ArgumentTypeError(f"must be a whole number of at least 1: {value!r}")
-    return n
-
-
 def add_arguments(parser):
     parser.add_argument("file", type=Path, metavar="FILE", help="text alert log (alert_<SID>.log)")
     parser.add_argument(
@@ -47,14 +37,7 @@ def add_arguments(parser):
         metavar="YYYY-MM-DD[THH:MM]",
         help="tables and counts cover only records at or after this log-local time",
     )
-    parser.add_argument(
-        "--max-rows",
-        type=_max_rows,
-        default=20,
-        metavar="N",
-        help="data rows per table (default 20)",
-    )
-    parser.add_argument("--format", choices=("md", "json"), default="md", help="default md")
+    output_arguments(parser)
 
 
 def run(args):

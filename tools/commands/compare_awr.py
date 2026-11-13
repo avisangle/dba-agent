@@ -5,41 +5,21 @@ import sys
 from pathlib import Path
 
 from tools.offline.awr import NotAwrReport, parse_awr
-from tools.offline.awr_compare import compare
-from tools.offline.render import capped, md_section, md_table
+from tools.offline.awr_compare import SUMMARY_LABELS, compare
+from tools.offline.render import capped, md_section, md_table, output_arguments
 
 NAME = "compare-awr"
 HELP = "compare two AWR reports (HTML or text): summary, load profile, top events, top SQL"
-
-SUMMARY_LABELS = {
-    "db_name": "DB name",
-    "instance": "Instance",
-    "release": "Release",
-    "begin_snap_id": "Begin snapshot id",
-    "end_snap_id": "End snapshot id",
-    "begin_time": "Begin snapshot time",
-    "end_time": "End snapshot time",
-    "elapsed": "Elapsed",
-    "db_time": "DB time",
-    "db_time_per_second": "DB time per elapsed second",
-}
-
 
 def add_arguments(parser):
     parser.add_argument("first", type=Path, metavar="FIRST", help="AWR report, HTML or text")
     parser.add_argument(
         "second", type=Path, metavar="SECOND", help="AWR report measured against FIRST"
     )
-    parser.add_argument(
-        "--max-rows", type=int, default=20, metavar="N", help="data rows per table (default 20)"
-    )
-    parser.add_argument("--format", choices=("md", "json"), default="md", help="default md")
+    output_arguments(parser)
 
 
 def run(args):
-    if args.max_rows < 1:
-        print("error: --max-rows must be at least 1", file=sys.stderr)
-        return 2
     for path in (args.first, args.second):
         if not path.is_file():
             print(f"error: {path}: no such file", file=sys.stderr)

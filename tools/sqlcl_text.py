@@ -4,7 +4,7 @@ import csv
 import io
 import re
 
-_FOOTER = re.compile(r"no rows selected|\d+ rows? selected\.")
+_FOOTER = re.compile(r"no rows selected|\d[\d,]* rows? selected\.")
 _ERROR = re.compile(r"\b(?:ORA-\d{5}|SP2-\d{4})\b.*")
 _REPORT_LINE = "Error report -"
 _REPORT = "\n" + _REPORT_LINE

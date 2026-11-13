@@ -202,6 +202,15 @@ def test_parse_csv_one_column_without_null_has_no_extra_row():
     assert parse_csv('"N"\r\n1\r\n\n') == (["N"], [["1"]], "")
 
 
+def test_parse_csv_footer_with_a_thousands_separator_is_not_a_row():
+    """/integrate 3: SQLcl writes `1,000 rows selected.` from 1,000 rows on; it is
+    the footer, not a data row (a 1,000-row check result has 1,000 rows)."""
+    text = '"N","SEVERITY"\r\n' + "1,\"OK\"\r\n" * 1000 + "\n1,000 rows selected. \n\n"
+    header, rows, footer = parse_csv(text)
+    assert (header, len(rows), footer) == (["N", "SEVERITY"], 1000, "1,000 rows selected.")
+    assert rows[-1] == ["1", "OK"]
+
+
 def test_parse_csv_two_or_more_columns_parse_as_before():
     """DBA-20 AC2: results with two or more columns are unchanged, NULL cells,
     footers and quoted multi-line fields included."""

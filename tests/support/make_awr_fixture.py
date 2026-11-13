@@ -54,9 +54,7 @@ def _report(session, function, window):
         f"select output from table(dbms_workload_repository.{function}"
         f"({window}))",
     ).rows
-    # parse_csv keeps a footer with a thousands separator ("1,718 rows selected.")
-    # as a two-field row; every report line is a one-field row.
-    return "\n".join(row[0] for row in rows if len(row) == 1) + "\n"
+    return "\n".join(row[0] for row in rows) + "\n"
 
 
 def main() -> int:

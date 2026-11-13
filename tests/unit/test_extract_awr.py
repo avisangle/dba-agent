@@ -199,7 +199,7 @@ def test_sections_option_selects_and_missing_sections_are_listed_not_fatal(tmp_p
 
     # The init.ora parameters sit at the end of an AWR report: cutting the real
     # text report to its first 40% removes them and keeps the header.
-    lines = _fixture("txt").read_text().splitlines(keepends=True)
+    lines = _fixture("txt").read_text(encoding="utf-8").splitlines(keepends=True)
     partial = tmp_path / "partial_awr.txt"
     partial.write_text("".join(lines[: len(lines) * 2 // 5]))
 
@@ -223,7 +223,7 @@ def test_sql_text_cells_are_cut_to_200_characters(tmp_path):
     anchor = sql["rows"][0][col][:30]
     assert anchor, "first sql_by_elapsed row has an empty SQL text"
 
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     found = next((a for a in (anchor, html.escape(anchor, quote=False)) if a in source), None)
     assert found, f"SQL text {anchor!r} not located in the fixture"
     long_report = tmp_path / "long_sql.html"
@@ -252,7 +252,8 @@ def _text_report_with_break_before_module(tmp_path):
     """The text fixture with a copy of its sql_by_gets page header (form feed, title,
     notes, column header, underline) inserted inside record 1b85hgs1u7wgd, between
     its numbers line and its "Module:" line."""
-    lines = _fixture("txt").read_text().split("\n")  # splitlines() would also cut at "\f"
+    # split, not splitlines(), which would also cut at "\f"
+    lines = _fixture("txt").read_text(encoding="utf-8").split("\n")
     title = next(i for i, ln in enumerate(lines) if ln.startswith("SQL ordered by Gets "))
     feed = next(
         i
@@ -278,7 +279,7 @@ def test_text_sql_record_cut_by_a_page_break_stays_one_row(case, tmp_path):
     if case == "break_before_sql_text":
         path, sql_id = _fixture("txt"), "05d0ckrja68sf"
         expected = {"SQL Text": "insert into wrm$_snapshot_details (snap_id, dbid"}
-        lines = path.read_text().split("\n")
+        lines = path.read_text(encoding="utf-8").split("\n")
         cont = [i for i, ln in enumerate(lines) if ln.startswith(expected["SQL Text"])]
         assert any(lines[i - 1].startswith("-----------") for i in cont), (
             "fixture changed: the sql_by_gets page break no longer falls inside a record"
@@ -387,4 +388,5 @@ def test_contract_for_dependent_dba18():
     assert GENERATOR.is_file()
     for path in FIXTURES.values():
         assert path.is_file() and path.stat().st_size > 0, path
-        assert "testhost" in path.read_text(), f"{path.name}: host name not replaced"
+        text = path.read_text(encoding="utf-8")
+        assert "testhost" in text, f"{path.name}: host name not replaced"

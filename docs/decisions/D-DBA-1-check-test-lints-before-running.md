@@ -10,4 +10,4 @@
 
 **Rejected:** Leaving `check-test` ungated so a work-in-progress check can be tried before it lints: `python -m tools lint <file>` gives that feedback without running SQL, and an unlinted check is exactly what should not reach a database. A `--no-lint` flag: no user asked for it.
 
-**Impact:** Any new command that executes a check file lints it first with `lint_file` or `lint_tree`. Code that needs a tier's SQLcl home uses `Tier.home`; code that needs the SQLcl executable uses `tools.sqlcl.sqlcl_bin()`.
+**Impact:** Any new command that executes a check file lints it first with `lint_file` or `lint_tree`. Code that needs a tier's SQLcl home uses `Tier.home`; code that needs the SQLcl executable uses `tools.sqlcl.sqlcl_bin()` and starts a process from it through `tools.sqlcl.launcher()`.

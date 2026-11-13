@@ -15,7 +15,8 @@ plan lives in the "Oracle DBA AI Agent: Product & Build Plan" doc on claude.ai.
 | `plugin/` | Claude Code plugin: skills, check SQL and profiles. |
 | `tools/` | Python 3.10+ standard-library CLI, run as `python -m tools <command>`. |
 | `db/` | SQL templates for the tier database users (`db/tiers/`). |
-| `tests/` | pytest suites: `tests/unit/` and `tests/integration/`. |
+| `tests/` | pytest suites: `tests/unit/` and `tests/integration/`; scripts they use in `tests/support/`. |
+| `.github/` | CI workflow and the SQLcl install script it uses. |
 | `docs/` | Architectural decision records (`docs/decisions/`). |
 | `pyproject.toml` | pytest and ruff configuration, dev dependencies. |
 | `pending.md` | Deferred work and what unblocks it. |

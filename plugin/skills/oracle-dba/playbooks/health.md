@@ -23,7 +23,7 @@ The tool prints `score`, `grade`, `counts`, `incomplete` and `worst`. Exit code 
 
 - Record `INFO` for `alert_log_errors`. It is neither an error nor a clean result.
 - Report that the alert log was not checked, next to the health score: `INFO` carries no penalty and `incomplete` stays false, so the score does not cover the alert log.
-- Say that a DBA can enable the check with the optional grant printed by `python -m tools setup-sql --tier read-only --alert-log`, run as SYS.
+- Say that a DBA can enable the check with the optional grant: the final `GRANT` statement printed by `python -m tools setup-sql --tier read-only --alert-log` (plus `--user <name>` if the tier user has another name), run as SYS.
 
 ### Report
 

@@ -24,13 +24,15 @@ CLIENT_COMMAND = re.compile(
 
 
 class CheckFormatError(Exception):
-    """A check file the parser cannot turn into a `Check`; `code` is the lint code."""
+    """A check file the parser cannot turn into a `Check`; `code` is the lint code,
+    `path` the file when the raiser knows it."""
 
-    def __init__(self, code: str, line: int, message: str):
+    def __init__(self, code: str, line: int, message: str, path=None):
         super().__init__(f"{code} line {line}: {message}")
         self.code = code
         self.line = line
         self.message = message
+        self.path = path
 
 
 @dataclass(frozen=True)

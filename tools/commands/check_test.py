@@ -41,19 +41,29 @@ def _resolve(target: str):
     return entry.check if entry else None
 
 
+def _fails_lint(path) -> bool:
+    """Print the lint findings for `path` to stderr; True if there are any."""
+    findings = lint_file(path)
+    for finding in findings:
+        print(finding, file=sys.stderr)
+    if findings:
+        print(f"error: {path} fails lint; not run", file=sys.stderr)
+    return bool(findings)
+
+
 def run(args):
     try:
         check = _resolve(args.target)
     except CheckFormatError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        # Lint reports every problem in the file; the parser stops at the first.
+        # L014 (two user files for one id) carries no path: it is not a per-file finding.
+        if exc.path is None or not _fails_lint(exc.path):
+            print(f"error: {exc}", file=sys.stderr)
         return 1
     if check is None:
         print(f"error: no check {args.target}", file=sys.stderr)
         return 2
-    if findings := lint_file(check.path):
-        for finding in findings:
-            print(finding, file=sys.stderr)
-        print(f"error: {check.path} fails lint; not run", file=sys.stderr)
+    if _fails_lint(check.path):
         return 1
 
     home = args.home or args.tier.home

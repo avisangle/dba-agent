@@ -316,6 +316,18 @@ def test_version_checks_classify_real_version_strings(tmp_path, check, output, s
         assert "25.3.2 or newer" in result.fix, result
 
 
+def test_real_env_starts_programs_through_launcher(tmp_path, monkeypatch):
+    """/integrate 3: RealEnv.run starts a program as SqlclSession does, through
+    tools.sqlcl.launcher, so `<sqlcl>\\bin\\sql` and `$JAVA_HOME\\bin\\java` run the
+    .exe beside them on Windows."""
+    env_module = importlib.import_module("tools.doctor.env")
+    seen = []
+    monkeypatch.setattr(env_module, "launcher", lambda path: seen.append(path) or sys.executable)
+    code, out, _ = env_module.RealEnv().run([str(tmp_path / "bin" / "sql"), "-c", "print('ran')"])
+    assert seen == [str(tmp_path / "bin" / "sql")], seen
+    assert (code, out.strip()) == (0, "ran")
+
+
 # --- home -------------------------------------------------------------------
 
 

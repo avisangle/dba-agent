@@ -1,12 +1,13 @@
 """`package`: check the check files and index, then write the release zip."""
 
-import argparse
 import sys
 from pathlib import Path
 
-from tools.commands import index, lint
-from tools.config import PACK_NAME, VERSION
-from tools.package import PACK_ROOT, build_zip
+from tools.checks import CHECKS_ROOT
+from tools.checks.lint import lint_tree
+from tools.commands import index
+from tools.config import PACK_NAME, PACK_ROOT, VERSION
+from tools.package import build_zip
 
 NAME = "package"
 HELP = "run lint and index --check, then write <out-dir>/<name>-<version>.zip"
@@ -18,12 +19,14 @@ def add_arguments(parser):
 
 
 def run(args):
-    failed = [
-        name for name, code in (
-            ("lint", lint.run(argparse.Namespace(paths=[]))),
-            ("index --check", index.run(argparse.Namespace(check=True, user=False))),
-        ) if code != 0
-    ]
+    failed = []
+    findings = lint_tree(CHECKS_ROOT)
+    for finding in findings:
+        print(finding)
+    if findings:
+        failed.append("lint")
+    if index.check() != 0:
+        failed.append("index --check")
     if failed:
         print(f"error: {' and '.join(failed)} failed; no package written", file=sys.stderr)
         return 1

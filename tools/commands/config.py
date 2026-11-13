@@ -7,8 +7,8 @@ import shlex
 import shutil
 import sys
 
-from tools.config import PACK_NAME
-from tools.package import PACK_ROOT
+from tools.config import PACK_NAME, PACK_ROOT
+from tools.doctor.checks import SQLCL_MIN_TEXT
 from tools.sqlcl import launcher, sqlcl_bin
 from tools.tiers import TIERS
 
@@ -55,10 +55,11 @@ def render(path, sql: str) -> str:
 
 
 def run(args):
-    found = shutil.which(args.sqlcl_bin or sqlcl_bin())
+    wanted = args.sqlcl_bin or sqlcl_bin()
+    found = shutil.which(wanted)
     if not found:
-        print(f"error: SQLcl not found: {args.sqlcl_bin or sqlcl_bin()}", file=sys.stderr)
-        print("  fix: install SQLcl 25.3.2 or newer and put `sql` on PATH, "
+        print(f"error: SQLcl not found: {wanted}", file=sys.stderr)
+        print(f"  fix: install SQLcl {SQLCL_MIN_TEXT} or newer and put `sql` on PATH, "
               "or pass --sqlcl-bin PATH", file=sys.stderr)
         return 1
     sys.stdout.write(render(clients()[args.client], launcher(found)))

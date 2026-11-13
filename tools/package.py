@@ -5,7 +5,6 @@ import os
 import zipfile
 from pathlib import Path
 
-PACK_ROOT = Path(__file__).resolve().parents[1]
 CONTENTS = ("plugin", "tools", "db")
 README = "README.md"
 
@@ -36,7 +35,7 @@ def build_zip(root, out) -> None:
     """Write the zip of `collect(root)` to the file `out`. Entries carry a fixed
     time, mode and host system, so the bytes depend only on the file contents."""
     root = Path(root)
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(out, "w") as zf:
         for rel in collect(root):
             info = zipfile.ZipInfo(rel.as_posix(), ZIP_TIME)
             info.compress_type = zipfile.ZIP_DEFLATED

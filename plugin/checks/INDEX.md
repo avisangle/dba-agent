@@ -30,6 +30,7 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | --- | --- | --- | --- | --- | --- |
 | parameter_review | Parameters set away from their defaults, with risky settings flagged | R | none | 12.1 | performance/parameter_review.sql |
 | sga_pga_usage | SGA components, resizes in the last 24 hours and PGA usage | R | none | 12.1 | performance/sga_pga_usage.sql |
+| statspack_report | Statspack summary of the latest two snapshots: top timed events and load | R | none | 12.1 | performance/statspack_report.sql |
 | system_stats | Key system metrics over the last 60 seconds | R | none | 12.2 | performance/system_stats.sql |
 | top_sql | Top SQL by elapsed time since instance start | R | none | 12.1 | performance/top_sql.sql |
 | wait_events | Top non-idle wait events since instance start | R | none | 12.1 | performance/wait_events.sql |

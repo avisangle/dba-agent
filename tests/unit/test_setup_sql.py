@@ -418,6 +418,122 @@ def test_setup_home_advisory_creates_its_own_folder_and_prints_adv_save_steps(tm
     assert DEFAULT_USER not in out, out
 
 
+# --- DBA-27: optional Statspack grants (`--statspack`) -----------------------
+
+STATSPACK_CHECK = REPO_ROOT / "plugin" / "checks" / "performance" / "statspack_report.sql"
+STATSPACK_SCRIPT = REPO_ROOT / "tests" / "support" / "install_statspack.sh"
+# Named by the issue as the check's sources; the full set is whatever it reads.
+CORE_STATSPACK_TABLES = {"STATS$SNAPSHOT", "STATS$SYSTEM_EVENT", "STATS$SYSSTAT",
+                         "STATS$SYS_TIME_MODEL"}
+STATSPACK_GRANT_RE = re.compile(r'GRANT SELECT ON PERFSTAT\.(STATS\$\w+) TO "?(\w+)"?;', re.I)
+
+
+def _statspack_block(*args):
+    """(default script, full script, added code lines) for `--statspack`."""
+    plain = _setup_sql(*args)
+    script = _setup_sql(*args, "--statspack")
+    assert script.startswith(plain), "the Statspack block must follow the default script"
+    base, added = _code_lines(plain), _code_lines(script)
+    assert added[: len(base)] == base, added
+    return plain, script, added[len(base):]
+
+
+def _tables_read_by_check() -> set[str]:
+    assert STATSPACK_CHECK.is_file(), f"{STATSPACK_CHECK.relative_to(REPO_ROOT)} missing"
+    sql = STATSPACK_CHECK.read_text(encoding="utf-8")
+    return {t.upper() for t in re.findall(r"\bperfstat\.(stats\$\w+)", sql, re.I)}
+
+
+def test_setup_sql_without_statspack_is_unchanged_and_names_no_perfstat():
+    """AC (DBA-27): without `--statspack` the script is byte-identical to
+    render(TIERS["read-only"]) and neither it nor db/tiers/read-only.sql
+    mentions PERFSTAT; render(..., statspack=False) gives the same text.
+    Falsifier: put a PERFSTAT grant in the tier template."""
+    script = _setup_sql()
+    assert script == _render_default()
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    tiers = importlib.import_module("tools.tiers")
+    assert setup_sql.render(tiers.TIERS["read-only"], statspack=False) == script
+    assert not re.search("PERFSTAT", script, re.I)
+    template = (REPO_ROOT / "db" / "tiers" / "read-only.sql").read_text()
+    assert not re.search("PERFSTAT", template, re.I), "grants must not be in the tier template"
+
+
+def test_setup_sql_statspack_appends_one_commented_block_of_select_grants():
+    """AC (DBA-27): with `--statspack` the default script comes first, then one
+    block whose code lines are only `GRANT SELECT ON PERFSTAT.<table> TO
+    <user>;`, one per table, no table twice, covering at least stats$snapshot,
+    stats$system_event, stats$sysstat and stats$sys_time_model; `--user dba_x`
+    makes dba_x the grantee; the block's comments say it is optional, name
+    statspack_report and say to run it as SYS or PERFSTAT. render() takes
+    `statspack` as a keyword and gives the same text."""
+    for args, user in (((), DEFAULT_USER), (("--user", "dba_x"), "dba_x")):
+        plain, script, extra = _statspack_block(*args)
+        assert extra, "no statement added"
+        matches = [STATSPACK_GRANT_RE.fullmatch(ln) for ln in extra]
+        assert all(matches), extra
+        assert {m.group(2).lower() for m in matches} == {user.lower()}, extra
+        tables = [m.group(1).upper() for m in matches]
+        assert len(tables) == len(set(tables)), tables
+        assert CORE_STATSPACK_TABLES <= set(tables), tables
+
+        comments = [ln for ln in script[len(plain):].splitlines() if ln.strip().startswith("--")]
+        assert any(re.search("optional", c, re.I) for c in comments), comments
+        assert any("statspack_report" in c for c in comments), comments
+        assert any(re.search(r"\bSYS\b", c) for c in comments), comments
+        assert any(re.search(r"\bPERFSTAT\b", c) for c in comments), comments
+
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    tiers = importlib.import_module("tools.tiers")
+    rendered = setup_sql.render(tiers.TIERS["read-only"], statspack=True)
+    assert rendered == _setup_sql("--statspack")
+
+
+def test_statspack_grants_are_exactly_the_tables_the_check_reads():
+    """AC (DBA-27, whole-file property): the PERFSTAT tables granted by
+    `--statspack` are the same set as the `perfstat.stats$...` tables named in
+    plugin/checks/performance/statspack_report.sql. Falsifier: read one more
+    table in the check, or grant one the check does not read."""
+    _, _, extra = _statspack_block()
+    granted = {STATSPACK_GRANT_RE.fullmatch(ln).group(1).upper() for ln in extra}
+    assert granted == _tables_read_by_check(), (granted, _tables_read_by_check())
+
+
+def test_statspack_grants_live_in_one_constant_and_combine_with_other_flags():
+    """AC (DBA-27, whole-codebase scan): GRANT ... ON PERFSTAT. is written only
+    in tools/commands/setup_sql.py under tools/ and db/, as STATSPACK_SQL. With
+    `--statspack --alert-log --audit` all three blocks are present and the
+    default script still comes first."""
+    hits = set()
+    for root in ("tools", "db"):
+        for path in (REPO_ROOT / root).rglob("*"):
+            if path.suffix in (".py", ".sql") and path.is_file():
+                if re.search(r"GRANT\s+SELECT\s+ON\s+PERFSTAT\.", path.read_text(), re.I):
+                    hits.add(path.relative_to(REPO_ROOT).as_posix())
+    assert hits == {"tools/commands/setup_sql.py"}, hits
+    assert re.search(r"^STATSPACK_SQL\s*=", (REPO_ROOT / hits.pop()).read_text(), re.M)
+
+    script = _setup_sql("--statspack", "--alert-log", "--audit")
+    code = _code_lines(script)
+    assert code[: len(_code_lines(_setup_sql()))] == _code_lines(_setup_sql())
+    assert any(re.search(r"PERFSTAT\.STATS\$SNAPSHOT", ln, re.I) for ln in code), code
+    assert any(re.search("DIAG_ALERT_EXT", ln, re.I) for ln in code), code
+    assert any(re.match(r"CREATE\s+AUDIT\s+POLICY", ln, re.I) for ln in code), code
+
+
+def test_performance_playbook_routes_past_periods_to_statspack_report():
+    """AC (DBA-27): plugin/skills/oracle-dba/playbooks/performance.md names
+    statspack_report for a past period when AWR is not in use, and says the
+    `not available:` row means Statspack is not installed or `setup-sql
+    --statspack` was not applied."""
+    text = (REPO_ROOT / "plugin/skills/oracle-dba/playbooks/performance.md").read_text()
+    lines = [ln for ln in text.splitlines() if "statspack_report" in ln]
+    assert lines, "performance.md does not mention statspack_report"
+    joined = "\n".join(lines)
+    assert re.search(r"\bAWR\b", joined), lines
+    assert "not available:" in text and "setup-sql --statspack" in text
+
+
 # --- contract test -----------------------------------------------------------
 
 
@@ -486,3 +602,47 @@ def test_contract_advisory_tier_for_dba36_dba40_dba42_dba44():
     assert scopes == ["session"], ast.dump(fixture.decorator_list[0])
     assert re.search(r"TIERS\[\s*[\"']advisory[\"']\s*\]", ast.unparse(tree)), (
         "the adv fixture does not build from the advisory tier")
+
+
+def test_contract_dba27_for_dba38_and_dba44():
+    """Contract for DBA-38 (`tests/support/install_statspack.sh` and a container
+    with Statspack) and DBA-44 (`setup-sql --statspack` in the README), from
+    DBA-27's output_for_dependents. Shape only:
+    - tools.commands.setup_sql.STATSPACK_SQL is a str; render() takes the
+      keyword `statspack`; `setup-sql --tier read-only --statspack` exits 0;
+    - tests/support/install_statspack.sh is an executable bash script that
+      passes `bash -n`;
+    - the CI `integration` job has a step running it;
+    - check `statspack_report` exists under plugin/checks/performance with
+      mode R, pack none and max_rows 20."""
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    assert isinstance(setup_sql.STATSPACK_SQL, str) and setup_sql.STATSPACK_SQL.strip()
+    tiers = importlib.import_module("tools.tiers")
+    assert isinstance(setup_sql.render(tiers.TIERS["read-only"], statspack=True), str)
+    assert _run_tools("setup-sql", "--tier", "read-only", "--statspack").returncode == 0
+
+    assert STATSPACK_SCRIPT.is_file(), f"{STATSPACK_SCRIPT.relative_to(REPO_ROOT)} missing"
+    assert STATSPACK_SCRIPT.read_text().splitlines()[0] in ("#!/usr/bin/env bash", "#!/bin/bash")
+    rel = STATSPACK_SCRIPT.relative_to(REPO_ROOT).as_posix()
+    staged = subprocess.run(
+        ["git", "ls-files", "-s", "--", rel], cwd=REPO_ROOT, capture_output=True, text=True,
+        check=True,
+    ).stdout.split()
+    if staged:
+        assert staged[0] == "100755", f"{rel} tracked without the executable bit"
+    elif sys.platform != "win32":
+        assert os.access(STATSPACK_SCRIPT, os.X_OK), f"{rel} not executable"
+    if sys.platform != "win32":
+        syntax = subprocess.run(["bash", "-n", str(STATSPACK_SCRIPT)], capture_output=True,
+                                text=True, check=False)
+        assert syntax.returncode == 0, syntax.stderr
+
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    assert rel in workflow, "CI does not run install_statspack.sh"
+
+    index = importlib.import_module("tools.checks.index")
+    checks = importlib.import_module("tools.checks")
+    check = index.find_check(checks.CHECKS_ROOT, "statspack_report")
+    assert check is not None, "no check statspack_report"
+    assert check.path.parent.name == "performance", check.path
+    assert (check.mode, check.pack, check.max_rows) == ("R", "none", 20), check

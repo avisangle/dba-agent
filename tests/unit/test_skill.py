@@ -48,7 +48,10 @@ from tools.checks.index import discover  # noqa: E402
 SKILL_DIR = REPO_ROOT / "plugin" / "skills" / "oracle-dba"
 SKILL = SKILL_DIR / "SKILL.md"
 PLAYBOOK_DIR = SKILL_DIR / "playbooks"
-PLAYBOOK_NAMES = ("discovery", "health", "storage", "sessions", "performance")
+# Every playbook file counts (DBA-25), so a new one is held to the structure tests
+# without editing this file; the five from DBA-16 must still be there.
+PLAYBOOK_NAMES = tuple(sorted(p.stem for p in PLAYBOOK_DIR.glob("*.md")))
+assert {"discovery", "health", "storage", "sessions", "performance"} <= set(PLAYBOOK_NAMES)
 PLAYBOOKS = {name: PLAYBOOK_DIR / f"{name}.md" for name in PLAYBOOK_NAMES}
 PROFILE = REPO_ROOT / "plugin" / "profiles" / "health_check.json"
 

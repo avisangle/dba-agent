@@ -21,7 +21,19 @@ from tools.checks.header import (
     split_check,
 )
 
-CATEGORIES = ("discovery", "health", "storage", "sessions", "performance", "custom")
+CATEGORIES = (
+    "discovery",
+    "health",
+    "storage",
+    "sessions",
+    "performance",
+    "custom",
+    "awr",
+    "tuning",
+    "backup",
+    "ha",
+    "security",
+)
 MODES = ("R", "A", "W", "X")
 PACKS = ("none", "diagnostics", "tuning")
 

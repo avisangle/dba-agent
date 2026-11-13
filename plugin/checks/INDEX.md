@@ -10,6 +10,15 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | ash_top_activity | Top SQL and wait events in active session history over the last minutes | R | diagnostics | 12.1 | awr/ash_top_activity.sql |
 | awr_snapshot_list | AWR snapshots of this container over the last days, with a warning when none are being taken | R | diagnostics | 12.1 | awr/awr_snapshot_list.sql |
 
+## backup
+
+| id | title | mode | pack | min_version | file |
+| --- | --- | --- | --- | --- | --- |
+| archivelog_gaps | Archive log mode and archived log sequence gaps in the last 7 days | R | none | 12.1 | backup/archivelog_gaps.sql |
+| backup_coverage | Latest backup of each datafile and its age | R | none | 12.1 | backup/backup_coverage.sql |
+| recovery_window_check | Whether full or level 0 backups cover the RMAN retention policy | R | none | 12.1 | backup/recovery_window_check.sql |
+| rman_job_status | RMAN backup jobs in the last 7 days | R | none | 12.1 | backup/rman_job_status.sql |
+
 ## discovery
 
 | id | title | mode | pack | min_version | file |

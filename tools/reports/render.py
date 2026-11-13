@@ -2,7 +2,8 @@
 
 Template placeholders: title, connection, version, generated, score, errors,
 summary, details. `$score` is the whole score line, or empty without weights.
-In HTML every value is escaped here, in `_Html`.
+Every value is escaped here, by the formatter's `text`: HTML-escaped in both
+formats, and kept on one line in Markdown.
 """
 
 import html
@@ -35,21 +36,21 @@ class _Markdown:
     sep = "\n\n"
 
     def text(self, value) -> str:
-        return str(value)
+        # Viewers may render inline HTML; one line keeps a value inside its block.
+        return " ".join(html.escape(str(value), quote=False).splitlines())
 
     def heading(self, level: int, value) -> str:
-        return f"{'#' * level} {value}"
+        return f"{'#' * level} {self.text(value)}"
 
     def para(self, value) -> str:
-        return str(value)
+        return self.text(value)
 
     def items(self, values) -> str:
-        return "\n".join(f"- {v}" for v in values)
+        return "\n".join(f"- {self.text(v)}" for v in values)
 
     def table(self, header, rows) -> str:
         def line(cells):
-            cells = (str(c).replace("|", "\\|").replace("\r", "").replace("\n", " ")
-                     for c in cells)
+            cells = (self.text(c).replace("|", "\\|") for c in cells)
             return f"| {' | '.join(cells)} |"
         return "\n".join([line(header), line(["---"] * len(header)), *map(line, rows)])
 

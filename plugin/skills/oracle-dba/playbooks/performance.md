@@ -21,11 +21,7 @@ Load, wait events, the heaviest SQL, memory and parameters. All three starting c
 - If `top_sql` shows a statement with a high ms per execution, run `long_ops` because a full scan or sort of that statement still running appears there with its time remaining.
 - If the user asks about a past period and AWR is not in use, run `statspack_report` because Statspack snapshots are the free history of waits and load; it summarises the latest two snapshots. A `not available:` row means the DBA has not installed Statspack (`spcreate.sql`), has not applied `setup-sql --statspack`, or has fewer than two snapshots: say which, and do not guess the period from `wait_events`, whose figures are cumulative since instance start. A `WARNING` summary row means the instance restarted between the two snapshots, so its deltas are meaningless.
 
-For the execution plan of a statement from `top_sql`, no check exists; write it as your own SQL (rule 6), with the SQL_ID from the result:
-
-```
-SELECT PLAN_TABLE_OUTPUT FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR('<sql id>')) FETCH FIRST 100 ROWS ONLY
-```
+For the execution plan of a statement from `top_sql`, run `explain_plan` with its SQL_ID; the [SQL tuning playbook](tuning.md) continues from there.
 
 ## Stop when
 

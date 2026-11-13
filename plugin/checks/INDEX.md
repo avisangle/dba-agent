@@ -80,3 +80,12 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | temp_usage | Temporary tablespace usage above threshold | R | none | 12.1 | storage/temp_usage.sql |
 | top_segments | Largest segments | R | none | 12.1 | storage/top_segments.sql |
 | undo_usage | Undo space and undo errors in the last 24 hours | R | none | 12.1 | storage/undo_usage.sql |
+
+## tuning
+
+| id | title | mode | pack | min_version | file |
+| --- | --- | --- | --- | --- | --- |
+| explain_plan | Execution plan of a statement in the cursor cache, by sql id | R | none | 12.1 | tuning/explain_plan.sql |
+| spm_baselines | SQL plan baselines, with a warning for plans left unaccepted over 30 days | R | none | 12.1 | tuning/spm_baselines.sql |
+| sql_profile | SQL profiles, with a warning for disabled ones | R | tuning | 12.1 | tuning/sql_profile.sql |
+| stale_stats | Optimizer statistics of application tables: stale, or never gathered on a table with rows | R | none | 12.1 | tuning/stale_stats.sql |

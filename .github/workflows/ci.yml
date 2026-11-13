@@ -61,6 +61,7 @@ jobs:
       - run: .github/scripts/install-sqlcl.sh ${{ matrix.sqlcl }}
       - run: '"$SQLCL_BIN" -V'
       - run: docker compose -f tests/docker-compose.yml up -d --wait
+      - run: tests/support/install_statspack.sh
       - run: python -m pytest -m integration
         env:
           REQUIRE_INTEGRATION: "1"

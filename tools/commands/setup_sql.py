@@ -31,13 +31,31 @@ ALERT_LOG_SQL = """\
 GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO {user};
 """
 
+# Optional object grants (docs/decisions/D-DBA-27-statspack-optional-grants.md):
+# exactly the PERFSTAT tables the statspack_report check reads.
+STATSPACK_SQL = """\
+-- Optional on the read-only tier: lets the statspack_report check read Statspack
+-- snapshots (PERFSTAT schema, installed by spcreate.sql). Skip it and that check
+-- reports "not available". Run as SYS or PERFSTAT.
+GRANT SELECT ON PERFSTAT.STATS$SNAPSHOT TO {user};
+GRANT SELECT ON PERFSTAT.STATS$SYSTEM_EVENT TO {user};
+GRANT SELECT ON PERFSTAT.STATS$IDLE_EVENT TO {user};
+GRANT SELECT ON PERFSTAT.STATS$SYSSTAT TO {user};
+GRANT SELECT ON PERFSTAT.STATS$SYS_TIME_MODEL TO {user};
+GRANT SELECT ON PERFSTAT.STATS$TIME_MODEL_STATNAME TO {user};
+"""
+
 
 def profile_name(user: str) -> str:
     return f"{user}_profile"
 
 
 def render(
-    tier: Tier, user: str | None = None, audit: bool = False, alert_log: bool = False
+    tier: Tier,
+    user: str | None = None,
+    audit: bool = False,
+    alert_log: bool = False,
+    statspack: bool = False,
 ) -> str:
     """The tier's script for `user` (default: the tier's db_user)."""
     user = user or tier.db_user
@@ -48,6 +66,8 @@ def render(
     )
     if alert_log:
         script += ALERT_LOG_SQL.format(user=user)
+    if statspack:
+        script += STATSPACK_SQL.format(user=user)
     if audit:
         script += AUDIT_SQL.format(user=user, policy=f"{user}_audit")
     return script
@@ -72,10 +92,15 @@ def add_arguments(parser):
         "--alert-log", action="store_true",
         help="append the optional grant that lets alert_log_errors read the alert log (run as SYS)",
     )
+    parser.add_argument(
+        "--statspack", action="store_true",
+        help="append the optional grants that let statspack_report read Statspack snapshots "
+        "(run as SYS or PERFSTAT)",
+    )
 
 
 def run(args):
-    script = render(args.tier, args.user, args.audit, args.alert_log)
+    script = render(args.tier, args.user, args.audit, args.alert_log, args.statspack)
     if args.out:
         args.out.write_text(script, encoding="utf-8")
     else:

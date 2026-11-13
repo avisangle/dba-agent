@@ -25,6 +25,16 @@ def resolve_checks(builtin_root, user_root) -> dict[str, ResolvedCheck]:
     return resolved
 
 
+def source_counts(resolved: dict[str, ResolvedCheck], builtin_root) -> dict[str, int]:
+    """Built-in ids not overridden, user ids that override a built-in, and user ids
+    that add a new check, in `resolved` from `resolve_checks`."""
+    builtin = {p.stem for p in Path(builtin_root).rglob("*.sql")}  # file name is the id (L003)
+    user = [i for i, r in resolved.items() if r.source == "user"]
+    overridden = len(builtin.intersection(user))
+    return {"builtin": len(builtin) - overridden, "overridden": overridden,
+            "added": len(user) - overridden}
+
+
 def resolve_check(builtin_root, user_root, check_id: str) -> ResolvedCheck | None:
     """The check `check_id`, the user file winning as in `resolve_checks`, or None.
     A malformed file for another id is not read; a malformed `<check_id>.sql`

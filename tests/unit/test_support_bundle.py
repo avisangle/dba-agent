@@ -35,7 +35,6 @@ import json
 import os
 import platform
 import re
-import stat
 import sys
 import tokenize
 import zipfile
@@ -48,12 +47,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tests.support.doctor_fakes import DB_19, JAVA_17, SQLCL_26_1, FakeEnv, FakeSession  # noqa: E402
 from tools.checks import CHECKS_ROOT  # noqa: E402  (exists since DBA-14)
 from tools.checks.index import discover  # noqa: E402  (exists since DBA-7)
 from tools.config import PACK_NAME, VERSION  # noqa: E402
-from tools.mcp_client import McpError  # noqa: E402  (exists since DBA-4)
-from tools.sqlcl import SqlResult  # noqa: E402  (exists since DBA-4)
-from tools.sqlcl_text import find_error  # noqa: E402  (exists since DBA-4)
 from tools.tiers import TIERS  # noqa: E402  (exists since DBA-5)
 
 READ_ONLY = TIERS["read-only"]
@@ -61,10 +58,9 @@ BUNDLE_FILES = {"doctor.json", "versions.json", "checks.json", "README.txt"}
 REVIEW = "Review these files before attaching the bundle to an issue."
 HOME = str(Path.home())
 
-SQLCL_LINE = "SQLcl: Release 26.1.0.0 Production Build: 26.1.0.086.1709"
-JAVA_LINE = 'openjdk version "17.0.19" 2026-04-21'
+SQLCL_LINE = SQLCL_26_1.strip()
+JAVA_LINE = JAVA_17.splitlines()[0]
 DB_VERSION_FULL = "19.32.0.0.0"  # looks like an address; must survive
-TOOLS = ["list-connections", "connect", "run-sql", "run-sqlcl", "disconnect"]
 
 # Saved connections and what SQLcl answers to `connect`; None connects.
 CONNECTIONS = {
@@ -105,87 +101,18 @@ FETCH FIRST 10 ROWS ONLY
 USER_SQL_MARKER = "user-sql-marker-5521"
 
 
-def _csv(header, rows):
-    lines = [",".join(f'"{h}"' for h in header)]
-    lines += [",".join(f'"{v}"' for v in row) for row in rows]
-    return "\n".join(lines) + "\n"
-
-
-def _result(header, rows):
-    return SqlResult(_csv(header, rows), header, rows, "", None)
-
-
-class FakeSession:
-    """Stands in for SqlclSession: connect fails per CONNECTIONS; `erp-ok` is a
-    correct read-only connection on Oracle 19.32 with both probes refused."""
-
-    def __init__(self):
-        self.connected = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        pass
-
-    def list_tools(self):
-        return list(TOOLS)
-
-    def list_connections(self):
-        return list(CONNECTIONS)
-
-    def connect(self, name):
-        if CONNECTIONS.get(name, "unknown connection") is not None:
-            raise McpError(0, CONNECTIONS.get(name, f"Connection {name} not found"))
-        self.connected = name
-
-    def disconnect(self):
-        self.connected = None
-
-    def run_sql(self, sql):
-        low = sql.lower()
-        if "session_privs" in low:
-            return _result(["PRIVILEGE"], [[p] for p in sorted(READ_ONLY.sys_privs)])
-        if "session_roles" in low:
-            return _result(["ROLE"], [[r] for r in sorted(READ_ONLY.roles)])
-        if "v$instance" in low:
-            return _result(["VERSION", "VERSION_FULL", "EDITION"],
-                           [["19.0.0.0.0", DB_VERSION_FULL, "EE"]])
-        if "v$version" in low:
-            return _result(["BANNER"], [["Oracle Database 19c Enterprise Edition Release "
-                                         "19.0.0.0.0 - Production"]])
-        raise AssertionError(f"unexpected SQL: {sql}")
-
-    def run_sqlcl(self, command):
-        text = f'SP2-0738: Restricted command: \n"{command.strip()}"\nnot available\n'
-        return SqlResult(text, [], [], "", find_error(text))
-
-
-class FakeEnv:
-    def __init__(self):
-        self.session = FakeSession()
-        self.commands = []
-
-    def run(self, cmd):
-        cmd = [str(c) for c in cmd]
-        self.commands.append(cmd)
-        prog = Path(cmd[0]).name.lower()
-        if cmd[0] == sys.executable or prog.startswith("python"):
-            return 0, f"Python {platform.python_version()}\n", ""
-        if prog.startswith("java"):
-            return 0, "", f"{JAVA_LINE}\nOpenJDK Runtime Environment Homebrew (build 17.0.19+0)\n"
-        if prog.startswith("sql"):
-            return 0, f"\n{SQLCL_LINE}\n", ""
-        raise AssertionError(f"unexpected command: {cmd}")
-
-    def open_session(self, home):
-        return self.session
-
-    def home_path(self, tier):
-        return tier.home
-
-    def stat_mode(self, path):
-        return stat.S_IFDIR | 0o700
+def _env():
+    """Doctor's scripted Env (tests/support/doctor_fakes.py) with the connections
+    above; `erp-ok` is a correct read-only user on Oracle 19.32. Its home is the
+    tier home under the `pack` fixture, which creates it."""
+    session = FakeSession(
+        connections=list(CONNECTIONS),
+        connect_errors={name: text for name, text in CONNECTIONS.items() if text},
+        db={**DB_19, "VERSION_FULL": DB_VERSION_FULL},
+        privs=sorted(READ_ONLY.sys_privs), roles=sorted(READ_ONLY.roles),
+    )
+    return FakeEnv(None, session=session, home=READ_ONLY.home, home_exists=False,
+                   python=(0, f"Python {platform.python_version()}\n", ""))
 
 
 @pytest.fixture
@@ -263,7 +190,7 @@ def test_cli_writes_exactly_four_files_lists_them_and_exits_zero(pack, tmp_path,
     versions.json, checks.json and README.txt; prints the file list and the
     review sentence; exits 0 although doctor reported FAILs."""
     out = tmp_path / "bundle.zip"
-    code, printed = _cli(monkeypatch, capsys, FakeEnv(), "--out", str(out))
+    code, printed = _cli(monkeypatch, capsys, _env(), "--out", str(out))
     assert code == 0, printed
     files = _read_zip(out)
     assert set(files) == BUNDLE_FILES and len(files) == 4, sorted(files)
@@ -288,7 +215,7 @@ def test_default_name_is_in_the_current_folder_and_unwritable_out_exits_one(pack
     cwd.mkdir()
     monkeypatch.chdir(cwd)
     days = {datetime.now(timezone.utc).strftime(f) for f in ("%Y%m%d", "%Y-%m-%d")}
-    code, printed = _cli(monkeypatch, capsys, FakeEnv())
+    code, printed = _cli(monkeypatch, capsys, _env())
     days |= {datetime.now(timezone.utc).strftime(f) for f in ("%Y%m%d", "%Y-%m-%d")}
     assert code == 0, printed
     written = list(cwd.iterdir())
@@ -300,7 +227,7 @@ def test_default_name_is_in_the_current_folder_and_unwritable_out_exits_one(pack
 
     folder = tmp_path / "a-folder"
     folder.mkdir()
-    code, _ = _cli(monkeypatch, capsys, FakeEnv(), "--out", str(folder))
+    code, _ = _cli(monkeypatch, capsys, _env(), "--out", str(folder))
     assert code == 1
 
 
@@ -312,7 +239,7 @@ def test_no_identifier_survives_and_each_name_has_one_token(pack, tmp_path, monk
     tokens per string or per file); version strings that look like addresses
     survive (`26.1.0.086.1709`, `19.32.0.0.0`)."""
     out = tmp_path / "bundle.zip"
-    code, printed = _cli(monkeypatch, capsys, FakeEnv(), "--out", str(out))
+    code, printed = _cli(monkeypatch, capsys, _env(), "--out", str(out))
     assert code == 0, printed
     files = _read_zip(out)
     texts = _texts(files)
@@ -343,7 +270,7 @@ def test_versions_and_checks_reuse_doctor_output_and_list_user_check_ids_only(pa
     `java -version` doctor already ran (each runs once); checks.json counts
     built-in, overridden and added checks and lists user check ids, never their
     SQL. `build(env, tier)` returns file name -> content for the four files."""
-    env = FakeEnv()
+    env = _env()
     files = importlib.import_module("tools.support_bundle").build(env, READ_ONLY)
     assert set(files) == BUNDLE_FILES, sorted(files)
     assert all(isinstance(v, str) for v in files.values())
@@ -387,7 +314,7 @@ def test_command_reads_nothing_under_the_homes_folder(pack, tmp_path, monkeypatc
         return wrapper
 
     out = tmp_path / "bundle.zip"
-    _install_env(monkeypatch, FakeEnv())
+    _install_env(monkeypatch, _env())
     main = importlib.import_module("tools.__main__").main
     with monkeypatch.context() as m:
         for module, name in ((builtins, "open"), (io, "open"), (os, "open"),

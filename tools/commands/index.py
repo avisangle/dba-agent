@@ -7,7 +7,7 @@ from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError
 from tools.checks.index import build_index, build_merged_index, discover, index_problems
 from tools.checks.lint import lint_tree
-from tools.checks.resolve import resolve_checks
+from tools.checks.resolve import resolve_checks, source_counts
 
 NAME = "index"
 HELP = (
@@ -57,11 +57,10 @@ def _run_user():
     except CheckFormatError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    user_count = sum(r.source == "user" for r in resolved.values())
-    added = len(resolved) - sum(1 for _ in CHECKS_ROOT.rglob("*.sql"))  # one id per file (L014)
+    counts = source_counts(resolved, CHECKS_ROOT)
     user_root.mkdir(parents=True, exist_ok=True)
     path = user_root / "INDEX.md"
     path.write_text(build_merged_index(resolved.values()), encoding="utf-8", newline="\n")
-    print(f"wrote {path}: {len(resolved) - user_count} built-in, "
-          f"{user_count - added} overridden, {added} added")
+    print(f"wrote {path}: {counts['builtin']} built-in, "
+          f"{counts['overridden']} overridden, {counts['added']} added")
     return 0

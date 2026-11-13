@@ -43,6 +43,19 @@ DB_19 = {
 RO_PRIVS = ["CREATE SESSION"]
 # SELECT_CATALOG_ROLE brings HS_ADMIN_SELECT_ROLE with it (issue DBA-15)
 RO_ROLES = ["SELECT_CATALOG_ROLE", "HS_ADMIN_SELECT_ROLE"]
+# USER_TAB_PRIVS row every user sees (measured on 23.26.3, DBA-26): PUBLIC may
+# inherit the user's privileges. Not an object grant to the user.
+TAB_PRIV_COLUMNS = ("GRANTEE", "OWNER", "TABLE_NAME", "GRANTOR", "PRIVILEGE", "TYPE")
+INHERIT_ROW = {"GRANTEE": "PUBLIC", "OWNER": "SYS", "TABLE_NAME": "<user>",
+               "GRANTOR": "<user>", "PRIVILEGE": "INHERIT PRIVILEGES", "TYPE": "USER"}
+
+
+def tab_priv(grant):
+    """A USER_TAB_PRIVS row for a tier object grant `SELECT ON SYS.<object>`."""
+    privilege, _, target = grant.partition(" ON ")
+    owner, _, name = target.partition(".")
+    return {"GRANTEE": "<user>", "OWNER": owner, "TABLE_NAME": name, "GRANTOR": owner,
+            "PRIVILEGE": privilege, "TYPE": "TABLE"}
 
 
 def _csv(header, rows):
@@ -66,11 +79,14 @@ class FakeSession:
     """Stands in for SqlclSession, scripted per test."""
 
     def __init__(self, tools=TOOLS_26_1, connections=("ro",), connect_errors=None,
-                 db=DB_23, privs=RO_PRIVS, roles=RO_ROLES, sqlcl_answers=None):
+                 db=DB_23, privs=RO_PRIVS, roles=RO_ROLES, sqlcl_answers=None,
+                 tab_privs=()):
         self.tools = list(tools)
         self.connections = list(connections)
         self.connect_errors = connect_errors or {}
         self.db, self.privs, self.roles = db, list(privs), list(roles)
+        # USER_TAB_PRIVS rows (dicts keyed by TAB_PRIV_COLUMNS); tab_priv() builds one
+        self.tab_privs = [INHERIT_ROW, *tab_privs]
         self.sqlcl_answers = dict(REFUSED_BOTH if sqlcl_answers is None else sqlcl_answers)
         self.connected = None
         self.sql = []
@@ -109,6 +125,13 @@ class FakeSession:
             return _result(["PRIVILEGE"], [[p] for p in self.privs])
         if "session_roles" in low:
             return _result(["ROLE"], [[r] for r in self.roles])
+        if "user_tab_privs" in low:
+            # Plain column names only; the WHERE clause is not applied.
+            header = [re.split(r"[\s.]", i.upper())[-1] for i in _select_list(sql)]
+            header = list(TAB_PRIV_COLUMNS) if header == ["*"] else header
+            unknown = [h for h in header if h not in TAB_PRIV_COLUMNS]
+            assert not unknown, f"fake answers plain USER_TAB_PRIVS columns only: {sql}"
+            return _result(header, [[row[h] for h in header] for row in self.tab_privs])
         if "v$instance" in low or "v$version" in low:
             header, row = [], []
             for item in _select_list(sql):
@@ -171,7 +194,7 @@ class FakeEnv:
         return self.session
 
     def home_path(self, tier):
-        assert getattr(tier, "name", tier) == "read-only", tier
+        assert getattr(tier, "name", tier) in ("read-only", "advisory"), tier
         return self.home
 
     def stat_mode(self, path):

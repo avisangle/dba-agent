@@ -30,6 +30,7 @@ Pick the playbook that matches the question and follow it. Each one lists the ch
 - [Performance](playbooks/performance.md): load, wait events, top SQL, memory and parameters.
 - [AWR and ASH](playbooks/awr.md): what ran over the last minutes from active session history, and whether AWR snapshots are being taken.
 - [High availability](playbooks/ha.md): Data Guard standby lag and transport, RAC interconnect and instance balance, flashback and restore points.
+- [Backup and recovery](playbooks/backup.md): RMAN backup jobs, datafile backup age, archive log mode and gaps, and the retention policy.
 
 ## Rules
 

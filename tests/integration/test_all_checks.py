@@ -1,9 +1,10 @@
 """DBA-7: the per-check harness. One test per `*.sql` under plugin/checks/, so a
 new check file is covered with no further wiring.
 
-For each check: lint findings are empty (no database needed); then, for mode R
-only, as the `ro` session (CREATE SESSION + SELECT_CATALOG_ROLE): skip when the
-database is older than `min_version`, else run the check and require
+For each check: lint findings are empty (no database needed) and the check binds
+(`int` parameters take their defaults, `sql_id` parameters PROBE_SQL_ID); then, for
+mode R only, as the `ro` session (CREATE SESSION + SELECT_CATALOG_ROLE): skip when
+the database is older than `min_version`, else run the bound check and require
 `validate_result` to be empty.
 
 Dictionary columns used (Oracle 23ai reference, read as `ro` on 23.26.3):
@@ -19,10 +20,13 @@ import pytest
 from tools.checks import CHECKS_ROOT
 from tools.checks.header import parse_check
 from tools.checks.lint import lint_file
+from tools.checks.params import bind
 
 pytestmark = pytest.mark.integration
 
 CHECK_FILES = sorted(CHECKS_ROOT.rglob("*.sql"))
+# Matches no statement: Oracle's sql_id alphabet has no e, i, l, o or t.
+PROBE_SQL_ID = "nosuchsqlid00"
 
 
 def _version(text: str) -> tuple[int, ...]:
@@ -48,6 +52,7 @@ def test_check(path, request):
     assert findings == [], "\n".join(map(str, findings))
 
     check = parse_check(path)
+    check = bind(check, {p.name: PROBE_SQL_ID for p in check.params if p.type == "sql_id"})
     if check.mode != "R":
         pytest.skip(f"mode {check.mode}: the harness runs read-only (R) checks only")
     ro = request.getfixturevalue("ro")

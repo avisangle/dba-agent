@@ -1,9 +1,10 @@
-"""Lint check files: rules L001 to L014 (docs/decisions/D-DBA-3-check-header-format.md).
+"""Lint check files: rules L001 to L017 (docs/decisions/D-DBA-24-check-parameters.md).
 
 Body rules work on a masked copy of the SQL in which the contents of string
 literals, quoted identifiers and comments are blanked out (newlines kept, so
 offsets and line numbers still match), so a `;`, `&` or keyword inside them is
-not mistaken for code.
+not mistaken for code. Placeholder rules (L016, L017) read the unmasked body:
+`bind` fills `{{name}}` wherever it appears.
 """
 
 import re
@@ -20,6 +21,7 @@ from tools.checks.header import (
     parse_max_rows,
     split_check,
 )
+from tools.checks.params import PLACEHOLDER, ParamError, parse_params
 
 CATEGORIES = (
     "discovery",
@@ -110,6 +112,7 @@ class _FileLinter:
         self.findings: list[Finding] = []
         entry = raw.value("max_rows")
         self.max_rows = parse_max_rows(entry[1]) if entry else None  # None: absent or invalid
+        self.params = ()  # None: a malformed `params` list (L015)
 
     def add(self, line: int, code: str, message: str):
         self.findings.append(Finding(self.path, line, code, message))
@@ -155,6 +158,13 @@ class _FileLinter:
                 self.add(entry[0], "L007", f"{key} {entry[1]!r} is not <major>.<minor>")
         if (entry := self.raw.value("max_rows")) and self.max_rows is None:
             self.add(entry[0], "L008", max_rows_error(entry[1]))
+        if "params" in self.raw.header:
+            line, text = self.raw.header["params"]
+            try:
+                self.params = parse_params(text)
+            except ParamError as exc:
+                self.params = None
+                self.add(line, "L015", str(exc))
 
     def one_of(self, key: str, allowed, code: str):
         if (entry := self.raw.value(key)) and entry[1] not in allowed:
@@ -194,6 +204,23 @@ class _FileLinter:
                         self.body_line(span.start), "L013",
                         f"severity {value!r} is not one of {', '.join(SEVERITIES)}",
                     )
+        if self.params is not None:
+            self.placeholder_rules()
+
+    def placeholder_rules(self):
+        body = self.raw.body
+        declared = {p.name for p in self.params}
+        used = set()
+        for match in PLACEHOLDER.finditer(body):
+            if match[1] in declared:
+                used.add(match[1])
+            else:
+                self.add(self.body_line(match.start()), "L016",
+                         f"placeholder {match[0]} is not a declared parameter")
+        for param in self.params:
+            if param.name not in used:
+                self.add(self.raw.header["params"][0], "L017",
+                         f"parameter {param.name} is declared but not used in the body")
 
 
 def _severity_literals(code: str, strings: list[_Span], alias_start: int) -> list[_Span]:

@@ -1,5 +1,5 @@
 # D-DBA-3: Check files carry a fixed-key header, a SQL-computed severity and a SQL row cap
-**Status:** Accepted
+**Status:** Superseded by D-DBA-24-check-parameters
 **Date:** 2026-11-11
 **Issue:** DBA-3
 **Confluence:** none (plan doc on claude.ai, section "Customising checks and reports"; design in epic DBA-1)

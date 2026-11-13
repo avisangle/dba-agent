@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 
 from tools.checks import CHECKS_ROOT
+from tools.checks.index import index_problems
 from tools.checks.lint import lint_tree
-from tools.commands import index
 from tools.config import PACK_NAME, PACK_ROOT, VERSION
 from tools.package import build_zip
 
@@ -25,7 +25,9 @@ def run(args):
         print(finding)
     if findings:
         failed.append("lint")
-    if index.check() != 0:
+    problems = index_problems(CHECKS_ROOT)
+    sys.stderr.writelines(problems)
+    if problems:
         failed.append("index --check")
     if failed:
         print(f"error: {' and '.join(failed)} failed; no package written", file=sys.stderr)

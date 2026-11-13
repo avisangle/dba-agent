@@ -11,13 +11,10 @@ from pathlib import Path
 
 from tools.doctor.env import Env
 from tools.mcp_client import McpError, McpTimeout
-from tools.sqlcl import _RENAMED, mcp_argv, sqlcl_bin
+from tools.sqlcl import _RENAMED, INSTALL_FIX, SQLCL_MIN, SQLCL_MIN_TEXT, mcp_argv, sqlcl_bin
 from tools.tiers import Tier
 
 PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
-# Oldest supported build (D-DBA-8-minimum-sqlcl-25-3-2).
-SQLCL_MIN = (25, 3, 2)
-SQLCL_MIN_TEXT = ".".join(map(str, SQLCL_MIN))
 MCP_TOOLS = ("list-connections", "connect", "run-sql", "disconnect")
 PER_CONNECTION = ("connect", "db-version", "grants", "excess-privileges", "restrict-level")
 # Refused at restrict level 3 and above. The file need not exist; `host` is sent
@@ -61,7 +58,7 @@ def check_python(env: Env) -> Result:
 
 def check_sqlcl(env: Env) -> Result:
     sql = sqlcl_bin()
-    fix = f"install SQLcl {SQLCL_MIN_TEXT} or newer and put `sql` on PATH, or set SQLCL_BIN to it"
+    fix = f"{INSTALL_FIX}, or set SQLCL_BIN to it"
     code, out, err = env.run([sql, "-V"])
     if code == 127:
         return Result("sqlcl", FAIL, f"{sql} not found", fix)

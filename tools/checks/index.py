@@ -6,6 +6,7 @@ is byte-identical wherever the tree lives: LF line endings, no timestamps.
 The merged user index (`build_merged_index`) holds absolute paths, so it is not.
 """
 
+import difflib
 from itertools import groupby
 from pathlib import Path
 
@@ -89,3 +90,20 @@ def build_merged_index(resolved) -> str:
         (r.check.category, _cells(r.check, str(r.check.path.resolve())) + (r.source,))
         for r in resolved
     ])
+
+
+def index_problems(root) -> list[str]:
+    """Why `root`/INDEX.md differs from what the headers generate, as stderr lines
+    (a format error, or the stale notice and a diff); empty when it is current."""
+    path = Path(root) / "INDEX.md"
+    try:
+        text = build_index(discover(root))
+    except CheckFormatError as exc:
+        return [f"error: {exc}\n"]
+    current = path.read_bytes().decode("utf-8") if path.is_file() else ""
+    if current == text:
+        return []
+    return [f"{path} is stale; run `python -m tools index`\n", *difflib.unified_diff(
+        current.splitlines(keepends=True), text.splitlines(keepends=True),
+        "INDEX.md (committed)", "INDEX.md (generated)",
+    )]

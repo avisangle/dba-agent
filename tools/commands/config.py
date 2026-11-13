@@ -4,12 +4,10 @@ SQLcl path, read-only home and pack name filled in."""
 import json
 import re
 import shlex
-import shutil
 import sys
 
 from tools.config import PACK_NAME, PACK_ROOT
-from tools.doctor.checks import SQLCL_MIN_TEXT
-from tools.sqlcl import launcher, sqlcl_bin
+from tools.sqlcl import INSTALL_FIX, find_executable, sqlcl_bin
 from tools.tiers import TIERS
 
 NAME = "config"
@@ -56,11 +54,10 @@ def render(path, sql: str) -> str:
 
 def run(args):
     wanted = args.sqlcl_bin or sqlcl_bin()
-    found = shutil.which(wanted)
+    found = find_executable(wanted)
     if not found:
         print(f"error: SQLcl not found: {wanted}", file=sys.stderr)
-        print(f"  fix: install SQLcl {SQLCL_MIN_TEXT} or newer and put `sql` on PATH, "
-              "or pass --sqlcl-bin PATH", file=sys.stderr)
+        print(f"  fix: {INSTALL_FIX}, or pass --sqlcl-bin PATH", file=sys.stderr)
         return 1
-    sys.stdout.write(render(clients()[args.client], launcher(found)))
+    sys.stdout.write(render(clients()[args.client], found))
     return 0

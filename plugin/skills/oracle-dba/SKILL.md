@@ -29,6 +29,7 @@ Pick the playbook that matches the question and follow it. Each one lists the ch
 - [Sessions and locks](playbooks/sessions.md): who is running what, who blocks whom, open idle transactions.
 - [Performance](playbooks/performance.md): load, wait events, top SQL, memory and parameters.
 - [AWR and ASH](playbooks/awr.md): what ran over the last minutes from active session history, and whether AWR snapshots are being taken.
+- [High availability](playbooks/ha.md): Data Guard standby lag and transport, RAC interconnect and instance balance, flashback and restore points.
 
 ## Rules
 

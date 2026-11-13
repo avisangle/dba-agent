@@ -7,6 +7,7 @@
 -- Its own profile caps sessions, idle time and CPU per call
 -- (enforced while the RESOURCE_LIMIT parameter is TRUE, the default).
 -- Plain statements ending in `;` only: the test fixture splits on `;`.
+-- The space before the profile's `;` keeps each limit a bare number for the tests.
 -- VERIFY OFF keeps SQLcl from echoing the password in old/new lines.
 SET VERIFY OFF
 ACCEPT agent_password CHAR PROMPT 'Password for {{user}}: ' HIDE

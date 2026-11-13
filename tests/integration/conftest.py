@@ -106,20 +106,18 @@ def _setup_sql_statements(tier, password: str) -> list[str]:
 
 def _tier_user(tier, admin, sys_grantor, tmp_path_factory):
     """Recreate the tier's db_user by applying its setup-sql script with a fresh
-    password: the object grants (on SYS objects) as `sys_grantor`, the rest as
+    password: grants on SYS objects as `sys_grantor`, the rest as
     `admin`. Yield a SqlclSession connected as the user."""
     user = tier.db_user
     password = "P" + secrets.token_hex(12)
     statements = _setup_sql_statements(tier, password)
-    object_grants = [g.lower() for g in tier.object_grants]
     assert admin.run_sql(f"drop user if exists {user} cascade").error is None
     # 23ai has no DROP PROFILE IF EXISTS; ORA-02380 means it was not there
     dropped = admin.run_sql(f"drop profile {profile_name(user)} cascade")
     assert dropped.error is None or dropped.error.startswith("ORA-02380"), dropped.error
     for sql in statements:
-        on_sys = any(g in " ".join(sql.split()).lower() for g in object_grants)
-        grantor = sys_grantor if on_sys else admin
-        result = grantor.run_sql(sql)
+        # SYSTEM gets ORA-01031 granting on objects owned by SYS
+        result = (sys_grantor if " ON SYS." in sql.upper() else admin).run_sql(sql)
         assert result.error is None, f"{sql.replace(password, '***')}: {result.error}"
     created = admin.run_sql(f"select username from dba_users where username = '{user.upper()}'")
     assert created.rows == [[user.upper()]], f"setup-sql did not create {user}: {created.text}"

@@ -151,39 +151,32 @@ def check_db_version(session, name: str) -> Result:
     return Result(check, PASS, detail)
 
 
-def _object_grants(session):
-    """The connected user's object grants as `<privilege> ON <owner>.<object>`."""
-    result = session.run_sql(
-        "select privilege, owner, table_name from user_tab_privs where grantee = user")
-    return result.error, {f"{r[0]} ON {r[1]}.{r[2]}" for r in result.rows if len(r) == 3}
-
-
 def check_grants(session, tier: Tier, name: str) -> list[Result]:
     """`grants` and `excess-privileges`: the session's privileges and roles against
     the tier's. Roles the tier's roles bring with them count as expected. `grants`
     also needs the tier's object grants; `excess-privileges` ignores object grants."""
     privs = session.run_sql("select privilege from session_privs")
     roles = session.run_sql("select role from session_roles")
-    objects_error, objects = _object_grants(session) if tier.object_grants else (None, set())
+    tab = session.run_sql(
+        "select privilege, owner, table_name from user_tab_privs where grantee = user"
+    ) if tier.object_grants else None
     grants, excess = f"grants:{name}", f"excess-privileges:{name}"
-    error = privs.error or roles.error or objects_error
+    error = privs.error or roles.error or (tab and tab.error)
     if error:
-        read = "session_privs, session_roles and user_tab_privs" if tier.object_grants \
-            else "session_privs and session_roles"
-        return [Result(grants, FAIL, f"could not read {read}: {error}",
+        return [Result(grants, FAIL, f"could not read the user's grants: {error}",
                        f"run the `python -m tools setup-sql --tier {tier.name}` script"),
                 Result(excess, SKIP, f"{grants} failed")]
     held = {r[0] for r in privs.rows if r} | {r[0] for r in roles.rows if r}
+    objects = {f"{p} ON {o}.{t}" for p, o, t in tab.rows} if tab else set()
     expected = tier.sys_privs | tier.roles
-    missing = sorted(expected - held) + sorted(tier.object_grants - objects)
+    missing = sorted((expected | tier.object_grants) - held - objects)
     extra = sorted(held - expected - tier.implied_roles)
     listed = ", ".join(sorted(expected))
     return [
         Result(grants, FAIL, f"missing: {', '.join(missing)}",
                f"grant them to the connection's user (`python -m tools setup-sql "
                f"--tier {tier.name}` prints the script)")
-        if missing else Result(grants, PASS, f"holds {listed}" + (
-            f" and {len(tier.object_grants)} object grants" if tier.object_grants else "")),
+        if missing else Result(grants, PASS, f"holds {', '.join(sorted(expected | objects))}"),
         Result(excess, FAIL, f"beyond the {tier.name} tier: {', '.join(extra)}",
                f"revoke them from the connection's user; the tier holds only {listed}")
         if extra else Result(excess, PASS, "nothing beyond the tier"),

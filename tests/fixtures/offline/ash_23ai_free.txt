@@ -1,0 +1,307 @@
+ASH Report For FREE/FREE
+
+DB Name         DB Id    Instance     Inst Num Release     RAC Host        
+------------ ----------- ------------ -------- ----------- --- ------------
+FREE          3638231841 FREE                1 23.26.3.0.0 NO  testhost
+
+CPUs           SGA Size       Buffer Cache        Shared Pool    ASH Buffer Size
+---- ------------------ ------------------ ------------------ ------------------
+   2      1,529M (100%)       864M (56.5%)        150M (9.8%)      Not Available
+In-memory Area Size
+------------------
+       0.0M (0.0%)
+
+
+          Analysis Begin Time:   13-Nov-26 14:06:32
+            Analysis End Time:   13-Nov-26 14:06:56
+                 Elapsed Time:         0.4 (mins) 
+            Begin Data Source:   V$ACTIVE_SESSION_HISTORY
+              End Data Source:   V$ACTIVE_SESSION_HISTORY
+                 Sample Count:          24
+      Average Active Sessions:        1.00
+  Avg. Active Session per CPU:        0.50
+                Report Target:   None specified
+
+Top User Events                    DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                                                               Avg Active
+Event                               Event Class        % Event   Sessions
+----------------------------------- --------------- ---------- ----------
+CPU + Wait for CPU                  CPU                  91.67       0.92
+DLM cross inst call completion      Other                 4.17       0.04
+db file parallel read               User I/O              4.17       0.04
+          -------------------------------------------------------------       
+
+Top Background Events              DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top Event P1/P2/P3 Values          DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+Event                          % Event  P1 Value, P2 Value, P3 Value % Activity
+------------------------------ ------- ----------------------------- ----------
+Parameter 1                Parameter 2                Parameter 3               
+-------------------------- -------------------------- --------------------------
+DLM cross inst call completion    4.17 "4294967429","4294967295","86       4.17
+caller inst num|Opcode     cluster incarnation number request identifier        
+
+db file parallel read             4.17               "1","127","127"       4.17
+files                      blocks                     requests                  
+
+          -------------------------------------------------------------       
+
+Top Service/Module                 DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+Service        Module                   % Activity Action               % Action
+-------------- ------------------------ ---------- ------------------ ----------
+freepdb1       pack-tools                   100.00 sql_run                100.00
+          -------------------------------------------------------------       
+
+Top Client IDs                     DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top Client INFOs                   DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                                                              Avg Active
+Client Info                                        % Activity   Sessions
+-------------------------------------------------- ---------- ----------
+User            Program                           Service             
+--------------- --------------------------------- --------------------
+testpack                                                 100.00       1.00
+SYSTEM          SQLcl-MCP                         freepdb1            
+
+          -------------------------------------------------------------       
+
+Top SQL Command Types              DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+-> 'Distinct SQLIDs' is the count of the distinct number of SQLIDs
+      with the given SQL Command Type found over all the ASH samples
+      in the analysis period
+
+                                           Distinct            Avg Active
+SQL Command Type                             SQLIDs % Activity   Sessions
+---------------------------------------- ---------- ---------- ----------
+SELECT                                            3      91.67       0.92
+CREATE INDEX                                      1       4.17       0.04
+          -------------------------------------------------------------       
+
+Top Phases of Execution            DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                                          Avg Active
+Phase of Execution             % Activity   Sessions
+------------------------------ ---------- ----------
+SQL Execution                       95.83       0.96
+          -------------------------------------------------------------       
+
+
+Top SQL with Top Events            DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                 SQL ID         FullPlanhash             Planhash
+----------------------- -------------------- --------------------
+           Sampled #                                              
+       of Executions     % Activity Event                         
+-------------------- -------------- ------------------------------
+% Event Top Row Source                    % RwSrc
+------- --------------------------------- -------
+          6dqjymaj4ufff            221123362           1404701493
+                   8          58.33 CPU + Wait for CPU            
+  58.33 VIEW                                50.00
+select /* LLM in use is pack-tools */ count(*) from (select level x from dual co
+nnect by level <= 3000), (select level y from dual connect by level <= 3000) whe
+re mod(x * y, 7) = 0
+
+          0rfqt7b9b349p           3193703444           2063244728
+                   7          29.17 CPU + Wait for CPU            
+  25.00 SORT - AGGREGATE                    16.67
+select /* LLM in use is pack-tools */ /*+ index(t ash_fixture_load_ix) */ sum(le
+ngth(pad)) from ash_fixture_load t where id > 0
+
+                                                                 
+                                    db file parallel read         
+   4.17 TABLE ACCESS - BY INDEX ROWID BAT    4.17
+
+          5mq8uzkgctskt            919259164           2784869887
+                   1           4.17 CPU + Wait for CPU            
+   4.17 TABLE ACCESS - FULL                  4.17
+** SQL Text Not Available **
+
+          7nqkfh9zrfp0m           3372104677           3596967102
+                   1           4.17 CPU + Wait for CPU            
+   4.17 TABLE ACCESS - FULL                  4.17
+select /* LLM in use is pack-tools */ /*+ full(t) */ count(*), max(pad) from ash
+_fixture_load t where mod(id, 7) = 0
+
+          -------------------------------------------------------------       
+
+Top SQL with Top Row Sources       DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                 SQL ID         FullPlanHash             PlanHash
+----------------------- -------------------- --------------------
+           Sampled #               
+       of Executions     % Activity
+-------------------- --------------
+Row Source                               % RwSrc Top Event               % Event
+---------------------------------------- ------- ----------------------- -------
+          6dqjymaj4ufff            221123362           1404701493
+                   8          58.33
+VIEW                                       50.00 CPU + Wait for CPU        50.00
+select /* LLM in use is pack-tools */ count(*) from (select level x from dual co
+nnect by level <= 3000), (select level y from dual connect by level <= 3000) whe
+re mod(x * y, 7) = 0
+
+                                                                 
+                                   
+CONNECT BY - WITHOUT FILTERING              8.33 CPU + Wait for CPU         8.33
+
+          0rfqt7b9b349p           3193703444           2063244728
+                   7          29.17
+SORT - AGGREGATE                           16.67 CPU + Wait for CPU        16.67
+select /* LLM in use is pack-tools */ /*+ index(t ash_fixture_load_ix) */ sum(le
+ngth(pad)) from ash_fixture_load t where id > 0
+
+                                                                 
+                                   
+TABLE ACCESS - BY INDEX ROWID BATCHED      12.50 CPU + Wait for CPU         8.33
+
+          5mq8uzkgctskt            919259164           2784869887
+                   1           4.17
+TABLE ACCESS - FULL                         4.17 CPU + Wait for CPU         4.17
+** SQL Text Not Available **
+
+          7nqkfh9zrfp0m           3372104677           3596967102
+                   1           4.17
+TABLE ACCESS - FULL                         4.17 CPU + Wait for CPU         4.17
+select /* LLM in use is pack-tools */ /*+ full(t) */ count(*), max(pad) from ash
+_fixture_load t where mod(id, 7) = 0
+
+          -------------------------------------------------------------       
+
+Top SQL using literals             DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top Parsing Module/Action          DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top PL/SQL Procedures              DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top Java Workload                  DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top Call Types                     DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+Call Type                                     Count % Activity Avg Active
+---------------------------------------- ---------- ---------- ----------
+V8 Bundled Exec                                  23      95.83       0.96
+          -------------------------------------------------------------       
+
+
+Top Sessions                       DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+-> '# Samples Active' shows the number of ASH samples in which the session 
+      was found waiting for that particular event. The percentage shown
+      in this column is calculated with respect to wall clock time
+      and not total database activity.
+-> 'XIDs' shows the number of distinct transaction IDs sampled in ASH 
+      when the session was waiting for that particular event
+-> For sessions running Parallel Queries, this section will NOT aggregate 
+      the PQ slave activity into the session issuing the PQ. Refer to 
+      the 'Top Sessions running PQs' section for such statistics.
+
+Sid,Srl# (Inst) % Activity Event                             % Event
+--------------- ---------- ------------------------------ ----------
+User                 SPID                     STID                    
+-------------------- ------------------------ ------------------------
+Program                          # Samples Active     XIDs
+------------------------------ ------------------ --------
+    24,11295(1)     100.00 CPU + Wait for CPU                  91.67
+SYSTEM               782                      782                     
+SQLcl-MCP                            22/24 [ 92%]        1
+
+                           DLM cross inst call completion       4.17
+                                                                      
+                                      1/24 [  4%]        0
+
+                           db file parallel read                4.17
+                                                                      
+                                      1/24 [  4%]        0
+
+          -------------------------------------------------------------       
+
+Top Blocking Sessions              DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+-> Blocking session activity percentages are calculated with respect to 
+      waits on enqueues, latches and "buffer busy" only 
+-> '% Activity' represents the load on the database caused by 
+      a particular blocking session
+-> '# Samples Active' shows the number of ASH samples in which the 
+      blocking session was found active.
+-> 'XIDs' shows the number of distinct transaction IDs sampled in ASH 
+      when the blocking session was found active.
+
+ Blocking Sid (Inst) % Activity Event Caused                      % Event
+-------------------- ---------- ------------------------------ ----------
+User                 Program                          # Samples Active     XIDs
+-------------------- ------------------------------ ------------------ --------
+   172,37409(     1)       4.17 DLM cross inst call completion       4.17
+** NOT FOUND **      BLOCKING SESSION NOT FOUND            0/24 [  0%]      N/A
+
+          -------------------------------------------------------------       
+
+
+Top Sessions running PQs           DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top DB Objects                     DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+-> With respect to Application, Cluster, User I/O, buffer busy waits and 
+   In-Memory DB events only.
+-> Tablespace name is not available for reports generated from the root PDB 
+   of a consolidated database.
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+      Object ID % Activity Event                             % Event
+--------------- ---------- ------------------------------ ----------
+Object Name (Type)                                    Tablespace                
+----------------------------------------------------- --------------------------
+          73296       4.17 db file parallel read                4.17
+SYSTEM.ASH_FIXTURE_LOAD (TABLE)                       SYSTEM                    
+          -------------------------------------------------------------       
+
+Top DB Files                       DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+Top Latches                        DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+
+                  No data exists for this section of the report.
+          -------------------------------------------------------------       
+
+
+Activity Over Time                 DB/Inst: FREE/FREE  (Nov 13 14:06 to 14:06)
+-> Analysis period is divided into smaller time slots
+-> Top 3 events are reported in each of those slots
+-> 'Slot Count' shows the number of ASH samples in that slot
+-> 'Event Count' shows the number of ASH samples waiting for
+   that event in that slot
+-> '% Event' is 'Event Count' over all ASH samples in the analysis period
+
+                         Slot                                   Event        
+Slot Time (Duration)    Count Event                             Count % Event
+-------------------- -------- ------------------------------ -------- -------
+14:06:32   (24 secs)       24 CPU + Wait for CPU                   22   91.67
+                              DLM cross inst call completion        1    4.17
+                              db file parallel read                 1    4.17
+          -------------------------------------------------------------       
+
+End of Report

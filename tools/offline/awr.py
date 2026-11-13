@@ -97,7 +97,8 @@ def _table(title: str, columns: list[str], rows: list[list[str]]) -> Table:
 
 class _TableCollector(HTMLParser):
     """Each <table> as (label, rows); label is the last text outside tables and lists
-    before it (an <h3> heading or a bare caption such as "Load Profile")."""
+    before it (an <h3> heading or a bare caption such as "Load Profile"). Text in a
+    `<div class="hidden">` is dropped: it repeats a value the page does not show."""
 
     _SKIP = {"head", "ul", "ol", "script", "style"}
     _INLINE = {"a", "b", "i", "em", "strong", "span", "font"}
@@ -111,8 +112,11 @@ class _TableCollector(HTMLParser):
         self._rows = None  # rows of the open table: (cells, all cells are <th>)
         self._cells = None  # cells of the open row, each a list of text parts
         self._all_th = True
+        self._hidden = False
 
     def handle_starttag(self, tag, attrs):
+        if tag == "div":
+            self._hidden = ("class", "hidden") in attrs
         if tag in self._SKIP:
             self._skip += 1
         elif self._rows is None:
@@ -127,6 +131,8 @@ class _TableCollector(HTMLParser):
             self._all_th &= tag == "th"
 
     def handle_endtag(self, tag):
+        if tag == "div":
+            self._hidden = False
         if tag in self._SKIP:
             self._skip = max(0, self._skip - 1)
         elif self._rows is None:
@@ -140,7 +146,7 @@ class _TableCollector(HTMLParser):
             self._rows = None
 
     def handle_data(self, data):
-        if self._skip:
+        if self._skip or self._hidden:
             return
         if self._rows is None:
             self._text.append(data)

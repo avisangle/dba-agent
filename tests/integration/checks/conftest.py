@@ -11,13 +11,23 @@ visible immediately. The image has no OMF (db_create_file_dest is empty), so the
 datafile goes next to the PDB's SYSTEM datafile.
 
 Columns used: DBA_DATA_FILES.FILE_NAME, TABLESPACE_NAME.
+
+`awr_window`: as `admin`, an AWR snapshot, a CPU-bound tagged query repeated for
+at least WORKLOAD_SECONDS, then a second snapshot. ASH samples a session on CPU
+about once a second and a 0.8 s query gave no sample (probe in
+tests/integration/checks/test_awr.py), so the query repeats until the time is
+up. Module-scoped: one window serves every test in a module, and each module
+(DBA-31's test_awr.py, DBA-39's) gets its own. Columns used: V$SQL.SQL_ID,
+SQL_TEXT.
 """
 
 import secrets
+import time
 
 import pytest
 
 FILL = {"CRITICAL": "9M", "WARNING": "8M"}  # INITIAL extent -> 100 and 90 percent used
+WORKLOAD_SECONDS = 15
 
 
 def _ok(session, sql):
@@ -45,3 +55,32 @@ def full_tablespace(admin):
     finally:
         for name in names.values():
             admin.run_sql(f"drop tablespace if exists {name} including contents and datafiles")
+
+
+def _snapshot(admin) -> int:
+    result = _ok(admin, "select dbms_workload_repository.create_snapshot() from dual")
+    return int(result.rows[0][0])
+
+
+@pytest.fixture(scope="module")
+def awr_window(admin):
+    """{"begin": snap id, "end": snap id, "sql_ids": set of the tagged workload's
+    sql ids}: two AWR snapshots of this PDB around the workload."""
+    tag = f"AWRWL_{secrets.token_hex(4).upper()}"
+    table = f"system.{tag}"
+    try:
+        _ok(admin, f"create table {table} as select level as n from dual connect by level <= 2000")
+        begin = _snapshot(admin)
+        started = time.monotonic()
+        while time.monotonic() - started < WORKLOAD_SECONDS:
+            _ok(admin, f"select /* {tag} */ count(*) from {table} a, {table} b "
+                       "where mod(a.n * b.n, 7) = 3")
+        end = _snapshot(admin)
+        # The lookup's own text must not contain the tag comment.
+        found = _ok(admin, "select distinct sql_id from v$sql "
+                           f"where sql_text like '%/* ' || '{tag}' || ' */%'")
+        sql_ids = {row[0] for row in found.rows}
+        assert sql_ids, f"no sql id found for workload tag {tag}"
+        yield {"begin": begin, "end": end, "sql_ids": sql_ids}
+    finally:
+        admin.run_sql(f"drop table if exists {table} purge")

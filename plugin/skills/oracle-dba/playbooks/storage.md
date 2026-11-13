@@ -11,7 +11,7 @@ Tablespaces, datafiles, temp, undo, the fast recovery area, and which segments u
 
 - If `tablespace_usage` shows WARNING or CRITICAL, run `datafile_autoextend` because a tablespace whose files cannot grow fails when it fills, while one that can autoextend only needs disk space.
 - If `tablespace_usage` shows WARNING or CRITICAL, run `top_segments` because it names the segments holding the space.
-- If `top_segments` shows a large segment and the user asks whether it is growing, run `segment_growth` because size alone does not show growth. It reads AWR history and has `pack: diagnostics`: say so once first (rule 8).
+- If `top_segments` shows a large segment and the user asks whether it is growing, run `segment_growth` because size alone does not show growth. It reads AWR history and has `pack: diagnostics`: give the one-line notice the first time and run it in the same turn, without asking (rule 8).
 - If `fra_usage` shows WARNING or CRITICAL, run `alert_log_errors` because a full recovery area stops the archiver (ORA-00257) and the alert log shows whether that has started.
 - If `tablespace_usage` shows a temporary tablespace or the user reports ORA-01652, run `temp_usage` because temp space is measured from its own views, not from tablespace metrics.
 - If `temp_usage` shows WARNING or CRITICAL, run `active_sessions` because temp is held by sorts and hashes of statements still running.

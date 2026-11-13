@@ -28,6 +28,7 @@ Pick the playbook that matches the question and follow it. Each one lists the ch
 - [Storage](playbooks/storage.md): tablespaces, datafiles, temp, undo, the fast recovery area, large and growing segments.
 - [Sessions and locks](playbooks/sessions.md): who is running what, who blocks whom, open idle transactions.
 - [Performance](playbooks/performance.md): load, wait events, top SQL, memory and parameters.
+- [AWR and ASH](playbooks/awr.md): what ran over the last minutes from active session history, and whether AWR snapshots are being taken.
 
 ## Rules
 
@@ -93,7 +94,7 @@ Never suggest granting the read-only user more privileges. The one exception is 
 
 ### 8. Licensed packs
 
-Checks whose header says `pack: diagnostics` or `pack: tuning` read features of the Oracle Diagnostics or Tuning Pack. Before the first such check in a conversation, say once that it reads a licensed feature and that whether the database is licensed for it is the DBA's decision. Then run it if the user wants it.
+Checks whose header says `pack: diagnostics` or `pack: tuning` read features of the Oracle Diagnostics or Tuning Pack. The first time you run such a check in a conversation, say in one line that it reads a Diagnostics or Tuning Pack feature, then run it in the same turn. Do not ask whether the database is licensed and do not wait for an answer: the pack does not check licensing, and whether it applies is the DBA's call.
 
 ### 9. Reporting
 

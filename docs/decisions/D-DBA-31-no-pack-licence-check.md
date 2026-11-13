@@ -1,0 +1,13 @@
+# D-DBA-31: The pack does not check or gate Diagnostics or Tuning Pack licensing
+**Status:** Accepted
+**Date:** 2026-11-13
+**Issue:** DBA-31
+**Confluence:** none (plan doc on claude.ai, sections "Check catalogue" and the release-gate disclaimer; design in epic DBA-23)
+
+**Decision:** No check, tool, test or fixture script checks or gates Oracle Diagnostics or Tuning Pack licensing, and none has a Free-edition guard (`tests/support/make_awr_fixture.py` included). A check's `pack` header (`diagnostics`, `tuning` or `none`) is information only. The oracle-dba skill's rule 8 keeps one thing from the old rule: the first time the model runs a `pack: diagnostics` or `pack: tuning` check in a conversation, it says in one line that the check reads a Diagnostics or Tuning Pack feature, then runs it in the same turn, with no question and no wait. AWR, ASH and advisor tests run in GitHub CI's Oracle Free container as well as locally.
+
+**Why:** User decision 2026-11-13. The pack's users are DBAs who know these are licensed features; if a feature is enabled on their database, the pack uses it. A licence state is not something the database can report reliably: CONTROL_MANAGEMENT_PACK_ACCESS says what is switched on, not what was bought, and DBA_FEATURE_USAGE_STATISTICS records use after the fact. The plan doc's release-gate disclaimer already says the tool does not check Oracle pack licences. The one-line notice is kept so a DBA who did not mean to touch a pack feature sees that one was read.
+
+**Rejected:** Gating on CONTROL_MANAGEMENT_PACK_ACCESS: it reports what is enabled, which the check result already shows (AWR and ASH return nothing when it is NONE), and is not a licence. Gating on DBA_FEATURE_USAGE_STATISTICS: records past use, not entitlement. A Free-edition guard in tests: would skip the AWR, ASH and advisor tests in CI, the only place they run unattended. Asking the user before running a pack check (the old rule 8, "run it if the user wants it"): an extra round trip on every conversation that touches AWR, for a question the DBA has already answered by enabling the feature. Dropping the notice entirely: a DBA unaware a check reads a pack feature would get no signal at all.
+
+**Impact:** Do not add a licence or edition check, gate or skip to any check SQL, `tools/` command, test or script. `pack: none` checks need no notice; `pack: diagnostics` and `pack: tuning` checks get rule 8's one-line notice once per conversation and run in the same turn. When an AWR or ASH check returns no rows, report CONTROL_MANAGEMENT_PACK_ACCESS (through `parameter_review`) as a fact about the database, not as a licence finding. A check's `remediation` may still say that the feature is part of a pack (`segment_growth`'s does).

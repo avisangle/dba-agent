@@ -22,4 +22,4 @@ A database often has none of these. Then the check returns one INFO row whose te
 ## Stop when
 
 - Every check has given either judged rows or its "not applicable" row, and each "not applicable" row has been reported as a fact about the database.
-- Or a WARNING or CRITICAL row has been traced through the follow-up check above, and the user has the check's `remediation` hint.
+- Or a WARNING or CRITICAL row has been traced through the follow-up check above, and the user has the check's `remediation` hint, written for the user to act on (rule 7).

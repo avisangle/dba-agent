@@ -7,7 +7,8 @@
 -- pack: none
 -- remediation: An overloaded instance usually means services or connection load balancing send it more work: check the services' preferred instances (srvctl config service) and the clients' connect strings, then the instance's top_sql and wait_events.
 -- Metrics are the 60 s groups; gv$sysmetric is empty in a PDB, where they are in
--- gv$con_sysmetric (D-DBA-13). Host CPU exists only in the system group.
+-- gv$con_sysmetric (D-DBA-13), picked as in performance/system_stats.sql.
+-- Host CPU exists only in the system group.
 WITH cluster_db AS (
   SELECT UPPER(value) AS value FROM v$parameter WHERE name = 'cluster_database'
 ),
@@ -16,13 +17,11 @@ metrics AS (
   FROM   gv$sysmetric m
          JOIN v$metricgroup g ON g.group_id = m.group_id
   WHERE  g.name = 'System Metrics Long Duration'
-  AND    m.metric_name IN ('Average Active Sessions', 'Host CPU Utilization (%)')
   UNION ALL
   SELECT m.inst_id, m.metric_name, m.value, 2 AS source_rank
   FROM   gv$con_sysmetric m
          JOIN v$metricgroup g ON g.group_id = m.group_id
   WHERE  g.name = 'PDB System Metrics Long Duration'
-  AND    m.metric_name IN ('Average Active Sessions', 'Host CPU Utilization (%)')
 ),
 picked AS (
   SELECT inst_id,
@@ -30,7 +29,8 @@ picked AS (
          MAX(CASE WHEN metric_name = 'Host CPU Utilization (%)' THEN value END) AS host_cpu
   FROM   (SELECT inst_id, metric_name, value,
                  ROW_NUMBER() OVER (PARTITION BY inst_id, metric_name ORDER BY source_rank) AS rn
-          FROM   metrics)
+          FROM   metrics
+          WHERE  metric_name IN ('Average Active Sessions', 'Host CPU Utilization (%)'))
   WHERE  rn = 1
   GROUP  BY inst_id
 ),

@@ -295,6 +295,16 @@ def test_versions_and_checks_reuse_doctor_output_and_list_user_check_ids_only(pa
         assert USER_SQL_MARKER not in text, f"user check SQL in {name}"
 
 
+
+def test_readme_token_table_names_the_tier_home(pack):
+    """DBA-45 AC (d): README.txt from `build(...)` lists `<tier-home>` in its
+    token table, so the reader knows which folder `sql -home <tier-home>` meant.
+    Falsifier: omit the README row."""
+    files = importlib.import_module("tools.support_bundle").build(_env(), READ_ONLY)
+    readme = files["README.txt"]
+    table = readme.split("these were replaced in every file:", 1)[-1]
+    assert "<tier-home>" in table, readme
+
 # --- the tier home ---------------------------------------------------------------
 
 

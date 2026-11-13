@@ -2,9 +2,10 @@
 `tools/redact.py`, driven with SQLcl 26.3.1 connect-error texts verbatim (only
 the names were changed) and with text that only looks like an identifier.
 
-Tokens (issue DBA-17): `<host>`, `<ip>`, `<connect-string>`, `<path>`, `<home>`,
-`<os-user>`, and `<connection-N>`, `<db-user-N>`, `<db-name-N>`, `<service-N>`
-for names collected into `Known`, numbered consistently within one `Known`.
+Tokens (issues DBA-17, DBA-45): `<host>`, `<ip>`, `<connect-string>`, `<path>`,
+`<tier-home>` (an absolute path right after `-home `), `<home>`, `<os-user>`, and
+`<connection-N>`, `<db-user-N>`, `<db-name-N>`, `<service-N>` for names collected
+into `Known`, numbered consistently within one `Known`.
 Known names match case-insensitively (`acme_mon` is the user `ACME_MON`).
 
 The module does not exist yet, so it is imported inside the tests: each test
@@ -13,6 +14,7 @@ fails on its own instead of the file erroring at collection.
 
 import getpass
 import importlib
+import inspect
 import re
 import sys
 from pathlib import Path
@@ -243,7 +245,116 @@ def test_a_windows_folder_takes_any_name_windows_allows(folder):
 
 
 def test_a_command_line_keeps_its_options_between_two_paths():
-    """A folder never ends in a space, so ` -home ` separates two paths."""
+    """A folder never ends in a space, so ` -home ` separates two paths; the one
+    after `-home ` is the tier home (DBA-45), the SQLcl binary stays `<path>`."""
     mod = _redact_module()
     text = "start it as `/opt/sqlcl/bin/sql -home /Users/u/.pack/homes/read-only -R 4 -mcp`"
-    assert mod.redact(text, mod.collect(text)) == "start it as `<path> -home <path> -R 4 -mcp`"
+    assert mod.redact(text, mod.collect(text)) == (
+        "start it as `<path> -home <tier-home> -R 4 -mcp`")
+
+
+# --- DBA-45: three weak spots and the <tier-home> token ---------------------------
+
+TIER_HOME_LINE = "run sql -home /Users/u/.pack/homes/read-only -R 4 -mcp by hand"
+CORP_FOLDER = "at /data/Corp. Acme/wallet/cwallet.sso now"
+ORA_12514_ERPDB = ("ORA-12514: Cannot connect to database. Service ERPDB is not registered with "
+                   "the listener at host localhost port 1521.")
+
+
+def test_a_slash_folder_holding_a_sentence_end_stays_inside_the_path():
+    """AC (a): a `/` folder whose name holds `. ` does not end the path, so the
+    rest of the path is hidden. The sentence-final cases (a path with no later
+    `/`) are pinned by test_every_absolute_path_is_one_path_token_by_shape.
+    Falsifier: restore `(?!\\.\\s)` in `_FOLDER`."""
+    mod = _redact_module()
+    assert mod.redact(CORP_FOLDER, mod.collect(CORP_FOLDER)) == "at <path> now"
+
+
+def test_a_host_whose_first_label_is_a_known_name_keeps_no_domain():
+    """AC (b): a fully qualified host whose first label was collected as a
+    service is `<host>` whole; the bare name is still the service token.
+    Falsifier: run `known.sub` before `_hosts` again."""
+    mod = _redact_module()
+    known = mod.collect(ORA_12514_ERPDB)
+    out = mod.redact("listener on erpdb.acme.com is down; ERPDB is the service", known)
+    assert out == "listener on <host> is down; <service-1> is the service", out
+
+
+def test_collect_learns_the_database_name_of_a_wallet_inside_a_path():
+    """AC (c): `collect` learns PRODERP from `Wallet_PRODERP` even where the
+    wallet sits in a path (so `_wallets` never sees it during redaction). The
+    bare name is redacted in its own call, before the wallet text, so
+    `_wallets` cannot learn it and mask the mutation.
+    Falsifier: remove `(_WALLET, "db-name")` from `_NAMED`."""
+    mod = _redact_module()
+    known = mod.collect(ORA_17956)
+    assert mod.redact("PRODERP is down", known) == "<db-name-1> is down"
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    pytest.param(TIER_HOME_LINE, "run sql -home <tier-home> -R 4 -mcp by hand", id="posix"),
+    pytest.param(r"sql -home C:\Users\u\.pack\homes\read-only -R 4 -mcp",
+                 "sql -home <tier-home> -R 4 -mcp", id="windows"),
+])
+def test_the_path_after_dash_home_is_the_tier_home(text, expected):
+    """AC (d): an absolute path directly after `-home ` is `<tier-home>`, not
+    `<path>`. Falsifier: drop the `-home ` context rule."""
+    mod = _redact_module()
+    assert mod.redact(text, mod.collect(text)) == expected
+
+
+def test_a_tier_home_path_without_dash_home_is_still_a_path():
+    """AC (d): the rule is keyed to the `-home ` context, never to the value
+    (D-DBA-17). Falsifier: map every path under `homes/` to `<tier-home>`."""
+    mod = _redact_module()
+    text = "no saved connection in /Users/u/.pack/homes/read-only"
+    assert mod.redact(text, mod.collect(text)) == "no saved connection in <path>"
+
+
+@pytest.fixture
+def os_user(monkeypatch):
+    """Set the OS user name for `_identity_patterns`, clearing its cache before
+    and after so no other test sees the fake user."""
+    mod = _redact_module()
+
+    def set_user(name):
+        monkeypatch.setattr(getpass, "getuser", lambda: name)
+        mod._identity_patterns.cache_clear()
+
+    yield set_user
+    monkeypatch.undo()
+    mod._identity_patterns.cache_clear()
+
+
+# With the OS user `home`, the `-home` option word is itself the user name and
+# reads `-<os-user>`: the user is hidden wherever it stands as a word. Only the
+# token after it is in question here.
+@pytest.mark.parametrize(("user", "expected"), [
+    pytest.param("tier", "run sql -home <tier-home> -R 4 -mcp by hand", id="tier"),
+    pytest.param("home", "run sql -<os-user> <tier-home> -R 4 -mcp by hand", id="home"),
+])
+def test_tier_home_token_survives_an_os_user_named_like_it(os_user, user, expected):
+    """AC (d): no later step rewrites `<tier-home>`, even when the OS user is
+    `tier` or `home`. Falsifier: leave `<tier-home>` out of `_TOKEN`, which
+    gives `<<os-user>-home>` or `<tier-<os-user>>`."""
+    os_user(user)
+    mod = _redact_module()
+    assert mod.redact(TIER_HOME_LINE, mod.collect("")) == expected
+
+
+def test_contract_tier_home_token_and_path_rules():
+    """Contract (DBA-45 output_for_dependents; no named consumer): shape only.
+    `tools.redact.TIER_HOME == "<tier-home>"`, matched whole by `_TOKEN`;
+    `redact(text, known)` signature unchanged; the two contract strings; and the
+    decision record D-DBA-45-slash-folder-may-cross-a-sentence with a Status
+    line. The README row is pinned in tests/unit/test_support_bundle.py."""
+    mod = _redact_module()
+    assert mod.TIER_HOME == "<tier-home>"
+    assert mod._TOKEN.fullmatch(mod.TIER_HOME), mod._TOKEN.pattern
+    assert list(inspect.signature(mod.redact).parameters) == ["text", "known"]
+    assert mod.redact(TIER_HOME_LINE, mod.collect("")) == (
+        "run sql -home <tier-home> -R 4 -mcp by hand")
+    assert mod.redact(CORP_FOLDER, mod.collect("")) == "at <path> now"
+    record = REPO_ROOT / "docs" / "decisions" / "D-DBA-45-slash-folder-may-cross-a-sentence.md"
+    assert record.is_file(), f"missing {record.relative_to(REPO_ROOT)}"
+    assert re.search(r"^\*\*Status:\*\* \S", record.read_text(), re.M), "no **Status:** line"

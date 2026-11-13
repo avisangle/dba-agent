@@ -9,3 +9,4 @@
 SELECT 'ha' AS detail,
        'OK' AS severity
 FROM   dual
+FETCH FIRST 10 ROWS ONLY

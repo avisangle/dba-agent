@@ -12,7 +12,7 @@ Both checks take a parameter, so their files hold `{{name}}` placeholders. Send 
 ## Then
 
 - If either check returns no rows, or `awr_snapshot_list` shows a WARNING row, run `parameter_review` because CONTROL_MANAGEMENT_PACK_ACCESS set to NONE turns AWR snapshots and active session history off, and a modified value shows there. Report the value as a fact about the database; it is not a licence check.
-- If `ash_top_activity` shows one SQL id holding most samples with event ON CPU, run `top_sql` because it gives that statement's executions, CPU and buffer gets since instance start; for its plan write the `DBMS_XPLAN.DISPLAY_CURSOR` query from the [performance playbook](performance.md).
+- If `ash_top_activity` shows one SQL id holding most samples with event ON CPU, run `top_sql` because it gives that statement's executions, CPU and buffer gets since instance start; for its plan run `explain_plan` with that SQL id; the [SQL tuning playbook](tuning.md) continues from there.
 - If `ash_top_activity` shows `enq: TX - row lock contention` or another Application-class event near the top, run `blocking_tree` because those samples are sessions queued behind a lock.
 - If `ash_top_activity` shows User I/O events near the top, run `sga_pga_usage` because a buffer cache that has shrunk raises physical reads.
 - If `ash_top_activity` shows `log file sync` or other Commit-class events near the top, run `active_sessions` because it shows which sessions are committing now.

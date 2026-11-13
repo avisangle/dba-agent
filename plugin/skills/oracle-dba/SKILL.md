@@ -31,6 +31,7 @@ Pick the playbook that matches the question and follow it. Each one lists the ch
 - [AWR and ASH](playbooks/awr.md): what ran over the last minutes from active session history, and whether AWR snapshots are being taken.
 - [High availability](playbooks/ha.md): Data Guard standby lag and transport, RAC interconnect and instance balance, flashback and restore points.
 - [Backup and recovery](playbooks/backup.md): RMAN backup jobs, datafile backup age, archive log mode and gaps, and the retention policy.
+- [SQL tuning](playbooks/tuning.md): one slow statement: its execution plan, its tables' statistics, and SQL plan baselines and SQL profiles.
 
 ## Rules
 
@@ -58,7 +59,7 @@ Before writing any SQL of your own:
 1. Read the check index once per conversation and reuse it: `<pack_home>/checks/INDEX.md` if it exists, otherwise `plugin/checks/INDEX.md`. `<pack_home>` is the folder named by the environment variable named after the pack in upper case plus `_HOME`, when set, otherwise `~/.` followed by the pack name that `python -m tools version` prints. The user index includes the user's own checks and overrides, with absolute file paths; the built-in index gives paths relative to `plugin/checks/`.
 2. Pick a check by its id.
 3. Read its `.sql` file.
-4. Send the whole file through the SQL-running tool unchanged, header comments included. Do not reformat it, drop the comments, change a threshold or add a filter: the tested check is only what runs if the text is the same.
+4. Send the whole file through the SQL-running tool unchanged, header comments included. Do not reformat it, drop the comments, change a threshold or add a filter: the tested check is only what runs if the text is the same. A check with a `params` header holds `{{name}}` placeholders: send what `python -m tools check-sql <id>` prints instead, unchanged, with `--param <name>=<value>` for each value to set.
 
 A check result already in this conversation answers for that check; run it again only when the user wants fresh figures. A health check runs every check fresh.
 

@@ -16,7 +16,7 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | --- | --- | --- | --- | --- | --- |
 | archivelog_gaps | Archive log mode and archived log sequence gaps in the last 7 days | R | none | 12.1 | backup/archivelog_gaps.sql |
 | backup_coverage | Latest backup of each datafile and its age | R | none | 12.1 | backup/backup_coverage.sql |
-| recovery_window_check | Whether full or level 0 backups cover the RMAN retention policy | R | none | 12.1 | backup/recovery_window_check.sql |
+| recovery_window_check | Whether full or level 0 backups cover the RMAN recovery window | R | none | 12.1 | backup/recovery_window_check.sql |
 | rman_job_status | RMAN backup jobs in the last 7 days | R | none | 12.1 | backup/rman_job_status.sql |
 
 ## discovery

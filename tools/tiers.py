@@ -22,6 +22,8 @@ class Tier:
     roles: frozenset[str]  # exactly the roles the script grants
     # roles the granted roles bring with them (seen in SESSION_ROLES); allowed, not granted
     implied_roles: frozenset[str] = frozenset()
+    # exactly the object grants the script grants, as `SELECT ON SYS.<object>`
+    object_grants: frozenset[str] = frozenset()
 
     @property
     def template(self) -> Path:
@@ -43,6 +45,22 @@ TIERS = {
             sys_privs=frozenset({"CREATE SESSION"}),
             roles=frozenset({"SELECT_CATALOG_ROLE"}),
             implied_roles=frozenset({"HS_ADMIN_SELECT_ROLE"}),  # Oracle 23ai Free, 23.26.3
+        ),
+        Tier(
+            name="advisory",
+            db_user="dba_agent_adv",
+            home_name="advisory",
+            sys_privs=frozenset({"CREATE SESSION", "ADVISOR"}),
+            roles=frozenset({"SELECT_CATALOG_ROLE"}),
+            implied_roles=frozenset({"HS_ADMIN_SELECT_ROLE"}),  # Oracle 23ai Free, 23.26.3
+            # dbms_space.asa_recommendations (docs/decisions/D-DBA-26-advisory-tier-grants.md)
+            object_grants=frozenset({
+                "SELECT ON SYS.WRI$_ADV_ACTIONS",
+                "SELECT ON SYS.WRI$_ADV_RECOMMENDATIONS",
+                "SELECT ON SYS.DBA_ADVISOR_OBJECT_TYPES",
+                "SELECT ON SYS.WRI$_ADV_OBJECTS",
+                "SELECT ON SYS.WRI$_ADV_FINDINGS",
+            }),
         ),
     )
 }

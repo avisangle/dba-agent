@@ -57,6 +57,7 @@ from tests.support.doctor_fakes import (  # noqa: E402
     TOOLS_26_1,
     FakeEnv,
     FakeSession,
+    tab_priv,
 )
 from tools.mcp_client import McpError, McpTimeout  # noqa: E402  (exists since DBA-4)
 from tools.tiers import TIERS  # noqa: E402  (exists since DBA-5)
@@ -343,6 +344,55 @@ def test_grants_and_excess_privileges_compare_with_the_tier(tmp_path, privs, rol
     failed = found["grants:ro"] if grants == "FAIL" else found["excess-privileges:ro"]
     if listed:
         assert listed in failed.detail, failed
+
+
+# --- DBA-26: the advisory tier's object grants --------------------------------
+
+ADV_PRIVS = ["CREATE SESSION", "ADVISOR"]
+
+
+@pytest.mark.parametrize(
+    ("case", "grants", "excess", "named"),
+    [
+        ("all-held", "PASS", "PASS", None),
+        ("one-object-grant-revoked", "FAIL", "PASS", "object"),
+        ("advisor-missing", "FAIL", "PASS", "ADVISOR"),
+        ("extra-object-grant", "PASS", "PASS", None),
+        ("extra-sys-priv", "PASS", "FAIL", "CREATE TABLE"),
+    ],
+)
+def test_advisory_grants_include_object_grants_excess_compares_privs_and_roles(
+    tmp_path, case, grants, excess, named
+):
+    """AC (DBA-26): with `--tier advisory`, `grants` FAILs when a sys privilege,
+    role or object grant of the tier is missing, naming it; object grants are
+    read from USER_TAB_PRIVS of the connected user. `excess-privileges` still
+    compares only SESSION_PRIVS and SESSION_ROLES, so an extra object grant
+    does not FAIL it. Each object grant is `SELECT ON SYS.<object>`."""
+    advisory = importlib.import_module("tools.tiers").TIERS["advisory"]
+    held = sorted(advisory.object_grants)
+    assert held, "the advisory tier lists no object grant"
+    privs, dropped = list(ADV_PRIVS), None
+    if case == "one-object-grant-revoked":
+        dropped = held.pop()
+        named = dropped.rpartition(".")[2]
+    elif case == "advisor-missing":
+        privs.remove("ADVISOR")
+    elif case == "extra-object-grant":
+        held.append("SELECT ON SYS.USER$")
+    elif case == "extra-sys-priv":
+        privs.append("CREATE TABLE")
+    session = FakeSession(privs=privs, roles=RO_ROLES, tab_privs=[tab_priv(g) for g in held])
+    results = _checks().run_all(FakeEnv(tmp_path, session=session), advisory, None)
+    _assert_fix_rule(results)
+    found = _by_check(results)
+    assert found["grants:ro"].status == grants, found["grants:ro"]
+    assert found["excess-privileges:ro"].status == excess, found["excess-privileges:ro"]
+    if named:
+        failed = found["grants:ro"] if grants == "FAIL" else found["excess-privileges:ro"]
+        assert named in failed.detail, failed
+    if case == "all-held":
+        assert any("user_tab_privs" in q.lower() for q in session.sql), session.sql
 
 
 @pytest.mark.parametrize(

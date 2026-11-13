@@ -34,7 +34,7 @@ class Result:
     fix: str = ""
 
 
-def _first_line(text: str) -> str:
+def first_line(text: str) -> str:
     return text.strip().partition("\n")[0].strip()
 
 
@@ -53,7 +53,7 @@ def check_python(env: Env) -> Result:
     version = _search(r"Python (\d+\.\d+\S*)", out + err)
     if version is None:
         return Result("python", FAIL, f"no version from {sys.executable}: "
-                                      f"{_first_line(err or out) or f'exit {code}'}", fix)
+                                      f"{first_line(err or out) or f'exit {code}'}", fix)
     if _numbers(version)[:2] < (3, 10):
         return Result("python", FAIL, f"{version}, older than 3.10", fix)
     return Result("python", PASS, version)
@@ -68,20 +68,20 @@ def check_sqlcl(env: Env) -> Result:
     version = _search(r"SQLcl: Release (\d+(?:\.\d+)+)", out + err)
     if version is None:
         return Result("sqlcl", FAIL, f"`{sql} -V` reported no SQLcl version: "
-                                     f"{_first_line(err or out) or f'exit {code}'}", fix)
+                                     f"{first_line(err or out) or f'exit {code}'}", fix)
     if _numbers(version)[:len(SQLCL_MIN)] < SQLCL_MIN:
         return Result("sqlcl", FAIL, f"{version}, older than {SQLCL_MIN_TEXT}", fix)
     return Result("sqlcl", PASS, version)
 
 
-def _java() -> str:
+def java_bin() -> str:
     """The java SQLcl's launcher prefers: $JAVA_HOME/bin/java, else java on PATH."""
     java_home = os.environ.get("JAVA_HOME")
     return str(Path(java_home) / "bin" / "java") if java_home else "java"
 
 
 def check_java(env: Env) -> Result:
-    java = _java()
+    java = java_bin()
     fix = "install Java 17 or 21 and put it on PATH, or set JAVA_HOME to it"
     code, out, err = env.run([java, "-version"])
     if code == 127:
@@ -89,7 +89,7 @@ def check_java(env: Env) -> Result:
     version = _search(r'version "([^"]+)"', err + out)  # java -version writes to stderr
     if version is None:
         return Result("java", FAIL, f"`{java} -version` reported no version: "
-                                    f"{_first_line(err or out) or f'exit {code}'}", fix)
+                                    f"{first_line(err or out) or f'exit {code}'}", fix)
     numbers = _numbers(version)
     major = numbers[1] if numbers[0] == 1 and len(numbers) > 1 else numbers[0]  # 1.8 is 8
     if major < 17:
@@ -127,7 +127,7 @@ def check_connect(session, tier: Tier, name: str) -> Result:
     try:
         session.connect(name)
     except McpError as exc:
-        return Result(f"connect:{name}", FAIL, _first_line(exc.message) or str(exc),
+        return Result(f"connect:{name}", FAIL, first_line(exc.message) or str(exc),
                       f"save {name} again with the right user, password and service: "
                       f"see `python -m tools setup-home --tier {tier.name}`")
     return Result(f"connect:{name}", PASS, "connected")
@@ -190,7 +190,7 @@ def check_restrict_level(session, name: str, home: Path) -> Result:
     for probe in PROBES:
         result = session.run_sqlcl(probe)
         if REFUSED not in result.text:
-            answer = result.error or _first_line(result.text) or "no output"
+            answer = result.error or first_line(result.text) or "no output"
             return Result(check, FAIL, f"`{probe}` was not refused: {answer}",
                           f"SQLcl's MCP server must run at restrict level 4: start it as "
                           f"`{_mcp_command(home)}`, in the pack and in your MCP client "
@@ -222,7 +222,7 @@ def _connection_checks(session, tier: Tier, name: str, home: Path) -> list[Resul
     except (McpError, McpTimeout) as exc:
         i = len(results)
         results.append(Result(f"{PER_CONNECTION[i]}:{name}", FAIL,
-                              f"SQLcl did not answer: {_first_line(str(exc))}",
+                              f"SQLcl did not answer: {first_line(str(exc))}",
                               "run doctor again; if it repeats, run SQLcl's MCP server "
                               "by hand to see its error"))
         results += _skip_after(name, i)
@@ -248,7 +248,7 @@ def run_all(env: Env, tier: Tier, connection: str | None = None) -> list[Result]
             session = stack.enter_context(env.open_session(home))
             missing = _missing_tools(session.list_tools())
         except (McpError, McpTimeout) as exc:
-            results.append(Result("mcp-start", FAIL, _first_line(str(exc)), start_fix))
+            results.append(Result("mcp-start", FAIL, first_line(str(exc)), start_fix))
             return results + _skips(["connections"], names, "mcp-start failed")
         if missing:
             results.append(Result("mcp-start", FAIL, f"tools missing: {', '.join(missing)}",
@@ -259,7 +259,7 @@ def run_all(env: Env, tier: Tier, connection: str | None = None) -> list[Result]
         try:
             saved = session.list_connections()
         except (McpError, McpTimeout) as exc:
-            saved, error = [], _first_line(str(exc))
+            saved, error = [], first_line(str(exc))
         else:
             error = None
         if not saved:

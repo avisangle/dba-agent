@@ -64,8 +64,8 @@ starting `not available:` that says what is missing.
 The advisory tier is a second database user and SQLcl home for checks that
 write fix scripts. Its checks write each script to `<pack_home>/scripts/`; the
 pack never runs them, so a DBA reviews a script and runs it by hand. The tier
-holds the read-only grants plus `ADVISOR` and `SELECT` on five advisor tables,
-and nothing that can change data or structure. Skip this part if you only need
+holds the read-only grants plus the advisor grants `setup-sql` prints, and
+nothing that can change data or structure. Skip this part if you only need
 the read-only checks.
 
 1. `python -m tools setup-sql --tier advisory` prints the SQL that creates the
@@ -75,9 +75,9 @@ the read-only checks.
 3. Save the connection in your own terminal, as for the read-only tier:
    `sql -home <advisory home> /nolog`, then
    `conn -save dba_agent_adv -savepwd dba_agent_adv@//<host>:<port>/<service>`.
-4. `python -m tools config --client <client> --tier advisory` prints a second
-   server, `sql -home <advisory home> -R 4 -mcp`, named after the tier. Register
-   it beside the read-only server (`plugin/config/README.md`).
+4. `python -m tools config --client <client> --tier advisory` prints the
+   advisory server; register it beside the read-only one
+   (`plugin/config/README.md`).
 5. `python -m tools doctor --tier advisory` checks the advisory home, its saved
    connection and its grants.
 

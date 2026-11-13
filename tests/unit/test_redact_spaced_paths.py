@@ -38,6 +38,14 @@ def test_a_path_with_spaces_in_its_folders_is_one_path(text, tail):
     assert out.count("<path>") == 1, out
 
 
+@pytest.mark.parametrize("folder", ["Acme Corp. Ltd", " Acme Corp", "Acme`Corp"])
+def test_a_windows_folder_takes_any_name_windows_allows(folder):
+    """A `\\` folder keeps the full Windows rule: a sentence-like `. `, a leading
+    space and a backtick stay inside the path."""
+    text = f"in C:\\A\\{folder}\\x.ora."
+    assert redact(text, collect(text)) == "in <path>."
+
+
 def test_a_command_line_keeps_its_options_between_two_paths():
     """A folder never ends in a space, so ` -home ` separates two paths."""
     text = "start it as `/opt/sqlcl/bin/sql -home /Users/u/.pack/homes/read-only -R 4 -mcp`"

@@ -20,125 +20,88 @@ WITH probe AS (
               END AS msg
   FROM   dual
 )
-SELECT x.section, x.item, x.begin_snap_id, x.end_snap_id, x.begin_time, x.end_time,
-       x.elapsed_min, x.waits, x.time_s, x.pct_of_wait_time, x.value, x.per_second,
-       x.severity AS severity
+SELECT DECODE(x.s, 1, 'summary', 2, 'event', 'load') AS section,
+       COALESCE(p.msg,
+                CASE WHEN x.s > 1 THEN SUBSTR(x.i, 1, 200)
+                     WHEN x.b IS NULL
+                     THEN 'not available: fewer than two Statspack snapshots of this instance'
+                     WHEN x.r = 1
+                     THEN 'instance restarted between the snapshots: deltas are meaningless'
+                     ELSE 'latest two snapshots' END) AS item,
+       x.b AS begin_snap_id, x.e AS end_snap_id, x.bt AS begin_time, x.et AS end_time,
+       CASE WHEN x.s = 1 THEN ROUND(x.m / 60, 2) END AS elapsed_min,
+       x.w AS waits, ROUND(x.t, 2) AS time_s, ROUND(x.pc, 2) AS pct_of_wait_time,
+       ROUND(x.v, 2) AS value, ROUND(x.v / NULLIF(x.m, 0), 2) AS per_second,
+       CASE WHEN x.r = 1 THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   probe p,
+       -- The inner query returns raw deltas only: GETXMLTYPE takes a VARCHAR2, so
+       -- its text must stay under 4000 bytes. Labels and rounding are done above.
+       -- Columns: s section (1 summary, 2 event, 3 load), o order in section,
+       -- b and e snap ids, m elapsed seconds, w waits, t wait seconds, pc pct of
+       -- wait time, v value, r 1 when the instance restarted between the snapshots.
        XMLTABLE('/ROWSET/ROW'
          PASSING DBMS_XMLGEN.GETXMLTYPE(
            CASE WHEN p.msg IS NULL THEN
-             -- Two literals: one SQL literal holds at most 4000 bytes.
-             TO_CLOB('WITH snaps AS (
-                SELECT s.snap_id, s.dbid, s.instance_number, s.snap_time, s.startup_time,
-                       ROW_NUMBER() OVER (ORDER BY s.snap_id DESC) AS rn
-                FROM   perfstat.stats$snapshot s
-                WHERE  s.dbid = (SELECT dbid FROM v$database)
-                AND    s.instance_number = (SELECT instance_number FROM v$instance)
-                ORDER  BY s.snap_id DESC
-                FETCH FIRST 2 ROWS ONLY
-              ),
-              pair AS (
-                SELECT e.dbid, e.instance_number, b.snap_id AS b_id, e.snap_id AS e_id,
-                       b.snap_time AS b_time, e.snap_time AS e_time,
-                       (e.snap_time - b.snap_time) * 86400 AS secs,
-                       CASE WHEN b.startup_time = e.startup_time THEN ''INFO''
-                            ELSE ''WARNING'' END AS sev
-                FROM   snaps b, snaps e
-                WHERE  b.rn = 2 AND e.rn = 1
-              ),
-              ev AS (
-                SELECT e.event,
-                       e.total_waits - NVL(b.total_waits, 0) AS waits,
-                       (e.time_waited_micro - NVL(b.time_waited_micro, 0)) / 1e6 AS secs
-                FROM   pair p
-                JOIN   perfstat.stats$system_event e
-                       ON  e.snap_id = p.e_id AND e.dbid = p.dbid
-                       AND e.instance_number = p.instance_number
-                LEFT JOIN perfstat.stats$system_event b
-                       ON  b.snap_id = p.b_id AND b.dbid = p.dbid
-                       AND b.instance_number = p.instance_number AND b.event = e.event
-                WHERE  NOT EXISTS (SELECT 1 FROM perfstat.stats$idle_event i
-                                   WHERE  i.event = e.event)
-              ),
-              top_ev AS (
-                SELECT event, waits, secs,
-                       100 * secs / NULLIF(SUM(secs) OVER (), 0) AS pct,
-                       ROW_NUMBER() OVER (ORDER BY secs DESC, waits DESC, event) AS pos
-                FROM   ev
-                WHERE  waits > 0 OR secs > 0
-              ),') ||
-             'load AS (
-                SELECT n.stat_name AS item, (e.value - b.value) / 1e6 AS val,
-                       DECODE(n.stat_name, ''DB time'', 1, 2) AS pos
-                FROM   pair p
-                JOIN   perfstat.stats$sys_time_model e
-                       ON  e.snap_id = p.e_id AND e.dbid = p.dbid
-                       AND e.instance_number = p.instance_number
-                JOIN   perfstat.stats$sys_time_model b
-                       ON  b.snap_id = p.b_id AND b.dbid = p.dbid
-                       AND b.instance_number = p.instance_number AND b.stat_id = e.stat_id
-                JOIN   perfstat.stats$time_model_statname n ON n.stat_id = e.stat_id
-                WHERE  n.stat_name IN (''DB time'', ''DB CPU'')
-                UNION ALL
-                SELECT e.name, e.value - b.value,
-                       DECODE(e.name, ''session logical reads'', 3, ''physical reads'', 4,
-                              ''redo size'', 5, 6)
-                FROM   pair p
-                JOIN   perfstat.stats$sysstat e
-                       ON  e.snap_id = p.e_id AND e.dbid = p.dbid
-                       AND e.instance_number = p.instance_number
-                JOIN   perfstat.stats$sysstat b
-                       ON  b.snap_id = p.b_id AND b.dbid = p.dbid
-                       AND b.instance_number = p.instance_number AND b.statistic# = e.statistic#
-                WHERE  e.name IN (''session logical reads'', ''physical reads'', ''redo size'',
-                                  ''execute count'')
-              )
-              SELECT 0 AS pos, ''summary'' AS section,
-                     CASE sev WHEN ''INFO'' THEN ''latest two snapshots''
-                          ELSE ''instance restarted between the snapshots: deltas are meaningless''
-                     END AS item,
-                     b_id AS begin_snap_id, e_id AS end_snap_id,
-                     TO_CHAR(b_time, ''YYYY-MM-DD HH24:MI:SS'') AS begin_time,
-                     TO_CHAR(e_time, ''YYYY-MM-DD HH24:MI:SS'') AS end_time,
-                     ROUND(secs / 60, 2) AS elapsed_min,
-                     NULL AS waits, NULL AS time_s, NULL AS pct_of_wait_time,
-                     NULL AS value, NULL AS per_second, sev AS severity
-              FROM   pair
-              UNION ALL
-              SELECT t.pos, ''event'', SUBSTR(t.event, 1, 200), p.b_id, p.e_id,
-                     NULL, NULL, NULL, t.waits, ROUND(t.secs, 2), ROUND(t.pct, 2),
-                     NULL, NULL, p.sev
-              FROM   top_ev t, pair p
-              WHERE  t.pos <= 5
-              UNION ALL
-              SELECT l.pos, ''load'', l.item, p.b_id, p.e_id, NULL, NULL, NULL,
-                     NULL, NULL, NULL, ROUND(l.val, 2),
-                     ROUND(l.val / NULLIF(p.secs, 0), 2), p.sev
-              FROM   load l, pair p
-              UNION ALL
-              SELECT 0, ''summary'',
-                     ''not available: fewer than two Statspack snapshots of this instance'',
-                     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ''INFO''
-              FROM   dual
-              WHERE  NOT EXISTS (SELECT 1 FROM pair)'
-           ELSE
-             TO_CLOB('SELECT 0 AS pos, ''summary'' AS section, ''' || p.msg || ''' AS item,
-                             ''INFO'' AS severity
-                      FROM   dual')
+'WITH x AS (
+  SELECT snap_id, dbid, instance_number, snap_time, startup_time
+  FROM perfstat.stats$snapshot
+  WHERE dbid = (SELECT dbid FROM v$database)
+  AND instance_number = (SELECT instance_number FROM v$instance)
+  ORDER BY snap_id DESC FETCH FIRST 2 ROWS ONLY),
+p AS (
+  SELECT e.dbid d, e.instance_number n, b.snap_id b, e.snap_id e,
+    b.snap_time bt, e.snap_time et, (e.snap_time - b.snap_time) * 86400 m,
+    DECODE(b.startup_time, e.startup_time, 0, 1) r
+  FROM x b JOIN x e ON e.snap_id > b.snap_id),
+ev AS (
+  SELECT e.event i, e.total_waits - NVL(b.total_waits, 0) w,
+    (e.time_waited_micro - NVL(b.time_waited_micro, 0)) / 1e6 t
+  FROM p
+  JOIN perfstat.stats$system_event e
+    ON e.snap_id = p.e AND e.dbid = p.d AND e.instance_number = p.n
+  LEFT JOIN perfstat.stats$system_event b ON b.snap_id = p.b AND b.dbid = p.d
+    AND b.instance_number = p.n AND b.event = e.event
+  WHERE NOT EXISTS (SELECT 1 FROM perfstat.stats$idle_event WHERE event = e.event)),
+st AS (
+  SELECT snap_id, dbid, instance_number, name i, value v
+  FROM perfstat.stats$sysstat
+  WHERE name IN (''session logical reads'', ''physical reads'', ''redo size'', ''execute count'')
+  UNION ALL
+  SELECT m.snap_id, m.dbid, m.instance_number, n.stat_name, m.value / 1e6
+  FROM perfstat.stats$sys_time_model m
+  JOIN perfstat.stats$time_model_statname n ON n.stat_id = m.stat_id
+  WHERE n.stat_name IN (''DB time'', ''DB CPU''))
+SELECT 1 s, 0 o, NULL i, p.b b, p.e e,
+  TO_CHAR(p.bt, ''YYYY-MM-DD HH24:MI:SS'') bt, TO_CHAR(p.et, ''YYYY-MM-DD HH24:MI:SS'') et,
+  p.m m, NULL w, NULL t, NULL pc, NULL v, p.r r
+FROM dual LEFT JOIN p ON 1 = 1
+UNION ALL
+SELECT 2, o, i, NULL, NULL, NULL, NULL, NULL, w, t, pc, NULL, r
+FROM (SELECT ev.*, ROW_NUMBER() OVER (ORDER BY t DESC, w DESC, i) o,
+        100 * t / NULLIF(SUM(t) OVER (), 0) pc
+      FROM ev WHERE w > 0 OR t > 0), p
+WHERE o <= 5
+UNION ALL
+SELECT 3, DECODE(e.i, ''DB time'', 1, ''DB CPU'', 2, ''session logical reads'', 3,
+    ''physical reads'', 4, ''redo size'', 5, 6),
+  e.i, NULL, NULL, NULL, NULL, p.m, NULL, NULL, NULL, e.v - b.v, p.r
+FROM p
+JOIN st e ON e.snap_id = p.e AND e.dbid = p.d AND e.instance_number = p.n
+JOIN st b ON b.snap_id = p.b AND b.dbid = p.d AND b.instance_number = p.n AND b.i = e.i'
+           ELSE 'SELECT 1 s FROM dual'
            END)
-         COLUMNS pos              NUMBER         PATH 'POS',
-                 section          VARCHAR2(7)    PATH 'SECTION',
-                 item             VARCHAR2(200)  PATH 'ITEM',
-                 begin_snap_id    NUMBER         PATH 'BEGIN_SNAP_ID',
-                 end_snap_id      NUMBER         PATH 'END_SNAP_ID',
-                 begin_time       VARCHAR2(19)   PATH 'BEGIN_TIME',
-                 end_time         VARCHAR2(19)   PATH 'END_TIME',
-                 elapsed_min      NUMBER         PATH 'ELAPSED_MIN',
-                 waits            NUMBER         PATH 'WAITS',
-                 time_s           NUMBER         PATH 'TIME_S',
-                 pct_of_wait_time NUMBER         PATH 'PCT_OF_WAIT_TIME',
-                 value            NUMBER         PATH 'VALUE',
-                 per_second       NUMBER         PATH 'PER_SECOND',
-                 severity         VARCHAR2(7)    PATH 'SEVERITY') x
-ORDER  BY DECODE(x.section, 'summary', 1, 'event', 2, 3), x.pos
+         COLUMNS s  NUMBER         PATH 'S',
+                 o  NUMBER         PATH 'O',
+                 i  VARCHAR2(4000) PATH 'I',
+                 b  NUMBER         PATH 'B',
+                 e  NUMBER         PATH 'E',
+                 bt VARCHAR2(19)   PATH 'BT',
+                 et VARCHAR2(19)   PATH 'ET',
+                 m  NUMBER         PATH 'M',
+                 w  NUMBER         PATH 'W',
+                 t  NUMBER         PATH 'T',
+                 pc NUMBER         PATH 'PC',
+                 v  NUMBER         PATH 'V',
+                 r  NUMBER         PATH 'R') x
+ORDER  BY x.s, x.o
 FETCH FIRST 20 ROWS ONLY

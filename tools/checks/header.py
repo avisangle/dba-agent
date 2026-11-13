@@ -1,17 +1,19 @@
 """Parse a check file into its header and SQL body.
 
 The header is the contiguous run of leading `-- key: value` lines; the body starts
-at the first line that is not one. Format rules: docs/decisions/D-DBA-3-check-header-format.md.
+at the first line that is not one. Format rules: docs/decisions/D-DBA-24-check-parameters.md.
 """
 
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from tools.checks.params import Param, ParamError, parse_params
+
 REQUIRED_KEYS = (
     "id", "title", "category", "mode", "min_version", "max_rows", "pack", "remediation",
 )
-KNOWN_KEYS = frozenset(REQUIRED_KEYS + ("max_version",))
+KNOWN_KEYS = frozenset(REQUIRED_KEYS + ("max_version", "params"))
 
 HEADER_LINE = re.compile(r"^--\s*(\w+)\s*:\s*(.*?)\s*$")
 INTEGER = re.compile(r"[0-9]+")  # not str.isdigit(), which accepts digits int() rejects
@@ -48,6 +50,7 @@ class Check:
     remediation: str
     sql: str
     path: Path
+    params: tuple[Param, ...] = ()  # placeholders in `sql` stay until tools.checks.params.bind
 
 
 @dataclass(frozen=True)
@@ -99,10 +102,18 @@ def parse_check(path) -> Check:
     max_rows = parse_max_rows(value)
     if max_rows is None:
         raise CheckFormatError("L008", line, max_rows_error(value))
+    params = ()
+    if "params" in raw.header:
+        line, value = raw.header["params"]
+        try:
+            params = parse_params(value)
+        except ParamError as exc:
+            raise CheckFormatError("L015", line, str(exc)) from exc
     return Check(
         **{key: values[key] for key in REQUIRED_KEYS if key != "max_rows"},
         max_version=values.get("max_version"),
         max_rows=max_rows,
         sql=raw.body.strip().removesuffix(";").rstrip(),
         path=Path(path),
+        params=params,
     )

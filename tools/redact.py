@@ -48,15 +48,15 @@ _NAMED = ((_UNKNOWN_HOST, "host"), (_HOST_PORT, "host"), (_UNREGISTERED, "servic
           (_ALIAS, "service"), (_NO_SESSION, "db-user"), (_WALLET, "db-name"))
 
 # Absolute paths: a root (`/`, `~/`, `C:\`, `C:/`, `\\server`) with at least one
-# component, not preceded by a letter or digit. A Windows folder may
-# hold spaces when a `\` follows it.
+# component, not preceded by a letter or digit. A folder may hold spaces when
+# a `\` or `/` follows it; it never ends in a space or crosses a sentence end.
 _COMP = r"[^\s\"'`<>|;,()\[\]{}/\\]"  # first character of a component
 _RUN = r"[^\s\"'`<>|;,()\[\]{}]"  # a path continues over these
-_WIN_FOLDER = r"[^\\/:*?\"<>|\r\n]+\\"
+_SEP = r"\\/:*?\"`<>|"  # never inside a folder
+_EDGE = rf"[^\s{_SEP}]"  # first and last character of a folder
+_FOLDER = rf"{_EDGE}(?:(?:(?!\.\s)[^{_SEP}\r\n])*{_EDGE})?[\\/]"
 _PATH_RE = re.compile(
-    rf"(?<![A-Za-z0-9])(?:"
-    rf"(?:[A-Za-z]:[\\/]|\\\\)(?:{_WIN_FOLDER})*{_COMP}{_RUN}*"
-    rf"|~?/{_COMP}{_RUN}*)"
+    rf"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/]|\\\\|~?/)(?:{_FOLDER})*{_COMP}{_RUN}*"
 )
 _PATH_TAIL = re.compile(r"[.:]+$")  # sentence punctuation after a path stays outside it
 

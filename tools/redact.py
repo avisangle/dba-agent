@@ -3,8 +3,9 @@
 Redaction fails closed (docs/decisions/D-DBA-17-redaction-fails-closed.md):
 anything that could be an identifier is replaced, chosen by the shape of the
 text and never by which error message carries it. Order matters: the home
-folder standing alone, connect strings, absolute paths, known names (wallet names first),
-addresses, host names, then the OS user.
+folder standing alone, connect strings, absolute paths (the one after `-home `
+is the tier home), wallet names, addresses and host names, known names, then
+this machine's name and the OS user.
 """
 
 import functools
@@ -16,8 +17,9 @@ from pathlib import Path
 
 HOME, PATH, OS_USER = "<home>", "<path>", "<os-user>"
 HOST, IP, CONNECT = "<host>", "<ip>", "<connect-string>"
+TIER_HOME = "<tier-home>"
 NUMBERED = ("connection", "db-user", "db-name", "service")  # `<kind-N>` tokens
-_FIXED = "|".join(map(re.escape, (HOME, PATH, OS_USER, HOST, IP, CONNECT)))
+_FIXED = "|".join(map(re.escape, (HOME, PATH, OS_USER, HOST, IP, CONNECT, TIER_HOME)))
 _TOKEN = re.compile(rf"({_FIXED}|<(?:{'|'.join(NUMBERED)})-\d+>)")
 _OS_CASE = re.I if os.name == "nt" else 0  # paths and user names ignore case on Windows
 
@@ -50,12 +52,13 @@ _NAMED = ((_UNKNOWN_HOST, "host"), (_HOST_PORT, "host"), (_UNREGISTERED, "servic
 # Absolute paths: a root (`/`, `~/`, `C:\`, `C:/`, `\\server`) with at least one
 # component, not preceded by a letter or digit. A folder may hold spaces when
 # a `\` or `/` follows it. Before `\` it takes anything Windows allows; before
-# `/` it never ends in a space or crosses a sentence end, so prose stays out.
+# `/` it never ends in a space, but may hold `. ` so the path is never cut short
+# (D-DBA-45-slash-folder-may-cross-a-sentence).
 _COMP = r"[^\s\"'`<>|;,()\[\]{}/\\]"  # first character of a component
 _RUN = r"[^\s\"'`<>|;,()\[\]{}]"  # a path continues over these
 _SEP = r"\\/:*?\"`<>|"  # never inside a `/` folder
 _EDGE = rf"[^\s{_SEP}]"  # first and last character of a `/` folder
-_FOLDER = rf"(?:[^\\/:*?\"<>|\r\n]+\\|{_EDGE}(?:(?:(?!\.\s)[^{_SEP}\r\n])*{_EDGE})?/)"
+_FOLDER = rf"(?:[^\\/:*?\"<>|\r\n]+\\|{_EDGE}(?:[^{_SEP}\r\n]*{_EDGE})?/)"
 _PATH_RE = re.compile(
     rf"(?<![A-Za-z0-9])(?:[A-Za-z]:[\\/]|\\\\|~?/)(?:{_FOLDER})*{_COMP}{_RUN}*"
 )
@@ -165,7 +168,8 @@ def _wallets(text: str, known: Known) -> str:
 
 def _path(m: re.Match) -> str:
     tail = _PATH_TAIL.search(m[0])
-    return PATH + (tail[0] if tail else "")
+    token = TIER_HOME if m.string.endswith("-home ", 0, m.start()) else PATH
+    return token + (tail[0] if tail else "")
 
 
 def _ipv4(m: re.Match) -> str:
@@ -176,7 +180,10 @@ def _ipv4(m: re.Match) -> str:
 def _hosts(text: str) -> str:
     text = _IPV4_RE.sub(_ipv4, text)
     text = _IPV6_RE.sub(IP, text)
-    text = _FQDN_RE.sub(lambda m: m[0] if m["tld"].lower() in FILE_TYPES else HOST, text)
+    return _FQDN_RE.sub(lambda m: m[0] if m["tld"].lower() in FILE_TYPES else HOST, text)
+
+
+def _identity(text: str) -> str:
     for pattern, token in _identity_patterns():
         text = pattern.sub(token, text)
     return text
@@ -214,14 +221,15 @@ def _identity_patterns() -> tuple[tuple[re.Pattern, str], ...]:
 
 
 def redact(text: str, known: Known) -> str:
-    """`text` with the home folder, connect strings, absolute paths, names in
-    `known`, wallet names, addresses, host names and the OS user replaced by
-    tokens. Names `text` carries that `known` lacks are added to it first."""
+    """`text` with identifiers replaced by tokens, in the module's order. Host
+    names go before known names, so a host whose first label is a known name is
+    `<host>` whole. Names `text` carries that `known` lacks are added to it first."""
     _gather(text, known)
     for pattern in _home_patterns():
         text = pattern.sub(HOME, text)
     text = _outside_tokens(_descriptions(text), lambda t: _EZCONNECT.sub(CONNECT, t))
     text = _PATH_RE.sub(_path, text)
     text = _outside_tokens(text, functools.partial(_wallets, known=known))
+    text = _outside_tokens(text, _hosts)
     text = _outside_tokens(text, known.sub)
-    return _outside_tokens(text, _hosts)
+    return _outside_tokens(text, _identity)

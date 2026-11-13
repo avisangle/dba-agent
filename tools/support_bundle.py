@@ -30,6 +30,7 @@ Before anything was written, these were replaced in every file:
   IPv4 and IPv6 addresses                  <ip>
   host names, including this machine's     <host>
   every absolute file path, whole          <path>
+  a tier's SQLcl home after `sql -home`    <tier-home>
   your home folder standing alone          <home>
   your OS user name                        <os-user>
   saved connection names                   <connection-N>

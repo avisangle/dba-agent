@@ -36,6 +36,73 @@ In Claude Code, start `claude --plugin-dir plugin` from the unzipped folder. The
 skills run `python -m tools` and read `plugin/checks/` relative to the folder
 Claude Code starts in.
 
+The pack does not check or gate Oracle Diagnostics Pack or Tuning Pack
+licensing. AWR, ASH and advisor checks run whenever the feature is enabled on
+the database, and making sure it is licensed is the DBA's responsibility. The
+first time the AI runs one of these checks in a conversation, it says in one
+line that the check reads a Diagnostics or Tuning Pack feature, then runs it
+without asking (`docs/decisions/D-DBA-31-no-pack-licence-check.md` in the
+source repository).
+
+`<pack_home>` below is the folder above `homes/` in the path `setup-home`
+prints.
+
+### Optional grants
+
+Two read-only checks report more with extra object grants that the default
+read-only user does not hold. Without them each check returns one `INFO` row
+starting `not available:` that says what is missing.
+
+- `python -m tools setup-sql --tier read-only --alert-log` adds the grant that
+  lets `alert_log_errors` read the alert log. Run that block as SYS.
+- `python -m tools setup-sql --tier read-only --statspack` adds the grants that
+  let `statspack_report` read Statspack snapshots. Statspack must already be
+  installed; run the block as SYS or PERFSTAT.
+
+### Advisory tier (optional)
+
+The advisory tier is a second database user and SQLcl home for checks that
+write fix scripts. Its checks write each script to `<pack_home>/scripts/`; the
+pack never runs them, so a DBA reviews a script and runs it by hand. The tier
+holds the read-only grants plus `ADVISOR` and `SELECT` on five advisor tables,
+and nothing that can change data or structure. Skip this part if you only need
+the read-only checks.
+
+1. `python -m tools setup-sql --tier advisory` prints the SQL that creates the
+   advisory user. Its object grants are on tables owned by SYS, so run the block
+   marked for SYS as SYS; SYSTEM gets `ORA-01031` there.
+2. `python -m tools setup-home --tier advisory` creates the advisory home.
+3. Save the connection in your own terminal, as for the read-only tier:
+   `sql -home <advisory home> /nolog`, then
+   `conn -save dba_agent_adv -savepwd dba_agent_adv@//<host>:<port>/<service>`.
+4. `python -m tools config --client <client> --tier advisory` prints a second
+   server, `sql -home <advisory home> -R 4 -mcp`, named after the tier. Register
+   it beside the read-only server (`plugin/config/README.md`).
+5. `python -m tools doctor --tier advisory` checks the advisory home, its saved
+   connection and its grants.
+
+### Reports without AI
+
+`python -m tools report` runs a report profile's checks on a saved connection
+and writes a Markdown or HTML report, with no model involved:
+
+```
+python -m tools report --profile health_check --connection dba_agent_ro --format html --out health.html
+```
+
+It exits 0 when the report is written (checks with errors included), 1 when
+SQLcl or the connection fails, and 2 for a bad profile or argument. To run it
+on a schedule, add a cron line that changes to the unzipped folder first. Cron
+starts with a short PATH, so set `SQLCL_BIN` to the SQLcl executable:
+
+```
+0 6 * * * cd /opt/dba-pack && SQLCL_BIN=/opt/sqlcl/bin/sql python3 -m tools report --profile health_check --connection dba_agent_ro --format html --out /var/reports/health.html
+```
+
+`--profile` takes a profile name or a path to a `.json` profile. Your own
+profiles go in `<pack_home>/profiles/`; one there with the same name as a
+built-in profile in `plugin/profiles/` is used instead of it.
+
 ## Layout
 
 | Path | What it is |

@@ -1,11 +1,34 @@
 """Shared by the offline report extractors: their options, capped section tables
 and Markdown."""
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
 SQL_TEXT_LIMIT = 200
+
+
+def _max_rows(value: str) -> int:
+    try:
+        n = int(value)
+    except ValueError:
+        n = 0
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"must be a whole number of at least 1: {value!r}")
+    return n
+
+
+def output_arguments(parser) -> None:
+    """--max-rows and --format, shared by every offline command."""
+    parser.add_argument(
+        "--max-rows",
+        type=_max_rows,
+        default=20,
+        metavar="N",
+        help="data rows per table (default 20)",
+    )
+    parser.add_argument("--format", choices=("md", "json"), default="md", help="default md")
 
 
 def extract_arguments(parser, kind: str, sections) -> None:
@@ -15,10 +38,7 @@ def extract_arguments(parser, kind: str, sections) -> None:
         metavar="a,b,c",
         help=f"comma-separated sections (default: all): {', '.join(sections)}",
     )
-    parser.add_argument(
-        "--max-rows", type=int, default=20, metavar="N", help="data rows per table (default 20)"
-    )
-    parser.add_argument("--format", choices=("md", "json"), default="md", help="default md")
+    output_arguments(parser)
 
 
 def extract(args, kind: str, sections, parse, not_report, labels) -> int:
@@ -29,9 +49,6 @@ def extract(args, kind: str, sections, parse, not_report, labels) -> int:
     unknown = [s for s in wanted if s not in sections]
     if unknown:
         print(f"error: unknown section: {', '.join(unknown)}", file=sys.stderr)
-        return 2
-    if args.max_rows < 1:
-        print("error: --max-rows must be at least 1", file=sys.stderr)
         return 2
     if not args.file.is_file():
         print(f"error: {args.file}: no such file", file=sys.stderr)

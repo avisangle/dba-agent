@@ -3,7 +3,11 @@ events and SQL by elapsed time joined by row label, event name and SQL id."""
 
 from dataclasses import dataclass
 
+from tools.offline.awr import SUMMARY_LABELS as AWR_SUMMARY_LABELS
 from tools.offline.awr import AwrReport, Table
+
+# Summary key -> label of each side: the AWR summary plus the key compare() derives.
+SUMMARY_LABELS = {**AWR_SUMMARY_LABELS, "db_time_per_second": "DB time per elapsed second"}
 
 LOAD_PROFILE_COLUMNS = [
     "Statistic",

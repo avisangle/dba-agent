@@ -91,7 +91,7 @@ This is a read-only connection. When the user asks for a change (DDL, DML, `ALTE
 
 Never suggest ending, committing or rolling back a transaction through the MCP connection: on SQLcl 26.3.1 every DML sent through a saved connection like this one is committed when its call returns, and a `ROLLBACK` cannot undo it.
 
-Never suggest granting the read-only user more privileges. The one exception is the optional alert log grant described in the [health playbook](playbooks/health.md).
+Never suggest granting the read-only user more privileges. The exceptions are the optional grants: the alert log grant described in the [health playbook](playbooks/health.md) and the Statspack grants (`setup-sql --statspack`) described in the [performance playbook](playbooks/performance.md).
 
 ### 8. Licensed packs
 

@@ -7,8 +7,14 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 
 | id | title | mode | pack | min_version | file |
 | --- | --- | --- | --- | --- | --- |
+| addm_findings | ADDM findings for this container over the last days, largest impact first | R | diagnostics | 12.1 | awr/addm_findings.sql |
 | ash_top_activity | Top SQL and wait events in active session history over the last minutes | R | diagnostics | 12.1 | awr/ash_top_activity.sql |
+| awr_compare_periods | Two AWR windows side by side: DB time, load figures and wait events per second | R | diagnostics | 12.1 | awr/awr_compare_periods.sql |
+| awr_report | Summary of an AWR window: elapsed time, DB time and load figures, and the top wait events | R | diagnostics | 12.1 | awr/awr_report.sql |
 | awr_snapshot_list | AWR snapshots of this container over the last days, with a warning when none are being taken | R | diagnostics | 12.1 | awr/awr_snapshot_list.sql |
+| awr_top_sql | SQL statements with the most elapsed time in an AWR window | R | diagnostics | 12.1 | awr/awr_top_sql.sql |
+| plan_history | The execution plans AWR has recorded for one SQL statement, with executions and time per execution | R | diagnostics | 12.1 | awr/plan_history.sql |
+| sql_history | One SQL statement's executions and time per execution in each AWR snapshot over the last days | R | diagnostics | 12.1 | awr/sql_history.sql |
 
 ## backup
 

@@ -1,0 +1,13 @@
+# D-DBA-37: Reports run through SqlclSession and render with string.Template; a user profile with the same name wins
+**Status:** Accepted
+**Date:** 2026-11-13
+**Issue:** DBA-37
+**Confluence:** none (plan doc on claude.ai, section "Customising checks and reports"; design in epic DBA-23)
+
+**Decision:** `python -m tools report --profile NAME_OR_PATH --connection NAME` runs a report with no model involved, scheduled or by hand. It reaches the database only through `SqlclSession` (`sql -home <tier home> -R 4 -mcp`) and renders with `string.Template` from `plugin/profiles/templates/report.{md,html}` or a template named in the profile. A profile is the D-DBA-10 shape plus optional `title`, `template` (a file next to the profile) and per-check `params`. `tools.reports.profile.find_profile` alone maps a name to a file: `<pack_home>/profiles/<name>.json` wins over `plugin/profiles/<name>.json`. Every check is resolved, linted and bound before SQLcl starts, so a bad profile exits 2 with no session opened. The score comes from `tools.health_score.score`, and only when every check has a weight.
+
+**Why:** D-DBA-15 allows tools no route to the database but SQLcl's MCP server at restrict level 4, and `SqlclSession` already runs headless in every CI integration job, which is how cron runs it. `string.Template` is in the standard library (D-DBA-2) and treats substituted text as data, so a value from the database cannot inject template syntax. Checking the whole profile before connecting means a typo in a nightly profile fails fast and never leaves a half-run report.
+
+**Rejected:** SQLcl silent mode (`sql -S`) with a spooled script, the plan doc's first idea: a second route to the database that D-DBA-15 does not allow, and untested. A template engine such as Jinja: a third-party package (D-DBA-2). Computing the score in the runner or the template: D-DBA-10 keeps it in `tools/health_score.py`. Checking ids as each check runs: a bad id or parameter would surface only after earlier checks had already run.
+
+**Impact:** Reports must not add another way to reach the database or another score formula. Every value placed in a template goes through the formatter's `text` in `tools/reports/render.py`, which HTML-escapes it in both formats (Markdown viewers may render inline HTML); new placeholders go through the same method. Profile name lookup goes through `find_profile`; do not reimplement the user-first precedence elsewhere. The eight placeholders (`title`, `connection`, `version`, `generated`, `score`, `errors`, `summary`, `details`) are what user templates may use; renaming one breaks user templates. Unknown `$names` in a user template are left as written (`safe_substitute`).

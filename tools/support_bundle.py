@@ -8,7 +8,7 @@ from dataclasses import asdict
 
 from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError
-from tools.checks.resolve import resolve_checks
+from tools.checks.resolve import resolve_checks, source_counts
 from tools.config import PACK_NAME, VERSION
 from tools.doctor.checks import first_line, java_bin, run_all
 from tools.doctor.env import Env
@@ -71,16 +71,13 @@ def _version_line(env: Env, cmd: list[str]) -> str:
 
 
 def _checks() -> dict:
-    """Check counts as `index --user` prints them, and the user check ids."""
+    """Check counts by source, and the user check ids."""
     try:
         resolved = resolve_checks(CHECKS_ROOT, user_checks_root())
     except CheckFormatError as exc:
         return {"error": str(exc)}
-    builtin = {p.stem for p in CHECKS_ROOT.rglob("*.sql")}  # file name is the id (L003)
     user = sorted(i for i, r in resolved.items() if r.source == "user")
-    overridden = len(builtin.intersection(user))
-    return {"builtin": len(builtin) - overridden, "overridden": overridden,
-            "added": len(user) - overridden, "user_ids": user}
+    return {**source_counts(resolved, CHECKS_ROOT), "user_ids": user}
 
 
 def _map_strings(value, fn):

@@ -41,7 +41,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tools.checks import CHECKS_ROOT  # noqa: E402
 from tools.checks.header import KNOWN_KEYS  # noqa: E402  (check header keys, DBA-3)
+from tools.checks.index import discover  # noqa: E402
 
 SKILL_DIR = REPO_ROOT / "plugin" / "skills" / "oracle-dba"
 SKILL = SKILL_DIR / "SKILL.md"
@@ -49,7 +51,6 @@ PLAYBOOK_DIR = SKILL_DIR / "playbooks"
 PLAYBOOK_NAMES = ("discovery", "health", "storage", "sessions", "performance")
 PLAYBOOKS = {name: PLAYBOOK_DIR / f"{name}.md" for name in PLAYBOOK_NAMES}
 PROFILE = REPO_ROOT / "plugin" / "profiles" / "health_check.json"
-INDEX = REPO_ROOT / "plugin" / "checks" / "INDEX.md"
 
 # The profile from the issue, in its listed order.
 PROFILE_IDS = (
@@ -87,14 +88,9 @@ BRANCH = re.compile(r"\bif `([a-z0-9_]+)` shows [^\n]+?, run `([a-z0-9_]+)` beca
 
 
 def _index() -> dict[str, str]:
-    """Check id -> pack, from the tables of the generated plugin/checks/INDEX.md."""
-    packs = {}
-    for line in INDEX.read_text(encoding="utf-8").splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if not line.startswith("|") or cells[0] in ("id", "") or set(cells[0]) <= {"-"}:
-            continue
-        packs[cells[0]] = cells[3]  # columns: id, title, mode, pack, min_version, file
-    return packs
+    """Check id -> pack for the built-in checks: the rows of plugin/checks/INDEX.md,
+    which tests/unit/test_index_fresh.py keeps equal to `discover(CHECKS_ROOT)`."""
+    return {c.id: c.pack for c in discover(CHECKS_ROOT)}
 
 
 def _skill_parts() -> tuple[dict, str]:

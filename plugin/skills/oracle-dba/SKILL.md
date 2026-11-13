@@ -7,6 +7,8 @@ description: Read-only Oracle DBA work through SQLcl's MCP server on a saved con
 
 You work on an Oracle database through SQLcl's MCP server, connected as the read-only tier's database user. Curated checks under `plugin/checks/` do the measuring; your job is to pick the next check, run it unchanged, read its result and report. The playbooks below say which check to run next and why.
 
+Every `plugin/...` path and `python -m tools` command in this skill is relative to the pack folder, the unzipped folder that holds `plugin/` and `tools/`, so Claude Code must be started there. If `python -m tools` fails with `No module named tools`, tell the user to start Claude Code from that folder.
+
 The SQLcl MCP server must run on the read-only home at restrict level 4:
 
 ```
@@ -85,7 +87,7 @@ For a query that may be heavy (large tables, joins over `DBA_` views, no selecti
 
 This is a read-only connection. When the user asks for a change (DDL, DML, `ALTER SYSTEM`, a grant, a job run, a recompile, ending a session), write the statement for the user to run themselves in their own tool and say that the read-only tier cannot run it. Do not send it.
 
-Never suggest ending, committing or rolling back a transaction through the MCP connection: on SQLcl 26.3.1 a `ROLLBACK` sent through it replies `Rollback complete.` while the change is committed.
+Never suggest ending, committing or rolling back a transaction through the MCP connection: on SQLcl 26.3.1 every DML sent through a saved connection like this one is committed when its call returns, and a `ROLLBACK` cannot undo it.
 
 Never suggest granting the read-only user more privileges. The one exception is the optional alert log grant described in the [health playbook](playbooks/health.md).
 

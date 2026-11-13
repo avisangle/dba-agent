@@ -342,6 +342,16 @@ def test_tier_home_token_survives_an_os_user_named_like_it(os_user, user, expect
     assert mod.redact(TIER_HOME_LINE, mod.collect("")) == expected
 
 
+def test_a_known_name_is_replaced_before_the_os_user_it_starts_with(os_user):
+    """DBA-45 (b): the OS user step runs after known names, so the db user
+    `avi_mon` with OS user `avi` is one token. Falsifier: run `_identity` before
+    `known.sub`, which gives `<os-user>_mon` and leaks the rest of the name."""
+    os_user("avi")
+    mod = _redact_module()
+    out = mod.redact("login avi_mon", mod.collect("", db_users=["AVI_MON"]))
+    assert re.fullmatch(r"login <db-user-\d+>", out), out
+
+
 def test_contract_tier_home_token_and_path_rules():
     """Contract (DBA-45 output_for_dependents; no named consumer): shape only.
     `tools.redact.TIER_HOME == "<tier-home>"`, matched whole by `_TOKEN`;

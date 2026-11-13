@@ -10,4 +10,4 @@
 
 **Rejected:** Running `spcreate.sql` through run-sql: `@` and `DEFINE` are SQL*Plus commands refused at `-R 4`. Porting `spcreate.sql` into SQL sent statement by statement: thousands of lines of Oracle's script to keep in step with each release. `docker exec` on a named container: the compose service is the one thing CI and local runs share.
 
-**Impact:** Only test setup scripts under `tests/support/` may run SQL*Plus in the container, and only for Statspack install and reports. Tests themselves still query the database only through `SqlclSession`. A script on this route never puts a password in a command-line argument, never writes one to disk, and keeps Statspack's own password out of its output.
+**Impact:** Only test setup scripts under `tests/support/` may run SQL*Plus in the container, and only for Statspack install and reports. Tests themselves still query the database only through `SqlclSession`. A script on this route never puts a password in a command-line argument, never writes one to disk, and keeps Statspack's own password out of its output. Hand-run fixture generators: D-DBA-28-fixture-generator-may-name-the-container.

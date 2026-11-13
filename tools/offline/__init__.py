@@ -1,1 +1,2 @@
-"""Readers for database report files analysed with no database connection."""
+"""Readers, comparison and rendering for database report files and logs analysed
+with no database connection."""

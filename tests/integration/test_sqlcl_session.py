@@ -13,6 +13,7 @@ import os
 import shutil
 
 import pytest
+from helpers import unavailable
 
 from tools.sqlcl import SqlclSession
 
@@ -77,10 +78,7 @@ def test_session_refuses_scripts_and_host_without_a_database(tmp_path):
     command. Needs SQLcl and Java only. Falsifier: without `-R 4`, SQLcl 26.3.1
     answers `@` with SP2-0310 and `host` with `doctor-probe`."""
     if shutil.which(SQLCL_BIN) is None:
-        if os.environ.get("REQUIRE_INTEGRATION") == "1":
-            pytest.fail(f"REQUIRE_INTEGRATION=1 but SQLcl not found: SQLCL_BIN={SQLCL_BIN}",
-                        pytrace=False)
-        pytest.skip(f"SQLcl not found: SQLCL_BIN={SQLCL_BIN}")
+        unavailable(f"SQLcl not found: SQLCL_BIN={SQLCL_BIN}")
     home = tmp_path / "empty-home"
     home.mkdir()
     with SqlclSession(SQLCL_BIN, str(home)) as session:

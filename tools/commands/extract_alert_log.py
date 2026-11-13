@@ -5,21 +5,11 @@ import json
 import sys
 from pathlib import Path
 
-from tools.offline.alert_log import NotAlertLog, check_since, parse_alert_log
+from tools.offline.alert_log import SUMMARY_LABELS, NotAlertLog, check_since, parse_alert_log
 from tools.offline.render import capped, markdown, output_arguments
 
 NAME = "extract-alert-log"
 HELP = "extract ORA- codes, instance events and recent errors from a text alert log"
-
-SUMMARY_LABELS = {
-    "first_time": "First record",
-    "last_time": "Last record",
-    "records": "Records",
-    "since": "Since",
-    "window_records": "Records since",
-    "log_switches": "Log switches",
-    "checkpoint_not_complete": "Checkpoint not complete",
-}
 
 
 def _since(value: str) -> str:

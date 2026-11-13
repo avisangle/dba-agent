@@ -11,6 +11,7 @@ from tools.offline.render import capped, md_section, md_table, output_arguments
 NAME = "compare-awr"
 HELP = "compare two AWR reports (HTML or text): summary, load profile, top events, top SQL"
 
+
 def add_arguments(parser):
     parser.add_argument("first", type=Path, metavar="FIRST", help="AWR report, HTML or text")
     parser.add_argument(

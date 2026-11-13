@@ -2,7 +2,8 @@
 
 The check runs as `ro`. The optional grants are the statements that
 `setup-sql --tier read-only --statspack` adds after the default script, taken
-from render(), applied by SYS (`sysdba`) and revoked in `finally`. Snapshots are
+from render() by conftest's `optional_grant`, applied by SYS and revoked on
+exit. Snapshots are
 taken as `admin` (SYSTEM) with `perfstat.statspack.snap`.
 
 Statspack must be installed in the test PDB (CI runs install_statspack.sh after
@@ -48,7 +49,6 @@ or `load` (up to 10), in that order. Times are YYYY-MM-DD HH24:MI:SS. The
 not-available row carries its message in ITEM.
 """
 
-import contextlib
 import datetime
 import importlib
 import os
@@ -65,17 +65,12 @@ pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 INTEGRATION = Path(__file__).resolve().parents[1]
-for path in (REPO_ROOT, INTEGRATION):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-
-from tools.commands.setup_sql import render  # noqa: E402
-from tools.tiers import TIERS  # noqa: E402
+if str(INTEGRATION) not in sys.path:
+    sys.path.insert(0, str(INTEGRATION))
 
 CHECK_ID = "statspack_report"
 INSTALL_SCRIPT = REPO_ROOT / "tests" / "support" / "install_statspack.sh"
 COMPOSE_FILE = REPO_ROOT / "tests" / "docker-compose.yml"
-RO_USER = TIERS["read-only"].db_user
 COLUMNS = [
     "SECTION", "ITEM", "BEGIN_SNAP_ID", "END_SNAP_ID", "BEGIN_TIME", "END_TIME",
     "ELAPSED_MIN", "WAITS", "TIME_S", "PCT_OF_WAIT_TIME", "VALUE", "PER_SECOND", "SEVERITY",
@@ -110,12 +105,6 @@ def _plsql(session, block):
     return result
 
 
-def _unavailable(reason: str):
-    if os.environ.get("REQUIRE_INTEGRATION") == "1":
-        pytest.fail(f"REQUIRE_INTEGRATION=1 but {reason}", pytrace=False)
-    pytest.skip(reason)
-
-
 def _perfstat_installed(admin) -> bool:
     found = _ok(admin, "select count(*) from dba_users where username = 'PERFSTAT'")
     return found.rows == [["1"]]
@@ -125,50 +114,15 @@ def _perfstat_installed(admin) -> bool:
 def statspack(admin):
     """Statspack is installed in the test PDB; else skip (fail when required)."""
     if not _perfstat_installed(admin):
-        _unavailable(f"Statspack is not installed in the test PDB: run "
+        _helpers().unavailable(f"Statspack is not installed in the test PDB: run "
                      f"{INSTALL_SCRIPT.relative_to(REPO_ROOT).as_posix()}")
 
 
-def statspack_statements(user: str = RO_USER) -> list[str]:
-    """The statements `setup-sql --tier read-only --statspack` adds after the
-    default script, without their `;`. Taken from render(), never written here."""
-    tier = TIERS["read-only"]
-    default, full = render(tier, user), render(tier, user, statspack=True)
-    assert full.startswith(default), "the Statspack block must follow the default script"
-    code = [
-        ln.strip() for ln in full[len(default):].splitlines()
-        if ln.strip() and not ln.lstrip().startswith("--")
-    ]
-    assert code, "setup-sql --statspack added no statement"
-    return [ln.rstrip(";").strip() for ln in code]
-
-
-def _revoke_of(statement: str) -> str:
-    """`GRANT <priv> ON <obj> TO <user>` turned into its REVOKE ... FROM."""
-    rest = statement.split(None, 1)[1]
-    what, grantee = re.split(r"\s+to\s+", rest, flags=re.I)
-    return f"revoke {what} from {grantee}"
-
-
-@contextlib.contextmanager
-def _statspack_granted(grantor):
-    applied = []
-    try:
-        for statement in statspack_statements():
-            _ok(grantor, statement)
-            applied.append(statement)
-        yield applied
-    finally:
-        for statement in applied:
-            revoked = grantor.run_sql(_revoke_of(statement))
-            assert revoked.error is None, revoked.error
-
-
 @pytest.fixture
-def statspack_grants(statspack, sysdba, ro):
+def statspack_grants(statspack, optional_grant):
     """`with statspack_grants(): ...` holds the optional grants from
     `setup-sql --statspack` for `ro` and revokes them on exit."""
-    return lambda: _statspack_granted(sysdba)
+    return lambda: optional_grant(statspack=True)
 
 
 def _latest_snap_id(admin) -> int:
@@ -407,7 +361,7 @@ def test_install_statspack_does_nothing_when_perfstat_exists(statspack, admin):
     output does not hold ORACLE_TEST_PASSWORD. Needs `docker compose` and the
     compose service (CI); skips without `docker compose`."""
     if not _compose_service_running():
-        _unavailable(f"the `oracle` service of {COMPOSE_FILE.name} is not running")
+        _helpers().unavailable(f"the `oracle` service of {COMPOSE_FILE.name} is not running")
     state = ("select (select to_char(created, 'YYYY-MM-DD HH24:MI:SS') from dba_users "
              "where username = 'PERFSTAT'), (select count(*) from dba_objects "
              "where owner = 'PERFSTAT'), (select count(*) from perfstat.stats$snapshot) from dual")

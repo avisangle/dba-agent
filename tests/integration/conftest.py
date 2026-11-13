@@ -22,6 +22,7 @@ for path in (REPO_ROOT, REPO_ROOT / "tests" / "support"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+from helpers import unavailable  # noqa: E402
 from save_connection import save_connection  # noqa: E402
 
 from tools.checks.header import CLIENT_COMMAND  # noqa: E402
@@ -35,23 +36,17 @@ PASSWORD = os.environ.get("ORACLE_TEST_PASSWORD")
 RO_USER = TIERS["read-only"].db_user
 
 
-def _unavailable(reason: str):
-    if os.environ.get("REQUIRE_INTEGRATION") == "1":
-        pytest.fail(f"REQUIRE_INTEGRATION=1 but {reason}", pytrace=False)
-    pytest.skip(reason)
-
-
 @pytest.fixture(scope="session")
 def _integration_ready():
     if shutil.which(SQLCL_BIN) is None:
-        _unavailable(f"SQLcl not found: SQLCL_BIN={SQLCL_BIN}")
+        unavailable(f"SQLcl not found: SQLCL_BIN={SQLCL_BIN}")
     if not PASSWORD:
-        _unavailable("ORACLE_TEST_PASSWORD is not set")
+        unavailable("ORACLE_TEST_PASSWORD is not set")
     host, _, port = DSN.split("/")[0].rpartition(":")
     try:
         socket.create_connection((host, int(port)), timeout=3).close()
     except OSError as exc:
-        _unavailable(f"database not reachable at ORACLE_TEST_DSN={DSN}: {exc}")
+        unavailable(f"database not reachable at ORACLE_TEST_DSN={DSN}: {exc}")
 
 
 def _connected(tmp_path_factory, name: str, user: str, password: str, as_sysdba=False):
@@ -82,8 +77,8 @@ def sysdba(_integration_ready, tmp_path_factory):
     yield from _connected(tmp_path_factory, "sysdba", "sys", PASSWORD, as_sysdba=True)
 
 
-def _setup_sql_statements(tier, password: str) -> list[str]:
-    """The `setup-sql --tier <tier>` script as statements for run_sql.
+def _setup_sql_statements(tier, password: str, **flag) -> list[str]:
+    """The `setup-sql --tier <tier>` script (with optional `flag`s) as statements for run_sql.
 
     run-sql calls do not share substitution variables, and an unresolved one
     returns "Substitution cancelled" with no error. So the password is
@@ -91,7 +86,7 @@ def _setup_sql_statements(tier, password: str) -> list[str]:
     """
     lines = [
         ln
-        for ln in render(tier).splitlines()
+        for ln in render(tier, **flag).splitlines()
         if ln.strip()
         and not ln.lstrip().startswith("--")
         and not CLIENT_COMMAND.match(ln)  # ACCEPT, SET: SQLcl-only, run-sql takes SQL
@@ -139,18 +134,16 @@ def adv(admin, sysdba, tmp_path_factory):
     yield from _tier_user(TIERS["advisory"], admin, sysdba, tmp_path_factory)
 
 
-def alert_log_statement(user: str = RO_USER) -> str:
-    """The one statement `setup-sql --tier read-only --alert-log` adds after the
-    default script, without its `;`. Taken from render(), never written here."""
+def optional_statements(**flag) -> list[str]:
+    """The statements `setup-sql --tier read-only` adds after the default script
+    for one optional flag (`alert_log=True`, `statspack=True`), without their `;`.
+    Taken from render(), never written here."""
     tier = TIERS["read-only"]
-    default, full = render(tier, user), render(tier, user, alert_log=True)
-    assert full.startswith(default), "the alert log block must follow the default script"
-    code = [
-        ln.strip() for ln in full[len(default):].splitlines()
-        if ln.strip() and not ln.lstrip().startswith("--")
-    ]
-    assert len(code) == 1, code
-    return code[0].rstrip(";").strip()
+    default = _setup_sql_statements(tier, "unused")
+    full = _setup_sql_statements(tier, "unused", **flag)
+    assert full[:len(default)] == default, f"the {flag} block must follow the default script"
+    assert len(full) > len(default), f"setup-sql {flag} added no statement"
+    return full[len(default):]
 
 
 def _revoke_of(statement: str) -> str:
@@ -161,28 +154,40 @@ def _revoke_of(statement: str) -> str:
 
 
 @contextlib.contextmanager
-def _alert_log_granted(grantor):
-    statement = alert_log_statement()
-    result = grantor.run_sql(statement)
-    assert result.error is None, f"{statement}: {result.error}"
+def _granted(grantor, statements):
+    """Apply `statements` as `grantor`, yield them, revoke what was applied."""
+    applied = []
     try:
-        yield statement
+        for statement in statements:
+            result = grantor.run_sql(statement)
+            assert result.error is None, f"{statement}: {result.error}"
+            applied.append(statement)
+        yield applied
     finally:
-        revoked = grantor.run_sql(_revoke_of(statement))
-        assert revoked.error is None, revoked.error
+        for statement in applied:
+            revoked = grantor.run_sql(_revoke_of(statement))
+            assert revoked.error is None, revoked.error
+
+
+@pytest.fixture
+def optional_grant(sysdba, ro):
+    """`with optional_grant(statspack=True): ...` holds the optional statements of
+    one `setup-sql` flag for the `ro` user and revokes them on exit, so the
+    session-scoped `ro` user is back to the default tier afterwards. Applied as SYS:
+    measured on 23.26.3 in FREEPDB1, SYSTEM gets ORA-01031 granting on the alert
+    log view (owned by SYS)."""
+    return lambda **flag: _granted(sysdba, optional_statements(**flag))
 
 
 @pytest.fixture(scope="session")
 def alert_log_grantor(sysdba):
-    """The session that applies and revokes the optional alert log statement:
-    SYS. Measured on 23.26.3 in FREEPDB1: as SYSTEM it fails with ORA-01031
-    (the view is owned by SYS); as SYS AS SYSDBA it succeeds."""
+    """SYS, the session `optional_grant` grants and revokes as; tests read the
+    user's object grants back through it."""
     return sysdba
 
 
 @pytest.fixture
-def alert_log_grant(alert_log_grantor, ro):
+def alert_log_grant(optional_grant):
     """`with alert_log_grant(): ...` holds the optional alert log statement from
-    `setup-sql --alert-log` for the `ro` user and revokes it on exit, so the
-    session-scoped `ro` user is back to the default tier afterwards."""
-    return lambda: _alert_log_granted(alert_log_grantor)
+    `setup-sql --alert-log` (see `optional_grant`)."""
+    return lambda: optional_grant(alert_log=True)

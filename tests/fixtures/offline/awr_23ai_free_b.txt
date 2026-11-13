@@ -1,0 +1,1730 @@
+WORKLOAD REPOSITORY PDB report (PDB snapshots)
+
+DB Name         DB Id    Unique Name DB Role          Edition Release    RAC CDB
+------------ ----------- ----------- ---------------- ------- ---------- --- ---
+FREE          3638231841 FREE        PRIMARY          FREE    23.26.3.0. NO  YES
+ 
+Instance     Inst Num Startup Time    User Name    System Data Visible 
+------------ -------- --------------- ------------ --------------------
+FREE                1 13-Nov-26 17:23 SYSTEM       YES                 
+
+Container DB Id  Container Name       Open Time
+--------------- --------------- ---------------
+     3638231841 FREEPDB1        13-Nov-26 17:23
+
+Host Name        Platform                         CPUs Cores Sockets Memory(GB)
+---------------- -------------------------------- ---- ----- ------- ----------
+testhost     Linux OS (AARCH64)                  2     2       1       3.81
+
+              Snap Id      Snap Time      Sessions Curs/Sess
+            --------- ------------------- -------- ---------
+Begin Snap:         1 13-Nov-26 17:24:16         1       5.0
+  End Snap:         2 13-Nov-26 17:24:18         1       9.0
+   Elapsed:                0.03 (mins)
+   DB Time:                0.03 (mins)
+
+Load Profile                    Per Second   Per Transaction  Per Exec  Per Call
+~~~~~~~~~~~~~~~            ---------------   --------------- --------- ---------
+             DB Time(s):               1.0               0.4      0.00      0.04
+              DB CPU(s):               0.6               0.3      0.00      0.03
+      Background CPU(s):               0.0               0.0      0.00      0.00
+      Redo size (bytes):      25,943,868.8      10,600,664.8
+  Logical read (blocks):          35,380.3          14,456.4
+          Block changes:           8,505.1           3,475.2
+ Physical read (blocks):           3,027.4           1,237.0
+Physical write (blocks):           2,912.4           1,190.0
+       Read IO requests:             238.4              97.4
+      Write IO requests:              39.2              16.0
+           Read IO (MB):              23.7               9.7
+          Write IO (MB):              22.8               9.3
+           IM scan rows:               0.0               0.0
+Session Logical Read IM:               0.0               0.0
+             User calls:              24.0               9.8
+           Parses (SQL):           1,656.4             676.8
+      Hard parses (SQL):             135.6              55.4
+     SQL Work Area (MB):              18.8               7.7
+                 Logons:               0.0               0.0
+            User logons:               0.0               0.0
+         Executes (SQL):           4,455.7           1,820.6
+              Rollbacks:               0.0               0.0
+           Transactions:               2.5
+
+Top 10 Foreground Events by Total Wait Time
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                           Total Wait       Avg   % DB Wait    
+Event                                Waits Time (sec)      Wait   time Class   
+------------------------------ ----------- ---------- --------- ------ --------
+DB CPU                                            1.2             60.8         
+log file switch completion               5         .5  103.45ms   25.4 Configur
+direct path sync                         6         .1    9.32ms    2.7 User I/O
+enq: CR - block range reuse ck          26          0    1.39ms    1.8 Other   
+direct path write                       80          0  272.80us    1.1 User I/O
+Data file init write                    48          0  417.21us    1.0 User I/O
+log file switch (checkpoint in           5          0    3.17ms     .8 Configur
+db file sequential read                268          0   39.14us     .5 User I/O
+db file scattered read                 149          0   32.13us     .2 User I/O
+Disk file operations I/O                14          0  259.57us     .2 User I/O
+
+Wait Classes by Total Wait Time
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                                          Avg             Avg
+                                        Total Wait       Wait   % DB   Active
+Wait Class                  Waits       Time (sec)       Time   time Sessions
+---------------- ---------------- ---------------- ---------- ------ --------
+DB CPU                                           1              60.8      0.6
+Configuration                  11                1    48.98ms   26.4      0.3
+User I/O                      628                0   193.05us    5.9      0.1
+Other                         262                0   181.70us    2.3      0.0
+Concurrency                     3                0    10.08ms    1.5      0.0
+System I/O                     99                0    17.58us     .1      0.0
+Commit                          4                0   207.00us     .0      0.0
+Network                        25                0     1.76us     .0      0.0
+
+IO Profile                  Read+Write/Second     Read/Second    Write/Second
+~~~~~~~~~~                  ----------------- --------------- ---------------
+            Total Requests:             361.2           286.8            74.4
+         Database Requests:             277.5           238.4            39.2
+        Optimized Requests:               1.0             0.5             0.5
+             Redo Requests:   
+                Total (MB):              66.9            24.4            42.5
+             Database (MB):              46.4            23.7            22.8
+      Optimized Total (MB):               0.0             0.0             0.0
+                 Redo (MB):   
+         Database (blocks):           5,939.8         3,027.4         2,912.4
+ Via Buffer Cache (blocks):           3,027.4         3,027.4             0.0
+           Direct (blocks):           2,912.9             0.5         2,912.4
+
+Database Resource Limits
+~~~~~~~~~~~~~~~~~~~~~~~~                Begin              End
+                             ---------------- ----------------
+                       CPUs:                2                2
+                 SGA Target:                0                0
+                 PGA Target:      536,870,912      536,870,912
+              Memory Target:                0                0
+
+
+Main Report
+
+-> Report Summary
+-> Wait Events Statistics
+-> SQL Statistics
+-> Instance Activity Statistics
+-> IO Stats
+-> Wait Statistics
+-> Undo Statistics
+-> Segment Statistics
+-> Dictionary Cache Statistics
+-> Library Cache Statistics
+-> Replication Statistics (GoldenGate, XStream)
+-> Initialization Parameters
+-> Active Session History (ASH) Report
+-> ADDM Reports
+-> Report Footnotes
+
+
+Wait Events Statistics
+-> Time Model Statistics
+-> Foreground Wait Class
+-> Foreground Wait Events
+-> Top Process Types by Wait Class
+-> Top Process Types by CPU Used
+
+
+Time Model Statistics                           DB/Inst: FREE/FREE  Snaps: 1-2
+-> DB Time represents total time in user calls
+-> DB CPU represents CPU time of foreground processes
+-> Total CPU Time represents foreground and background processes
+-> Statistics including the word "background" measure background process
+   time, therefore do not contribute to the DB time statistic
+-> Ordered by % of DB time in descending order, followed by Statistic Name
+
+                                                                % of  % of Total
+Statistic Name                                       Time (s) DB Time   CPU Time
+------------------------------------------ ------------------ ------- ----------
+sql execute elapsed time                                  2.0    99.4           
+DB CPU                                                    1.2    60.8      100.0
+parse time elapsed                                        0.3    14.1           
+hard parse elapsed time                                   0.3    13.6           
+PL/SQL execution elapsed time                             0.0     1.2           
+hard parse (sharing criteria) elapsed time                0.0      .3           
+PL/SQL compilation elapsed time                           0.0      .1           
+repeated bind elapsed time                                0.0      .1           
+failed parse elapsed time                                 0.0      .0           
+DB time                                                   2.0                   
+total CPU time                                            1.2                   
+                          ------------------------------------------------------
+
+Foreground Wait Class                           DB/Inst: FREE/FREE  Snaps: 1-2
+-> s  - second, ms - millisecond, us - microsecond, ns - nanosecond
+-> ordered by wait time desc, waits desc
+-> %Timeouts: value of 0 indicates value was < .5%.  Value of null is truly 0
+-> Captured Time accounts for         95.1%  of Total DB time           2.04 (s)
+-> Total FG Wait Time:                  .70 (s)  DB CPU time:           1.24 (s)
+
+                                     %Time      Total Wait                     
+Wait Class                     Waits -outs        Time (s)   Avg wait  %DB time
+-------------------- --------------- ----- --------------- ---------- ---------
+DB CPU                                                   1                 60.8
+Configuration                     10     0               1    53.31ms      26.1
+User I/O                         570     0               0   209.98us       5.9
+Other                            250     0               0   176.51us       2.2
+System I/O                        99     0               0    17.58us       0.1
+Commit                             4     0               0   207.00us       0.0
+Concurrency                        2     0               0    42.00us       0.0
+Network                           25     0               0     1.76us       0.0
+                          ------------------------------------------------------
+
+
+Foreground Wait Events                          DB/Inst: FREE/FREE  Snaps: 1-2
+-> s  - second, ms - millisecond, us - microsecond, ns - nanosecond
+-> Only events with Total Wait Time (s) >= .001 are shown
+-> ordered by wait time desc, waits desc (idle events last)
+-> %Timeouts: value of 0 indicates value was < .5%.  Value of null is truly 0
+
+                                                Total                          
+                                       %Time     Wait              Waits   % DB
+Event                            Waits -outs Time (s)  Avg wait     /txn   time
+-------------------------- ----------- ----- -------- --------- -------- ------
+log file switch completion           5              1  103.45ms      1.0   25.4
+direct path sync                     6              0    9.32ms      1.2    2.7
+enq: CR - block range reus          26              0    1.39ms      5.2    1.8
+direct path write                   80              0  272.80us     16.0    1.1
+Data file init write                48              0  417.21us      9.6    1.0
+log file switch (checkpoin           5              0    3.17ms      1.0     .8
+db file sequential read            268              0   39.14us     53.6     .5
+db file scattered read             149              0   32.13us     29.8     .2
+Disk file operations I/O            14              0  259.57us      2.8     .2
+DLM cross inst call comple           4              0  847.00us      0.8     .2
+db file single write                 4              0  757.50us      0.8     .1
+reliable message                    26              0   87.96us      5.2     .1
+control file parallel writ          12              0  122.58us      2.4     .1
+Free private memory to OS            4              0  274.50us      0.8     .1
+SQL*Net message from clien          25              0    1.64ms      5.0       
+                          ------------------------------------------------------
+
+
+Top Process Types by Wait Class                 DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Top Process Types by CPU Used                   DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+SQL Statistics
+-> SQL ordered by Elapsed Time
+-> SQL ordered by CPU Time
+-> SQL ordered by User I/O Wait Time
+-> SQL ordered by Gets
+-> SQL ordered by Reads
+-> SQL ordered by Physical Reads (UnOptimized)
+-> SQL ordered by Executions
+-> SQL ordered by Parse Calls
+-> SQL ordered by Sharable Memory
+-> SQL ordered by Version Count
+
+
+SQL ordered by Elapsed Time                     DB/Inst: FREE/FREE  Snaps: 1-2
+-> Resources reported for PL/SQL code includes the resources used by all SQL 
+   statements called by the code.
+-> % Total DB Time is the Elapsed Time of the SQL statement divided 
+   into the Total Database Time multiplied by 100
+-> %Total - Elapsed Time  as a percentage of Total DB time
+-> %CPU   - CPU Time      as a percentage of Elapsed Time
+-> %IO    - User I/O Time as a percentage of Elapsed Time
+-> Captured SQL account for  123.3% of Total DB Time (s):               2
+-> Captured PL/SQL account for    1.4% of Total DB Time (s):               2
+
+        Elapsed                  Elapsed Time                                   
+        Time (s)    Executions  per Exec (s)  %Total   %CPU    %IO    SQL Id    
+---------------- -------------- ------------- ------ ------ ------ -------------
+             1.2              1          1.19   58.1   83.5    3.6 0ya0su0v21g20
+Module: pack-tools
+select /* LLM in use is pack-tools */ dbms_workload_repository.create_snapshot()
+ from dual
+
+             0.7              1          0.73   35.9   18.1   13.5 4tsvftbjzdvgz
+Module: pack-tools
+create /* LLM in use is pack-tools */ table awr_fixture_load as select level id,
+ rpad('x', 200, 'x') pad from dual connect by level <= 200000
+
+             0.4              1          0.38   18.6   99.8     .0 2pkpuk0vd342z
+insert into wrh$_mvparameter (dbid, per_pdb, con_dbid, snap_id, instance_numb
+er, parameter_hash, ordinal, value, isdefault, ismodified) select :dbid, sv.c
+on_id, con_id_to_dbid(sv.con_id) con_dbid, :snap_id, :instance_number, sv.hash
+, sv.ordinal, substr(sv.value, 1, 512), sv.isdefault, sv.ismodified from v$syst
+
+             0.1              1          0.07    3.2   93.4   13.2 apsf3whganf28
+Module: pack-tools
+select /* LLM in use is pack-tools */ count(*), max(pad) from awr_fixture_load w
+here mod(id, 7) = 0
+
+             0.0              1          0.03    1.4   96.5     .0 5rpac32ur336y
+Module: pack-tools
+select /* LLM in use is pack-tools */ mod(id, 10) bucket, count(*) from awr_fixt
+ure_load group by mod(id, 10) order by 1
+
+             0.0              4          0.00    1.0   92.5     .2 0ksjuubjvu2tp
+Module: pack-tools
+ DECLARE PRAGMA AUTONOMOUS_
+TRANSACTION; table_count NUMBER; 
+ BEGIN -- Check if the table exists 
+ SELECT COUNT(*) INTO table_count 
+
+             0.0              4          0.00     .7   91.3     .0 1rm4nmspt35hh
+Module: pack-tools
+SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = 'DBTOOLS$MCP_LOG'
+
+             0.0              1          0.01     .5   89.3   13.4 byhb7wngu17ny
+select count(*) from sys.dba_tab_columns where owner = 'SYS' and ta
+ble_name= :1 and column_name = :2
+
+             0.0              1          0.01     .5  107.4     .0 9nuwrm2gww27b
+insert into wrh$_parameter (dbid, per_pdb, con_dbid, snap_id, instance_number
+, parameter_hash, value, isdefault, ismodified) select :dbid, sp.con_id, con_
+id_to_dbid(sp.con_id) con_dbid, :snap_id, :instance_number, hash, substr(value
+, 1, 512), isdefault, ismodified from v$system_parameter sp 
+
+             0.0              1          0.01     .4   98.9     .0 04vd3ua81u3kg
+insert into wrh$_memory_resize_ops (dbid, per_pdb, con_dbid, snap_id, instanc
+e_number, component, oper_type, start_time, end_time, target_size, oper_mo
+de, parameter, initial_size, final_size, status) select /*+ NO_QUERY_TRANSFOR
+MATION */ :dbid, op.con_id, con_id_to_dbid(op.con_id) con_dbid, :snap_id, :in
+
+                          ------------------------------------------------------
+
+
+SQL ordered by CPU Time                         DB/Inst: FREE/FREE  Snaps: 1-2
+-> Resources reported for PL/SQL code includes the resources used by all SQL 
+   statements called by the code.
+-> %Total - CPU Time      as a percentage of Total DB CPU
+-> %CPU   - CPU Time      as a percentage of Elapsed Time
+-> %IO    - User I/O Time as a percentage of Elapsed Time
+-> Captured SQL account for  137.2% of Total CPU Time (s):               1
+-> Captured PL/SQL account for    2.2% of Total CPU Time (s):               1
+
+    CPU                   CPU per           Elapsed                             
+  Time (s)  Executions    Exec (s) %Total   Time (s)   %CPU    %IO    SQL Id    
+---------- ------------ ---------- ------ ---------- ------ ------ -------------
+       1.0            1       0.99   79.8        1.2   83.5    3.6 0ya0su0v21g20
+Module: pack-tools
+select /* LLM in use is pack-tools */ dbms_workload_repository.create_snapshot()
+ from dual
+
+       0.4            1       0.38   30.6        0.4   99.8     .0 2pkpuk0vd342z
+insert into wrh$_mvparameter (dbid, per_pdb, con_dbid, snap_id, instance_numb
+er, parameter_hash, ordinal, value, isdefault, ismodified) select :dbid, sv.c
+on_id, con_id_to_dbid(sv.con_id) con_dbid, :snap_id, :instance_number, sv.hash
+, sv.ordinal, substr(sv.value, 1, 512), sv.isdefault, sv.ismodified from v$syst
+
+       0.1            1       0.13   10.7        0.7   18.1   13.5 4tsvftbjzdvgz
+Module: pack-tools
+create /* LLM in use is pack-tools */ table awr_fixture_load as select level id,
+ rpad('x', 200, 'x') pad from dual connect by level <= 200000
+
+       0.1            1       0.06    5.0        0.1   93.4   13.2 apsf3whganf28
+Module: pack-tools
+select /* LLM in use is pack-tools */ count(*), max(pad) from awr_fixture_load w
+here mod(id, 7) = 0
+
+       0.0            1       0.03    2.2        0.0   96.5     .0 5rpac32ur336y
+Module: pack-tools
+select /* LLM in use is pack-tools */ mod(id, 10) bucket, count(*) from awr_fixt
+ure_load group by mod(id, 10) order by 1
+
+       0.0            4       0.00    1.5        0.0   92.5     .2 0ksjuubjvu2tp
+Module: pack-tools
+ DECLARE PRAGMA AUTONOMOUS_
+TRANSACTION; table_count NUMBER; 
+ BEGIN -- Check if the table exists 
+ SELECT COUNT(*) INTO table_count 
+
+       0.0            4       0.00    1.1        0.0   91.3     .0 1rm4nmspt35hh
+Module: pack-tools
+SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = 'DBTOOLS$MCP_LOG'
+
+       0.0            1       0.01    0.8        0.0  107.4     .0 9nuwrm2gww27b
+insert into wrh$_parameter (dbid, per_pdb, con_dbid, snap_id, instance_number
+, parameter_hash, value, isdefault, ismodified) select :dbid, sp.con_id, con_
+id_to_dbid(sp.con_id) con_dbid, :snap_id, :instance_number, hash, substr(value
+, 1, 512), isdefault, ismodified from v$system_parameter sp 
+
+       0.0            1       0.01    0.7        0.0   89.3   13.4 byhb7wngu17ny
+select count(*) from sys.dba_tab_columns where owner = 'SYS' and ta
+ble_name= :1 and column_name = :2
+
+       0.0            1       0.01    0.7        0.0   98.9     .0 04vd3ua81u3kg
+insert into wrh$_memory_resize_ops (dbid, per_pdb, con_dbid, snap_id, instanc
+e_number, component, oper_type, start_time, end_time, target_size, oper_mo
+de, parameter, initial_size, final_size, status) select /*+ NO_QUERY_TRANSFOR
+MATION */ :dbid, op.con_id, con_id_to_dbid(op.con_id) con_dbid, :snap_id, :in
+
+                          ------------------------------------------------------
+
+
+SQL ordered by User I/O Wait Time               DB/Inst: FREE/FREE  Snaps: 1-2
+-> Resources reported for PL/SQL code includes the resources used by all SQL 
+   statements called by the code.
+-> %Total - User I/O Time as a percentage of Total User I/O Wait time
+-> %CPU   - CPU Time      as a percentage of Elapsed Time
+-> %IO    - User I/O Time as a percentage of Elapsed Time
+-> Captured SQL account for  137.8% of Total User I/O Wait Time (s):            
+-> Captured PL/SQL account for    1.8% of Total User I/O Wait Time (s):         
+
+  User I/O                UIO per           Elapsed                             
+  Time (s)  Executions    Exec (s) %Total   Time (s)   %CPU    %IO    SQL Id    
+---------- ------------ ---------- ------ ---------- ------ ------ -------------
+       0.1            1       0.10   81.4        0.7   18.1   13.5 4tsvftbjzdvgz
+Module: pack-tools
+create /* LLM in use is pack-tools */ table awr_fixture_load as select level id,
+ rpad('x', 200, 'x') pad from dual connect by level <= 200000
+
+       0.0            1       0.04   35.5        1.2   83.5    3.6 0ya0su0v21g20
+Module: pack-tools
+select /* LLM in use is pack-tools */ dbms_workload_repository.create_snapshot()
+ from dual
+
+       0.0            1       0.01    7.2        0.1   93.4   13.2 apsf3whganf28
+Module: pack-tools
+select /* LLM in use is pack-tools */ count(*), max(pad) from awr_fixture_load w
+here mod(id, 7) = 0
+
+       0.0           23       0.00    5.3        0.0   48.3   77.0 121ffmrc95v7g
+select i.obj#,i.ts#,i.file#,i.block#,i.intcols,i.type#,i.flags,i.property,i.pctf
+ree$,i.initrans,i.maxtrans,i.blevel,i.leafcnt,i.distkey,i.lblkkey,i.dblkkey,i.cl
+ufac,i.cols,i.analyzetime,i.samplesize,i.dataobj#,nvl(i.degree,1),nvl(i.instance
+s,1),i.rowcnt,mod(i.pctthres$,256),i.indmethod#,i.trunccnt,nvl(c.unicols,0),nvl(
+
+       0.0           12       0.00    5.2        0.0   35.8   79.3 0hhmdwwgxbw0r
+select obj#, type#, flags, related, bo, purgeobj, con# from RecycleBin$ wh
+ere ts#=:1 and to_number(bitand(flags, 16)) = 16 order by dropscn
+
+       0.0            1       0.00    1.8        0.0   90.5   25.0 bxu1s25bf60rv
+begin prvt_hdm.execute_manual_actions( :dbid, :end_snap_id ); end;
+
+       0.0            1       0.00    1.1        0.0   89.3   13.4 byhb7wngu17ny
+select count(*) from sys.dba_tab_columns where owner = 'SYS' and ta
+ble_name= :1 and column_name = :2
+
+       0.0            4       0.00    1.0        0.0   44.5   59.2 10gywwmwk6xfy
+select /* QOSD */ /*+ index(eh)*/ objn, sub_id, fixed_cost, text, col_list, flag
+s, ctime from exp_head$ eh where exp_id = :1
+
+       0.0            1       0.00    0.4        0.0  121.2   21.7 djxtkb4gbn2f5
+SELECT /* OPT_DYN_SAMP */ /*+ ALL_ROWS IGNORE_WHERE_CLAUSE RESULT_CACHE(SNAPSHOT
+=3600) opt_param('parallel_execution_enabled', 'false') NO_PARALLEL(SAMPLESUB) N
+O_PARALLEL_INDEX(SAMPLESUB) NO_SQL_TUNE */ NVL(SUM(C1),:"SYS_B_0"), NVL(SUM(C2),
+:"SYS_B_1") FROM (SELECT /*+ IGNORE_WHERE_CLAUSE NO_PARALLEL("AWR_FIXTURE_LOAD")
+
+       0.0            1       0.00    0.3        0.0   90.2    4.8 b3hjnmgapk9hz
+select count(*) num_avs from ( select s.owner src_owner, s.name src_name, av.obj
+# av# from hcs_analytic_view$ av, hcs_src$ s where av.obj# = s.hcs_obj# and av
+.qry_xform_enabled = 1 and av.qry_xform_rely = 1 union select ds.owner src_owner
+, ds.name src_name, av.obj# av# from hcs_analytic_view$ av, hcs_av_dim$ avd, hcs
+
+                          ------------------------------------------------------
+
+
+SQL ordered by Gets                             DB/Inst: FREE/FREE  Snaps: 1-2
+-> Resources reported for PL/SQL code includes the resources used by all SQL 
+   statements called by the code.
+-> %Total - Buffer Gets   as a percentage of Total Buffer Gets
+-> %CPU   - CPU Time      as a percentage of Elapsed Time
+-> %IO    - User I/O Time as a percentage of Elapsed Time
+-> Total Buffer Gets:          72,282
+-> Captured SQL account for  190.9% of Total
+
+     Buffer                 Gets              Elapsed                           
+      Gets   Executions   per Exec   %Total   Time (s)  %CPU   %IO    SQL Id    
+----------- ----------- ------------ ------ ---------- ----- ----- -------------
+     98,903           1     98,903.0  136.8        1.2  83.5   3.6 0ya0su0v21g20
+Module: pack-tools
+select /* LLM in use is pack-tools */ dbms_workload_repository.create_snapshot()
+ from dual
+
+      8,289           1      8,289.0   11.5        0.7  18.1  13.5 4tsvftbjzdvgz
+Module: pack-tools
+create /* LLM in use is pack-tools */ table awr_fixture_load as select level id,
+ rpad('x', 200, 'x') pad from dual connect by level <= 200000
+
+      7,138           1      7,138.0    9.9        0.1  93.4  13.2 apsf3whganf28
+Module: pack-tools
+select /* LLM in use is pack-tools */ count(*), max(pad) from awr_fixture_load w
+here mod(id, 7) = 0
+
+      5,979           1      5,979.0    8.3        0.0  96.5     0 5rpac32ur336y
+Module: pack-tools
+select /* LLM in use is pack-tools */ mod(id, 10) bucket, count(*) from awr_fixt
+ure_load group by mod(id, 10) order by 1
+
+      5,840           1      5,840.0    8.1        0.0 112.7     0 855yvjgw89nfy
+insert into WRH$_SYSSTAT (dbid, per_pdb, con_dbid, snap_id, instance_number, 
+stat_id, value) select /*+ use_hash(v$sysstat) */ :dbid, sysstat.con_id, con_
+id_to_dbid(sysstat.con_id) con_dbid, :snap_id, :instance_number, stat_id, valu
+e FROM v$sysstat sysstat WHERE (1 = 1) AND ( sysstat.con_id < 4099 ) 
+
+      2,975           1      2,975.0    4.1        0.0  73.2     0 1zb651a37ccgg
+insert into wrh$_latch (dbid, per_pdb, con_dbid, snap_id, instance_number, la
+tch_hash, level#, gets, misses, sleeps, immediate_gets, immediate_misses, spi
+n_gets, sleep1, sleep2, sleep3, sleep4, wait_time) select :dbid, ltch.con_
+id, con_id_to_dbid(ltch.con_id) con_dbid, :snap_id, :instance_number, hash, l
+
+      1,198           4        299.5    1.7        0.0  92.5    .2 0ksjuubjvu2tp
+Module: pack-tools
+ DECLARE PRAGMA AUTONOMOUS_
+TRANSACTION; table_count NUMBER; 
+ BEGIN -- Check if the table exists 
+ SELECT COUNT(*) INTO table_count 
+
+        924           1        924.0    1.3        0.0  90.5    25 bxu1s25bf60rv
+begin prvt_hdm.execute_manual_actions( :dbid, :end_snap_id ); end;
+
+        867           4        216.8    1.2        0.0  91.3     0 1rm4nmspt35hh
+Module: pack-tools
+SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = 'DBTOOLS$MCP_LOG'
+
+        792          12         66.0    1.1        0.0  97.6     0 d8r5134hkgn9n
+select s.file#, s.block#, s.blocks from seg$ s where s.type# = 3 and s.ts# = 
+:1 and (s.spare1 is null or bitand(s.spare1, 144115188075855872) <> 14411
+5188075855872)
+
+                          ------------------------------------------------------
+
+
+SQL ordered by Reads                            DB/Inst: FREE/FREE  Snaps: 1-2
+-> %Total - Physical Reads as a percentage of Total Disk Reads
+-> %CPU   - CPU Time      as a percentage of Elapsed Time
+-> %IO    - User I/O Time as a percentage of Elapsed Time
+-> Total Disk Reads:           6,185
+-> Captured SQL account for  108.0% of Total
+
+   Physical              Reads              Elapsed                             
+      Reads  Executions per Exec   %Total   Time (s)   %CPU    %IO    SQL Id    
+----------- ----------- ---------- ------ ---------- ------ ------ -------------
+      5,908           1    5,908.0   95.5        0.1   93.4   13.2 apsf3whganf28
+Module: pack-tools
+select /* LLM in use is pack-tools */ count(*), max(pad) from awr_fixture_load w
+here mod(id, 7) = 0
+
+        464           1      464.0    7.5        1.2   83.5    3.6 0ya0su0v21g20
+Module: pack-tools
+select /* LLM in use is pack-tools */ dbms_workload_repository.create_snapshot()
+ from dual
+
+        267           1      267.0    4.3        0.0  121.2   21.7 djxtkb4gbn2f5
+SELECT /* OPT_DYN_SAMP */ /*+ ALL_ROWS IGNORE_WHERE_CLAUSE RESULT_CACHE(SNAPSHOT
+=3600) opt_param('parallel_execution_enabled', 'false') NO_PARALLEL(SAMPLESUB) N
+O_PARALLEL_INDEX(SAMPLESUB) NO_SQL_TUNE */ NVL(SUM(C1),:"SYS_B_0"), NVL(SUM(C2),
+:"SYS_B_1") FROM (SELECT /*+ IGNORE_WHERE_CLAUSE NO_PARALLEL("AWR_FIXTURE_LOAD")
+
+         59           1       59.0    1.0        0.0   90.5   25.0 bxu1s25bf60rv
+begin prvt_hdm.execute_manual_actions( :dbid, :end_snap_id ); end;
+
+         13           1       13.0    0.2        0.0   89.3   13.4 byhb7wngu17ny
+select count(*) from sys.dba_tab_columns where owner = 'SYS' and ta
+ble_name= :1 and column_name = :2
+
+          7           1        7.0    0.1        0.0   90.2    4.8 b3hjnmgapk9hz
+select count(*) num_avs from ( select s.owner src_owner, s.name src_name, av.obj
+# av# from hcs_analytic_view$ av, hcs_src$ s where av.obj# = s.hcs_obj# and av
+.qry_xform_enabled = 1 and av.qry_xform_rely = 1 union select ds.owner src_owner
+, ds.name src_name, av.obj# av# from hcs_analytic_view$ av, hcs_av_dim$ avd, hcs
+
+          5           1        5.0    0.1        0.0  100.0   46.8 a3jpjzh7mtwwp
+select /*+ index(idl_ub2$ i_idl_ub21) */ piece#,length,piece from idl_ub2$ where
+ obj#=:1 and part=:2 and version=:3 order by piece#
+
+          4           9        0.4    0.1        0.0   91.2    9.7 3un99a0zwp4vd
+select owner#,name,namespace,remoteowner,linkname,p_timestamp,p_obj#, nvl(proper
+ty,0),subname,type#,flags,d_attrs from dependency$ d, obj$ o where d_obj#=:1 and
+ p_obj#=obj#(+) order by order#
+
+          4           9        0.4    0.1        0.0   94.7   48.4 8swypbbr0m372
+select order#,columns,types from access$ where d_obj#=:1
+
+          3          23        0.1    0.0        0.0   48.3   77.0 121ffmrc95v7g
+select i.obj#,i.ts#,i.file#,i.block#,i.intcols,i.type#,i.flags,i.property,i.pctf
+ree$,i.initrans,i.maxtrans,i.blevel,i.leafcnt,i.distkey,i.lblkkey,i.dblkkey,i.cl
+ufac,i.cols,i.analyzetime,i.samplesize,i.dataobj#,nvl(i.degree,1),nvl(i.instance
+s,1),i.rowcnt,mod(i.pctthres$,256),i.indmethod#,i.trunccnt,nvl(c.unicols,0),nvl(
+
+                          ------------------------------------------------------
+
+
+SQL ordered by Physical Reads (UnOptimized)     DB/Inst: FREE/FREE  Snaps: 1-2
+-> UnOptimized Read Reqs = Physical Read Reqs - 
+     (Optimized Read Reqs - Cell Flash Cache Read Hits for Controlfile)
+-> %Opt   - Optimized Reads as percentage of SQL Read Requests
+-> %Total - UnOptimized Read Reqs as a percentage of Total UnOptimized Read Reqs
+-> Total Physical Read Requests:             487
+-> Captured SQL account for  176.4% of Total
+-> Total UnOptimized Read Requests:             487
+-> Captured SQL account for  176.4% of Total
+-> Total Optimized Read Requests:               1
+-> Captured SQL account for    0.0% of Total
+
+UnOptimized   Physical              UnOptimized                            
+  Read Reqs   Read Reqs Executions Reqs per Exe   %Opt %Total    SQL Id    
+----------- ----------- ---------- ------------ ------ ------ -------------
+        531         531          1        531.0    0.0  109.0 0ya0su0v21g20
+Module: pack-tools
+select /* LLM in use is pack-tools */ dbms_workload_repository.create_snapshot()
+ from dual
+
+        210         210          1        210.0    0.0   43.1 apsf3whganf28
+Module: pack-tools
+select /* LLM in use is pack-tools */ count(*), max(pad) from awr_fixture_load w
+here mod(id, 7) = 0
+
+         64          64          1         64.0    0.0   13.1 djxtkb4gbn2f5
+SELECT /* OPT_DYN_SAMP */ /*+ ALL_ROWS IGNORE_WHERE_CLAUSE RESULT_CACHE(SNAPSHOT
+=3600) opt_param('parallel_execution_enabled', 'false') NO_PARALLEL(SAMPLESUB) N
+O_PARALLEL_INDEX(SAMPLESUB) NO_SQL_TUNE */ NVL(SUM(C1),:"SYS_B_0"), NVL(SUM(C2),
+:"SYS_B_1") FROM (SELECT /*+ IGNORE_WHERE_CLAUSE NO_PARALLEL("AWR_FIXTURE_LOAD")
+
+         59          59          1         59.0    0.0   12.1 bxu1s25bf60rv
+begin prvt_hdm.execute_manual_actions( :dbid, :end_snap_id ); end;
+
+         24          24          4          6.0    0.0    4.9 g03rnytdk0jvf
+Module: SQLcl-MCP
+ SELECT open_mode FROM v$database 
+
+         13          13          1         13.0    0.0    2.7 byhb7wngu17ny
+select count(*) from sys.dba_tab_columns where owner = 'SYS' and ta
+ble_name= :1 and column_name = :2
+
+          8           8          1          8.0    0.0    1.6 4tsvftbjzdvgz
+Module: pack-tools
+create /* LLM in use is pack-tools */ table awr_fixture_load as select level id,
+ rpad('x', 200, 'x') pad from dual connect by level <= 200000
+
+          7           7          1          7.0    0.0    1.4 b3hjnmgapk9hz
+select count(*) num_avs from ( select s.owner src_owner, s.name src_name, av.obj
+# av# from hcs_analytic_view$ av, hcs_src$ s where av.obj# = s.hcs_obj# and av
+.qry_xform_enabled = 1 and av.qry_xform_rely = 1 union select ds.owner src_owner
+, ds.name src_name, av.obj# av# from hcs_analytic_view$ av, hcs_av_dim$ avd, hcs
+
+          1           1          4          0.3    0.0    0.2 0ksjuubjvu2tp
+Module: pack-tools
+ DECLARE PRAGMA AUTONOMOUS_
+TRANSACTION; table_count NUMBER; 
+ BEGIN -- Check if the table exists 
+ SELECT COUNT(*) INTO table_count 
+
+          1           1          4          0.3    0.0    0.2 10gywwmwk6xfy
+select /* QOSD */ /*+ index(eh)*/ objn, sub_id, fixed_cost, text, col_list, flag
+s, ctime from exp_head$ eh where exp_id = :1
+
+                          ------------------------------------------------------
+
+
+SQL ordered by Executions                       DB/Inst: FREE/FREE  Snaps: 1-2
+-> %CPU   - CPU Time      as a percentage of Elapsed Time
+-> %IO    - User I/O Time as a percentage of Elapsed Time
+-> Total Executions:           9,103
+-> Captured SQL account for    7.2% of Total
+
+                                              Elapsed                           
+ Executions   Rows Processed  Rows per Exec   Time (s)  %CPU   %IO    SQL Id    
+------------ --------------- -------------- ---------- ----- ----- -------------
+         109             123            1.1        0.0  86.3     0 53saa2zkr6wc3
+select intcol#,nvl(pos#,0),col#,nvl(spare1,0) from ccol$ where con#=:1
+
+          93              93            1.0        0.0 100.1     0 05d0ckrja68sf
+insert into wrm$_snapshot_details (snap_id, dbid, instance_number, table_id, b
+egin_time, end_time, step_id, flush_seq) select :snap_id, :dbid, :instance_numbe
+r, :bind1, :bind2, :bind3, :step_id, :bind4 from dual 
+
+          41              41            1.0        0.0  77.2     0 acmvv4fhdc9zh
+select obj#,type#,ctime,mtime,stime, status, dataobj#, flags, oid$, spare1, spar
+e2, spare3, signature, spare7, spare8, spare9, nvl(dflcollid, 16382), creappid, 
+creverid, modappid, modverid, crepatchid, modpatchid from obj$ where owner#=:1 a
+nd name=:2 and namespace=:3 and remoteowner is null and linkname is null and sub
+
+          37               0            0.0        0.0  82.2     0 04kug40zbu4dm
+select policy#, action# from aud_object_opt$ where object# = :1 and type = 2
+
+          37               0            0.0        0.0  78.9     0 dkpbcdcp1bwpb
+select policy#, action#, intcol# from sys.aud_objcol_opt$ where object
+# = :1
+
+          35              35            1.0        0.0    99     0 fkc81h2686aqc
+Module: pack-tools
+select pob.parttype from sys.indpart$ ip, sys.partobj$ pob where ip.bo# = pob.o
+bj# and ip.obj# = :oid
+
+          31             644           20.8        0.0    76     0 ajyuz252n1fu6
+select name,intcol#,segcol#,type#,length,nvl(precision#,0),decode(type#,2,nvl(sc
+ale,-127/*MAXSB1MINAL*/),178,scale,179,scale,180,scale,181,scale,182,scale,183,s
+cale,231,scale,119,nvl(scale,0),127,nvl(scale,0),0),null$,fixedstorage,nvl(defle
+ngth,0),default$,rowid,col#,property, nvl(charsetid,0),nvl(charsetform,0),spare1
+
+          23              47            2.0        0.0  48.3    77 121ffmrc95v7g
+select i.obj#,i.ts#,i.file#,i.block#,i.intcols,i.type#,i.flags,i.property,i.pctf
+ree$,i.initrans,i.maxtrans,i.blevel,i.leafcnt,i.distkey,i.lblkkey,i.dblkkey,i.cl
+ufac,i.cols,i.analyzetime,i.samplesize,i.dataobj#,nvl(i.degree,1),nvl(i.instance
+s,1),i.rowcnt,mod(i.pctthres$,256),i.indmethod#,i.trunccnt,nvl(c.unicols,0),nvl(
+
+          17               1            0.1        0.0  70.1     0 cw1mnps0mfazc
+select /*+ rule */ con#,obj#,rcon#,enabled,nvl(defer,0),spare2,spare3,refact fro
+m cdef$ where robj#=:1
+
+          16               0            0.0        0.0  83.1     0 5tpf45n13db7c
+select annotation_name, annotation_value, annotation_type, intcol_id from annota
+tions_usage$ where obj#=:1 order by intcol_id, annotation_name
+
+                          ------------------------------------------------------
+
+
+SQL ordered by Parse Calls                      DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Parse Calls:           3,384
+-> Captured SQL account for    9.2% of Total
+
+                            % Total              
+ Parse Calls  Executions     Parses    SQL Id    
+------------ ------------ --------- -------------
+          93           93      2.75 05d0ckrja68sf
+insert into wrm$_snapshot_details (snap_id, dbid, instance_number, table_id, b
+egin_time, end_time, step_id, flush_seq) select :snap_id, :dbid, :instance_numbe
+r, :bind1, :bind2, :bind3, :step_id, :bind4 from dual 
+
+          35           35      1.03 fkc81h2686aqc
+Module: pack-tools
+select pob.parttype from sys.indpart$ ip, sys.partobj$ pob where ip.bo# = pob.o
+bj# and ip.obj# = :oid
+
+          16           16      0.47 fs4p95w7yg25b
+Module: pack-tools
+select pob.parttype from sys.tabpart$ tp, sys.partobj$ pob where tp.bo# = pob.o
+bj# and tp.obj# = :oid
+
+          13           13      0.38 6n2qqv1brfhpp
+Module: pack-tools
+select ind.type#, ind.property, base_obj.obj#, base_owner.name, base_obj.name
+ from sys.ind$ ind, sys.user$ base_owner, sys.obj$ base_obj where ind.obj# 
+ = :oid and ind.dataobj# = :doid and ind.bo# = base_obj
+.obj# and base_obj.owner# = base_owner.user#
+
+          12           12      0.35 0hhmdwwgxbw0r
+select obj#, type#, flags, related, bo, purgeobj, con# from RecycleBin$ wh
+ere ts#=:1 and to_number(bitand(flags, 16)) = 16 order by dropscn
+
+          12           12      0.35 d8r5134hkgn9n
+select s.file#, s.block#, s.blocks from seg$ s where s.type# = 3 and s.ts# = 
+:1 and (s.spare1 is null or bitand(s.spare1, 144115188075855872) <> 14411
+5188075855872)
+
+          10           10      0.30 5u7g54s63p4ts
+select toid from type$ where package_obj#=:1 and typ_name=:2
+
+           9            9      0.27 3un99a0zwp4vd
+select owner#,name,namespace,remoteowner,linkname,p_timestamp,p_obj#, nvl(proper
+ty,0),subname,type#,flags,d_attrs from dependency$ d, obj$ o where d_obj#=:1 and
+ p_obj#=obj#(+) order by order#
+
+           9            9      0.27 8swypbbr0m372
+select order#,columns,types from access$ where d_obj#=:1
+
+           8            8      0.24 8fkf44w2uz074
+select l.col#, l.intcol#, l.lobj#, l.ind#, l.ts#, l.file#, l.block#, l.chunk, l.
+pctversion$, l.flags, l.property, l.retention, l.freepools, l.maxinl from lob$ l
+ where l.obj# = :1 order by l.intcol# asc
+
+                          ------------------------------------------------------
+
+
+SQL ordered by Sharable Memory                  DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+SQL ordered by Version Count                    DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Instance Activity Statistics
+-> Key Instance Activity Stats
+-> Instance Activity Stats
+-> Instance Activity Stats - Absolute Values
+
+
+Key Instance Activity Stats                     DB/Inst: FREE/FREE  Snaps: 1-2
+-> Ordered by statistic name
+
+Statistic                                     Total     per Second     per Trans
+-------------------------------- ------------------ -------------- -------------
+db block changes                             17,376        8,505.1       3,475.2
+execute count                                 9,103        4,455.7       1,820.6
+logons cumulative                                 0            0.0           0.0
+opened cursors cumulative                     8,723        4,269.7       1,744.6
+parse count (total)                           3,384        1,656.4         676.8
+parse time elapsed                               13            6.4           2.6
+physical reads                                6,185        3,027.4       1,237.0
+physical writes                               5,950        2,912.4       1,190.0
+redo size                                53,003,324   25,943,868.8  10,600,664.8
+session cursor cache hits                     8,618        4,218.3       1,723.6
+session logical reads                        72,282       35,380.3      14,456.4
+user calls                                       49           24.0           9.8
+user commits                                      5            2.5           1.0
+user rollbacks                                    0            0.0           0.0
+workarea executions - optimal                   700          342.6         140.0
+                          ------------------------------------------------------
+
+
+Instance Activity Stats                         DB/Inst: FREE/FREE  Snaps: 1-2
+-> Ordered by statistic name
+
+Statistic                                     Total     per Second     per Trans
+-------------------------------- ------------------ -------------- -------------
+ASSM cbk:blocks examined                        415          203.1          83.0
+ASSM cbk:blocks marked full                     179           87.6          35.8
+ASSM gsp:L1 bitmaps examined                    405          198.2          81.0
+ASSM gsp:L2 bitmap full                           7            3.4           1.4
+ASSM gsp:L2 bitmaps examined                    394          192.9          78.8
+ASSM gsp:Search all                              19            9.3           3.8
+ASSM gsp:Search hint                             19            9.3           3.8
+ASSM gsp:Search steal                            19            9.3           3.8
+ASSM gsp:bump HWM                                19            9.3           3.8
+ASSM gsp:get free block                         362          177.2          72.4
+ASSM gsp:good hint                              218          106.7          43.6
+ASSM rsv:fill reserve                            14            6.9           2.8
+Batched IO (bound) vector count                   0            0.0           0.0
+Batched IO block miss count                       0            0.0           0.0
+Batched IO double miss count                      0            0.0           0.0
+Batched IO same unit count                        0            0.0           0.0
+Batched IO single block count                     0            0.0           0.0
+Batched IO vector block count                     0            0.0           0.0
+Batched IO vector read count                      0            0.0           0.0
+CCursor + sql area evicted                      188           92.0          37.6
+CCursor + sql area evicted - fai                347          169.9          69.4
+CPU used by this session                        101           49.4          20.2
+CPU used when call started                      123           60.2          24.6
+CR blocks created                                17            8.3           3.4
+Client Advertised Receive Window                  0            0.0           0.0
+Client Advertised Send Window                     0            0.0           0.0
+Client Data Segments In                           0            0.0           0.0
+Client Data Segments Out                          0            0.0           0.0
+Client Path Maximum Transmission                  0            0.0           0.0
+Client Send Congestion Window                     0            0.0           0.0
+Client Time (usec) Busy Sending                   0            0.0           0.0
+Client Time (usec) Round Trip Ti                  0            0.0           0.0
+Client Time (usec) Round Trip Ti                  0            0.0           0.0
+Client Total Bytes Acked                          0            0.0           0.0
+Client Total Bytes Received                       0            0.0           0.0
+DDLs executed                                     1            0.5           0.2
+DML statements retried                            0            0.0           0.0
+HSC Heap Segment Block Changes                  888          434.7         177.6
+Heap Segment Array Inserts                      312          152.7          62.4
+Heap Segment Array Updates                        0            0.0           0.0
+IMU Flushes                                       0            0.0           0.0
+IMU Redo allocation size                          0            0.0           0.0
+IMU commits                                       4            2.0           0.8
+IMU pool not allocated                            0            0.0           0.0
+IMU undo allocation size                      4,384        2,145.9         876.8
+IMU- failed to get a private str                  0            0.0           0.0
+KTFB alloc myinst                               112           54.8          22.4
+KTFB alloc req                                  191           93.5          38.2
+KTFB alloc search FFB                           112           54.8          22.4
+KTFB alloc space (block)                 50,398,320   24,668,781.2  10,079,664.0
+KTFB alloc time (ms)                         94,932       46,467.0      18,986.4
+KTFB apply req                                   18            8.8           3.6
+KTFB apply time (ms)                             26           12.7           5.2
+PX local messages recv'd                          0            0.0           0.0
+PX local messages sent                            0            0.0           0.0
+Requests to/from client                          25           12.2           5.0
+SQL*Net roundtrips to/from clien                 25           12.2           5.0
+Session total flash IO requests                 738          361.2         147.6
+active txn count during cleanout                151           73.9          30.2
+buffer is not pinned count                   26,338       12,891.8       5,267.6
+
+Instance Activity Stats                         DB/Inst: FREE/FREE  Snaps: 1-2
+-> Ordered by statistic name
+
+Statistic                                     Total     per Second     per Trans
+-------------------------------- ------------------ -------------- -------------
+buffer is pinned count                        2,313        1,132.2         462.6
+bytes received via SQL*Net from              21,799       10,670.1       4,359.8
+bytes sent via SQL*Net to client              3,048        1,491.9         609.6
+calls to get snapshot scn: kcmgs             13,280        6,500.2       2,656.0
+calls to kcmadj                                 261          127.8          52.2
+calls to kcmgas                                 860          421.0         172.0
+calls to kcmgcs                               4,492        2,198.7         898.4
+cell physical IO interconnect by        143,302,656   70,143,248.2  28,660,531.2
+change write time                                 1            0.5           0.2
+cleanout - number of ktugct call                153           74.9          30.6
+cleanouts and rollbacks - consis                  0            0.0           0.0
+cleanouts only - consistent read                  0            0.0           0.0
+cluster key scan block gets                   1,530          748.9         306.0
+cluster key scans                               788          385.7         157.6
+commit batch/immediate performed                 77           37.7          15.4
+commit batch/immediate requested                 77           37.7          15.4
+commit cleanout failures: callba                  5            2.5           1.0
+commit cleanouts                              1,255          614.3         251.0
+commit cleanouts successfully co              1,250          611.9         250.0
+commit immediate performed                       77           37.7          15.4
+commit immediate requested                       77           37.7          15.4
+commit txn count during cleanout                 45           22.0           9.0
+consistent changes                                2            1.0           0.4
+consistent gets                              47,602       23,300.1       9,520.4
+consistent gets examination                  12,300        6,020.6       2,460.0
+consistent gets examination (fas             12,275        6,008.3       2,455.0
+consistent gets from cache                   47,666       23,331.4       9,533.2
+consistent gets pin                          35,345       17,300.5       7,069.0
+consistent gets pin (fastpath)               34,802       17,034.8       6,960.4
+control file blocks written                      24           11.8           4.8
+control file cache search for re                626          306.4         125.2
+control file cache search for re                  0            0.0           0.0
+control file exclusive latch suc                  0            0.0           0.0
+control file read req (single-bl                 87           42.6          17.4
+control file read req (single-bl                 87           42.6          17.4
+cursor authentications                           54           26.4          10.8
+cursor reload failures                            1            0.5           0.2
+data blocks consistent reads - u                  2            1.0           0.4
+db block changes                             17,376        8,505.1       3,475.2
+db block gets                                24,680       12,080.3       4,936.0
+db block gets direct                          5,883        2,879.6       1,176.6
+db block gets from cache                     18,797        9,200.7       3,759.4
+db block gets from cache (fastpa             13,386        6,552.1       2,677.2
+deferred (CURRENT) block cleanou                581          284.4         116.2
+enqueue conversions                             104           50.9          20.8
+enqueue releases                              2,764        1,352.9         552.8
+enqueue requests                              2,776        1,358.8         555.2
+enqueue timeouts                                 12            5.9           2.4
+enqueue waits                                    26           12.7           5.2
+execute count                                 9,103        4,455.7       1,820.6
+file io service time                              0            0.0           0.0
+free buffer requested                         7,295        3,570.7       1,459.0
+heap block compress                              12            5.9           2.4
+immediate (CR) block cleanout ap                  0            0.0           0.0
+immediate (CURRENT) block cleano                383          187.5          76.6
+index coal, examined blocks                       0            0.0           0.0
+index crx upgrade (positioned)                    0            0.0           0.0
+index fetch by key                            3,338        1,633.9         667.6
+index range scans                             6,304        3,085.7       1,260.8
+leaf node 90-10 splits                            0            0.0           0.0
+
+Instance Activity Stats                         DB/Inst: FREE/FREE  Snaps: 1-2
+-> Ordered by statistic name
+
+Statistic                                     Total     per Second     per Trans
+-------------------------------- ------------------ -------------- -------------
+leaf node splits                                 41           20.1           8.2
+lob writes                                        4            2.0           0.8
+lob writes unaligned                              4            2.0           0.8
+logical read bytes from cache           544,677,888  266,606,895.7 1.0893558E+08
+logons cumulative                                 0            0.0           0.0
+max cf enq hold time                              4            2.0           0.8
+messages sent                                   201           98.4          40.2
+no work - consistent read gets               30,393       14,876.7       6,078.6
+non-idle wait count                           1,128          552.1         225.6
+number of successful DB user log                  0            0.0           0.0
+number of successful DB user log                  0            0.0           0.0
+opened cursors cumulative                     8,723        4,269.7       1,744.6
+parse count (failures)                            1            0.5           0.2
+parse count (hard)                              277          135.6          55.4
+parse count (total)                           3,384        1,656.4         676.8
+parse time cpu                                   16            7.8           3.2
+parse time elapsed                               13            6.4           2.6
+physical read IO requests                       487          238.4          97.4
+physical read bytes                      50,667,520   24,800,548.2  10,133,504.0
+physical read total IO requests                 586          286.8         117.2
+physical read total bytes                52,191,232   25,546,369.1  10,438,246.4
+physical read total multi block                  82           40.1          16.4
+physical reads                                6,185        3,027.4       1,237.0
+physical reads cache                          6,185        3,027.4       1,237.0
+physical reads cache prefetch                 5,698        2,789.0       1,139.6
+physical write IO requests                       80           39.2          16.0
+physical write bytes                     48,742,400   23,858,247.7   9,748,480.0
+physical write total IO requests                152           74.4          30.4
+physical write total bytes               91,111,424   44,596,879.1  18,222,284.8
+physical write total multi block                 87           42.6          17.4
+physical writes                               5,950        2,912.4       1,190.0
+physical writes direct                        5,950        2,912.4       1,190.0
+physical writes direct (lob)                     67           32.8          13.4
+physical writes non checkpoint                5,950        2,912.4       1,190.0
+pinned cursors current                            4            2.0           0.8
+process last non-idle time                        2            1.0           0.4
+recursive calls                              25,826       12,641.2       5,165.2
+recursive cpu usage                              86           42.1          17.2
+redo buffer allocation retries                    5            2.5           1.0
+redo entries                                 15,960        7,812.0       3,192.0
+redo log space requests                          18            8.8           3.6
+redo size                                53,003,324   25,943,868.8  10,600,664.8
+redo size for direct writes              48,454,456   23,717,305.9   9,690,891.2
+redo synch time (usec)                          842          412.1         168.4
+redo synch time overhead (usec)                  65           31.8          13.0
+redo synch time overhead count (                  4            2.0           0.8
+redo synch writes                                 8            3.9           1.6
+redo write info find                              4            2.0           0.8
+rollback changes - undo records                  18            8.8           3.6
+rollbacks only - consistent read                  2            1.0           0.4
+rows fetched via callback                     1,448          708.8         289.6
+securefile alloc all sources                     33           16.2           6.6
+securefile allocation bytes                 548,864      268,655.9     109,772.8
+securefile allocation chunks                     33           16.2           6.6
+securefile bytes non-transformed            407,576      199,498.8      81,515.2
+securefile direct write bytes               548,864      268,655.9     109,772.8
+securefile direct write ops                      33           16.2           6.6
+securefile number of cfs added                    4            2.0           0.8
+securefile number of non-transfo                 34           16.6           6.8
+securefile number of ufs added                    2            1.0           0.4
+
+Instance Activity Stats                         DB/Inst: FREE/FREE  Snaps: 1-2
+-> Ordered by statistic name
+
+Statistic                                     Total     per Second     per Trans
+-------------------------------- ------------------ -------------- -------------
+securefile number of waits for c                  2            1.0           0.4
+securefiles dispenser load chunk                210          102.8          42.0
+segment cfs allocations                           8            3.9           1.6
+segment chunks allocation from d                 33           16.2           6.6
+segment dispenser allocations                    33           16.2           6.6
+segment dispenser load tasks                      2            1.0           0.4
+segment prealloc tasks                           12            5.9           2.4
+segment total chunk allocation                    8            3.9           1.6
+session connect time                              0            0.0           0.0
+session cursor cache hits                     8,618        4,218.3       1,723.6
+session logical reads                        72,282       35,380.3      14,456.4
+shared hash latch upgrades - no               6,250        3,059.2       1,250.0
+shared io pool buffer get succes                 33           16.2           6.6
+sorts (memory)                                  997          488.0         199.4
+sorts (rows)                                204,212       99,956.9      40,842.4
+sql area evicted                                256          125.3          51.2
+sql area purged                                   1            0.5           0.2
+switch current caused by our pin                104           50.9          20.8
+switch current to new buffer                    105           51.4          21.0
+table fetch by rowid                          7,096        3,473.3       1,419.2
+table fetch continued row                        47           23.0           9.4
+table scan blocks gotten                     17,032        8,336.8       3,406.4
+table scan disk non-IMC rows got            634,073      310,363.7     126,814.6
+table scan rows gotten                      634,073      310,363.7     126,814.6
+table scans (long tables)                         1            0.5           0.2
+table scans (short tables)                      739          361.7         147.8
+total cf enq hold time                            7            3.4           1.4
+total number of cf enq holders                  112           54.8          22.4
+transaction rollbacks                            17            8.3           3.4
+undo change vector size                   1,238,052      605,997.1     247,610.4
+user calls                                       49           24.0           9.8
+user commits                                      5            2.5           1.0
+user commits Autonomous                           4            2.0           0.8
+user commits PL/SQL                               4            2.0           0.8
+user commits Top Level                            1            0.5           0.2
+user logons cumulative                            0            0.0           0.0
+user logouts cumulative                           0            0.0           0.0
+user rollbacks                                    0            0.0           0.0
+workarea executions - optimal                   700          342.6         140.0
+write clones created in foregrou                  2            1.0           0.4
+                          ------------------------------------------------------
+
+
+Instance Activity Stats - Absolute Values       DB/Inst: FREE/FREE  Snaps: 1-2
+-> Statistics with absolute values (should not be diffed)
+
+Statistic                                    Begin Value       End Value
+---------------------------------------- --------------- ---------------
+logons current                                         1               1
+opened cursors current                                 5               9
+session cursor cache count                           570             571
+session pga memory                             4,347,336       6,575,560
+session pga memory max                        11,769,968      58,217,928
+session uga memory                            26,964,296      28,734,400
+session uga memory max                        54,584,176      64,551,640
+total number of online undo segments                  11              11
+                          ------------------------------------------------------
+
+
+IO Stats
+
+-> IOStat by Function summary
+-> IOStat by Filetype summary
+-> IOStat by Function/Filetype summary
+-> TableSpace IO Stats
+-> File IO Stats
+
+IOStat by Filetype summary                      DB/Inst: FREE/FREE  Snaps: 1-2
+-> 'Data' columns suffixed with M,G,T,P are in multiples of 1024
+    other columns suffixed with K,M,G,T,P are in multiples of 1000
+-> Small Read and Large Read are average service times
+-> Ordered by (Data Read + Write) desc
+
+                Reads:  Reqs    Data   Writes:  Reqs    Data      Small    Large
+Filetype Name     Data per sec per sec    Data per sec per sec     Read     Read
+-------------- ------- ------- ------- ------- ------- ------- -------- --------
+Data File          47M   208.5 23.005M    102M   251.1 49.927M   2.91us    .00ns
+TOTAL:             47M   208.5 23.005M    102M   251.1 49.927M   2.91us    .00ns
+                          ------------------------------------------------------
+
+
+Tablespace IO Stats                             DB/Inst: FREE/FREE  Snaps: 1-2
+-> ordered by IOs (Reads + Writes) desc
+
+Tablespace                    
+------------------------------
+                  Av          Av        Av          1-bk     Av 1-bk  % Opt
+      Reads       Rds/s     Rd(ms)    Blks/Rd       Rds/s     Rd(ms)  Reads
+----------- ----------- ---------- ---------- ----------- ---------- ------
+                 Writes        Av      Buffer     Av Buf
+     Writes       avg/s Writes(ms)      Waits     Wt(ms)
+----------- ----------- ---------- ---------- ----------
+SYSAUX                        
+        152          74        0.1        1.0          74        0.0     .0
+        207         101        0.2         12        0.0
+UNDOTBS1                      
+          0           0        0.0         .0           0        0.0     .0
+         85          42        0.1          0        0.0
+                          ------------------------------------------------------
+
+
+File IO Stats                                   DB/Inst: FREE/FREE  Snaps: 1-2
+-> ordered by Tablespace, File
+
+Tablespace               Filename                                            
+------------------------ ----------------------------------------------------
+                  Av          Av        Av          1-bk     Av 1-bk  % Opt
+      Reads       Rds/s     Rd(ms)    Blks/Rd       Rds/s     Rd(ms)  Reads
+----------- ----------- ---------- ---------- ----------- ---------- ------
+                 Writes        Av      Buffer     Av Buf
+     Writes       avg/s Writes(ms)      Waits     Wt(ms)
+----------- ----------- ---------- ---------- ----------
+SYSAUX                   /opt/oracle/oradata/FREE/FREEPDB1/sysaux01.dbf      
+        152          74        0.1        1.0          74        0.0     .0
+        207         101        0.2         12        0.0
+UNDOTBS1                 /opt/oracle/oradata/FREE/FREEPDB1/undotbs01.dbf     
+          0           0        N/A        N/A           0        N/A    N/A
+         85          42        0.1          0        0.0
+                          ------------------------------------------------------
+
+
+Wait Statistics
+
+-> Wait Statistics
+
+Wait Statistics
+
+Buffer Wait Statistics                          DB/Inst: FREE/FREE  Snaps: 1-2
+-> ordered by wait time desc, waits desc
+
+Class                    Waits Total Wait Time (s)  Avg Time (ms)
+------------------ ----------- ------------------- --------------
+1st level bmb                9                   0              0
+free list                    3                   0              0
+                          ------------------------------------------------------
+
+Undo Statistics
+-> Undo Segment Summary
+-> Undo Segment Stats
+-> Undo Tablespace Stats
+
+
+Undo Segment Summary                            DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Undo Segment Stats                              DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Undo Tablespace Stats                           DB/Inst: FREE/FREE  Snaps: 1-2
+-> This section shows the statistics for the Undo Tablespace 
+ at the beginning and end of the snapshot.
+
+Statistic                            Begin Value       End Value
+-------------------------------- --------------- ---------------
+Tablespace#                                  N/A             N/A
+Tablespace Size (MB)                         N/A             N/A
+                          ------------------------------------------------------
+
+Segment Statistics
+-> Segments by Logical Reads
+-> Segments by Physical Reads
+-> Segments by Physical Read Requests
+-> Segments by UnOptimized Reads
+-> Segments by Optimized Reads
+-> Segments by Direct Physical Reads
+-> Segments by Physical Writes
+-> Segments by Physical Write Requests
+-> Segments by Direct Physical Writes
+-> Segments by Table Scans
+-> Segments by DB Blocks Changes
+-> Segments by Row Lock Waits
+-> Segments by ITL Waits
+-> Segments by Buffer Busy Waits
+
+
+Segments by Logical Reads                       DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Logical Reads:          72,282
+-> Captured Segments account for   54.7% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                             Logical        
+Object Name            Name     Type        Obj#   Dataobj#        Reads  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290       18,208   25.19
+SYS                  SYSAUX    
+WRH$_SYSSTAT_PK      31841_MXSN INDEX      72872      72872        5,264    7.28
+SYS                  SYSAUX    
+WRH$_LATCH_PK        31841_MXSN INDEX      72800      72800        2,448    3.39
+SYS                  SYSTEM    
+I_HH_OBJ#_INTCOL#               INDEX         70         70        1,232    1.70
+SYS                  SYSTEM    
+SEG$                            TABLE         14          8          976    1.35
+                          ------------------------------------------------------
+
+Segments by Physical Reads                      DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Physical Reads:           6,185
+-> Captured Segments account for   97.8% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                            Physical        
+Object Name            Name     Type        Obj#   Dataobj#        Reads  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290        5,883   95.12
+SYS                  SYSAUX    
+SYS_LOB0000014592C00 S_LOB_P667 LOB P      72759      72759           64    1.03
+SYS                  SYSAUX    
+SYS_LOB0000014616C00 S_LOB_P671 LOB P      72771      72771           59     .95
+SYS                  SYSTEM    
+HIST_HEAD$                      TABLE         68         68            6     .10
+SYS                  SYSTEM    
+I_OBJ2                          INDEX         37         37            6     .10
+                          ------------------------------------------------------
+
+Segments by Physical Read Requests              DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Physical Read Requests:             487
+-> Captured Segments account for   71.7% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                           Phys Read        
+Object Name            Name     Type        Obj#   Dataobj#     Requests  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290          185   37.99
+SYS                  SYSAUX    
+SYS_LOB0000014592C00 S_LOB_P667 LOB P      72759      72759           64   13.14
+SYS                  SYSAUX    
+SYS_LOB0000014616C00 S_LOB_P671 LOB P      72771      72771           59   12.11
+SYS                  SYSTEM    
+HIST_HEAD$                      TABLE         68         68            6    1.23
+SYS                  SYSTEM    
+I_OBJ2                          INDEX         37         37            6    1.23
+                          ------------------------------------------------------
+
+Segments by UnOptimized Reads                   DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total UnOptimized Read Requests:             487
+-> Captured Segments account for   71.7% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                         UnOptimized        
+Object Name            Name     Type        Obj#   Dataobj#        Reads  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290          185   37.99
+SYS                  SYSAUX    
+SYS_LOB0000014592C00 S_LOB_P667 LOB P      72759      72759           64   13.14
+SYS                  SYSAUX    
+SYS_LOB0000014616C00 S_LOB_P671 LOB P      72771      72771           59   12.11
+SYS                  SYSTEM    
+HIST_HEAD$                      TABLE         68         68            6    1.23
+SYS                  SYSTEM    
+I_OBJ2                          INDEX         37         37            6    1.23
+                          ------------------------------------------------------
+
+Segments by Optimized Reads                     DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Segments by Direct Physical Reads               DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Segments by Physical Writes                     DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Physical Writes:           5,950
+-> Captured Segments account for  109.7% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                            Physical        
+Object Name            Name     Type        Obj#   Dataobj#       Writes  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290        5,887   98.94
+SYS                  SYSAUX    
+SYS_LOB0000014616C00 S_LOB_P671 LOB P      72771      72771           73    1.23
+SYS                  SYSTEM    
+TAB$                            TABLE          4          2           40     .67
+SYS                  SYSAUX    
+WRH$_SQL_PLAN        31841_MXSN TABLE      72769      72769           40     .67
+SYS                  SYSAUX    
+WRH$_SYSSTAT_PK      31841_MXSN INDEX      72872      72872           32     .54
+                          ------------------------------------------------------
+
+Segments by Physical Write Requests             DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Physical Write Requests:              80
+-> Captured Segments account for  278.8% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                          Phys Write        
+Object Name            Name     Type        Obj#   Dataobj#     Requests  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290           51   63.75
+SYS                  SYSAUX    
+SYS_LOB0000014616C00 S_LOB_P671 LOB P      72771      72771           46   57.50
+SYS                  SYSAUX    
+SYS_LOB0000014592C00 S_LOB_P667 LOB P      72759      72759           26   32.50
+SYS                  SYSTEM    
+SEG$                            TABLE         14          8           13   16.25
+SYS                  SYSTEM    
+TAB$                            TABLE          4          2           12   15.00
+                          ------------------------------------------------------
+
+Segments by Direct Physical Writes              DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Direct Physical Writes:           5,950
+-> Captured Segments account for  100.0% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                              Direct        
+Object Name            Name     Type        Obj#   Dataobj#       Writes  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290        5,883   98.87
+SYS                  SYSAUX    
+SYS_LOB0000014616C00 S_LOB_P671 LOB P      72771      72771           59     .99
+SYS                  SYSAUX    
+SYS_LOB0000014592C00 S_LOB_P667 LOB P      72759      72759            8     .13
+                          ------------------------------------------------------
+
+Segments by Table Scans                         DB/Inst: FREE/FREE  Snaps: 1-2
+-> Total Table Scans:               1
+-> Captured Segments account for  100.0% of Total
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                               Table        
+Object Name            Name     Type        Obj#   Dataobj#        Scans  %Total
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290            1  100.00
+                          ------------------------------------------------------
+
+Segments by DB Blocks Changes                   DB/Inst: FREE/FREE  Snaps: 1-2
+-> % of Capture shows % of DB Block Changes for each top segment compared 
+-> with total DB Block Changes for all segments captured by the Snapshot
+-> When ** MISSING ** occurs, some of the object attributes may not be available
+
+                     Tablespace
+Owner                   Name   
+-------------------- ----------
+                     Subobject  Obj.                            DB Block    % of
+Object Name            Name     Type        Obj#   Dataobj#      Changes Capture
+-------------------- ---------- ----- ---------- ---------- ------------ -------
+SYS                  SYSAUX    
+WRH$_SYSSTAT_PK      31841_MXSN INDEX      72872      72872        2,704   43.22
+SYS                  SYSAUX    
+WRH$_LATCH_PK        31841_MXSN INDEX      72800      72800        1,232   19.69
+SYS                  SYSAUX    
+WRH$_PARAMETER_PK    31841_MXSN INDEX      72880      72880          288    4.60
+SYS                  SYSAUX    
+WRH$_SQL_PLAN        31841_MXSN TABLE      72769      72769          256    4.09
+SYSTEM               SYSTEM    
+AWR_FIXTURE_LOAD                TABLE      73290      73290          208    3.32
+                          ------------------------------------------------------
+
+
+Segments by Row Lock Waits                      DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Segments by ITL Waits                           DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Segments by Buffer Busy Waits                   DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Dictionary Cache Statistics
+
+
+Dictionary Cache Stats                          DB/Inst: FREE/FREE  Snaps: 1-2
+-> "Pct Misses"  should be very low (< 2% in most cases)
+-> "Final Usage" is the number of cache entries being used
+
+                                   Get    Pct    Scan   Pct      Mod      Final
+Cache                         Requests   Miss    Reqs  Miss     Reqs      Usage
+------------------------- ------------ ------ ------- ----- -------- ----------
+dc_awr_control                       4    0.0       0   N/A        2          2
+dc_global_oids                      20   15.0       0   N/A        0         29
+dc_histogram_defs                6,911   31.9       0   N/A        0      4,901
+dc_object_grants                    20    0.0       0   N/A        0        126
+dc_objects                       3,399   10.3       0   N/A        4      5,183
+dc_props                             2  100.0       0   N/A        0          2
+dc_rollback_segments                 6    0.0       0   N/A        0         34
+dc_segments                        709   21.9       0   N/A      292        465
+dc_tablespaces                     657    0.5       0   N/A        0         14
+dc_users                           661    0.6       0   N/A        0         88
+                          ------------------------------------------------------
+
+Library Cache Statistics
+
+Library Cache Activity                          DB/Inst: FREE/FREE  Snaps: 1-2
+-> "Pct Misses"  should be very low  
+
+                         Get    Pct            Pin    Pct             Invali-
+Namespace           Requests   Miss       Requests   Miss    Reloads  dations
+--------------- ------------ ------ -------------- ------ ---------- --------
+BODY                      13   30.8             21    9.5          0        0
+CLUSTER                   29    0.0             33    0.0          0        0
+FED APP                   15    0.0             15    0.0          0        0
+INDEX                    297   26.3            294   47.3          2        0
+OBJECT ID                  1  100.0              0    N/A          0        0
+SCHEMA                   739    0.0              0    N/A          0        0
+SENSITIVE_TABLE          191  100.0              0    N/A          0        0
+SQL AREA                 932   63.7         14,223    5.2         48        1
+SQL AREA BUILD           260   98.5              0    N/A          0        0
+SQL AREA STATS           240   93.8            240   93.8          0        0
+TABLE/PROCEDURE        1,288   34.2          3,180   26.7         63        0
+TRIGGER                    4   50.0              2  100.0          0        0
+                          ------------------------------------------------------
+
+Replication Statistics (GoldenGate, XStream)
+-> Replication System Resource Usage
+-> Replication SGA Usage
+-> Replication Foreground Wait Events
+-> Replication Background Wait Events
+-> Replication SQL ordered by Elapsed Time
+-> Replication SQL ordered by CPU Time
+-> Replication SQL ordered by User I/O Wait Time
+-> Replication SQL ordered by Executions
+-> GoldenGate Integrated Extract
+-> GoldenGate Integrated Replicat
+-> GoldenGate Replicat
+-> XStreamOUT Capture
+-> XStreamOUT Outbound Server
+-> XStreamIN
+-> Table Statistics by DML Operations
+-> Table Statistics by Conflict Resolutions
+-> Replication Large Transaction Statistics
+-> XStream Replication Long Running Transaction Statistics
+
+
+Replication System Resource Usage               DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Replication SGA Usage                           DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Replication Foreground Wait Events              DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Replication Background Wait Events              DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Replication SQL ordered by Elapsed Time         DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Replication SQL ordered by CPU Time             DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Replication SQL ordered by User I/O Wait Time   DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Replication SQL ordered by Executions           DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+GoldenGate Integrated Extract                   DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+GoldenGate Integrated Replicat                  DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+GoldenGate Replicat                             DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+XStreamOUT Capture                              DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+XStreamOUT Outbound Server                      DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+XStreamIN                                       DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Table Statistics by DML Operations              DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Table Statistics by Conflict Resolutions        DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Replication Large Transaction Statistics        DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+XStream Replication Long Running Transaction StatisticsDB/Inst: FREE/FREE  Sna
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Initialization Parameters
+-> Parameters modified by this container
+-> Parameters modified by other containers
+-> Multi-Valued Parameters modified by this container
+-> Multi-Valued Parameters modified by other containers
+
+
+Parameters modified by this container           DB/Inst: FREE/FREE  Snaps: 1-2
+-> This section shows all the modified initialization parameters that 
+were in effect during the entire snapshot interval
+-> End Value is displayed only if the parameter value was modified within
+the snapshot interval
+
+                                                                End value     
+Parameter Name                Begin value                       (if different)
+----------------------------- --------------------------------- --------------
+common_user_prefix                                                            
+fast_start_parallel_rollback  FALSE                                           
+sga_target                    0                                               
+spatial_vector_acceleration   FALSE                                           
+undo_tablespace               UNDOTBS1                                        
+                          ------------------------------------------------------
+
+
+Parameters modified by other containers         DB/Inst: FREE/FREE  Snaps: 1-2
+-> This section shows all the modified initialization parameters that 
+were in effect during the snapshot interval
+-> End Value is displayed only if the parameter value was changed within
+the snapshot interval
+
+                                                                End value     
+Parameter Name                Begin value                       (if different)
+----------------------------- --------------------------------- --------------
+_dmm_blas_library             libora_netlib.so                                
+_enable_memory_protection_key FALSE                                           
+_instance_recovery_bloom_filt 1048576                                         
+compatible                    23.6.0                                          
+control_files                 /opt/oracle/oradata/FREE/control0               
+control_management_pack_acces DIAGNOSTIC+TUNING                               
+cpu_count                     2                                               
+db_block_size                 8192                                            
+db_name                       FREE                                            
+diagnostic_dest               /opt/oracle                                     
+dispatchers                   (PROTOCOL=TCP) (SERVICE=FREEXDB)                
+enable_pluggable_database     TRUE                                            
+job_queue_processes           1                                               
+local_listener                                                                
+mle_prog_languages            OFF                                             
+nls_language                  AMERICAN                                        
+nls_territory                 AMERICA                                         
+open_cursors                  300                                             
+pga_aggregate_target          536870912                                       
+processes                     200                                             
+remote_login_passwordfile     EXCLUSIVE                                       
+shared_servers                0                                               
+                          ------------------------------------------------------
+
+
+Multi-Valued Parameters modified by this containerDB/Inst: FREE/FREE  Snaps: 1
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+Multi-Valued Parameters modified by other containersDB/Inst: FREE/FREE  Snaps:
+-> This section only displays parameters that have more than one value
+->'(NULL)' indicates a missing parameter value
+-> A blank in the 'End Snapshot' indicates the same value as the 'Begin Snapshot
+
+                                                                End value     
+Parameter Name                Begin value                       (if different)
+----------------------------- --------------------------------- --------------
+control_files                 /opt/oracle/oradata/FREE/control0               
+                              /opt/oracle/oradata/FREE/control0               
+                          ------------------------------------------------------
+
+Active Session History (ASH) Report
+-> Top SQL with Top Events
+-> Top SQL with Top Row Sources
+-> Top Sessions
+-> Top Blocking Sessions
+-> Top PL/SQL Procedures
+-> Top Events
+-> Top Event P1/P2/P3 Values
+-> Top DB Objects
+-> Activity Over Time
+
+Top SQL with Top Events                         DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Top SQL with Top Row Sources                    DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Top Sessions                                    DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Top Blocking Sessions                           DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Top PL/SQL Procedures                           DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Top Events                                      DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Top Event P1/P2/P3 Values                       DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Top DB Objects                                  DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+Activity Over Time                              DB/Inst: FREE/FREE  Snaps: 1-2
+
+                  No data exists for this section of the report.
+                          ------------------------------------------------------
+
+
+ADDM Reports
+
+-> ADDM Reports
+
+  
+  
+          ADDM Report for Task 'ADDM:3638231841_1_2'
+          ------------------------------------------
+ 
+Analysis Period
+---------------
+AWR snapshot range from 1 to 2.
+Time period starts at 13-11-26 5:24:16 PM
+Time period ends at 13-11-26 5:24:18 PM
+ 
+Analysis Target
+---------------
+Database 'FREE' with DB ID 3638231841.
+Database version 23.0.0.0.0.
+ADDM performed an analysis of instance FREE, numbered 1 and hosted at 
+testhost.
+ADDM detected that the system is a PDB.
+ 
+Activity During the Analysis Period
+-----------------------------------
+Total database time was 2 seconds.
+The average number of active sessions was 1.02.
+ 
+ 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+There are no findings to report.
+ 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+          Additional Information
+          ----------------------
+ 
+Miscellaneous Information
+-------------------------
+There was no significant database activity to run the ADDM.
+ 
+
+Report Footnotes
+
+-> Report Footnotes
+
+End of Report

@@ -21,6 +21,15 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | options_and_features | Installed options and database feature usage | R | none | 19.0 | discovery/options_and_features.sql |
 | patch_inventory | SQL patches applied by datapatch | R | none | 19.0 | discovery/patch_inventory.sql |
 
+## ha
+
+| id | title | mode | pack | min_version | file |
+| --- | --- | --- | --- | --- | --- |
+| dataguard_status | Data Guard role, standby destinations, transport and apply lag, with a not applicable row when there is no standby | R | none | 12.2 | ha/dataguard_status.sql |
+| flashback_status | Flashback database state, flashback log window and restore points, with a warning for an old guaranteed restore point | R | none | 12.1 | ha/flashback_status.sql |
+| rac_interconnect | RAC interconnect per instance, with blocks lost and average global cache receive time since startup | R | none | 12.1 | ha/rac_interconnect.sql |
+| rac_node_balance | RAC load per instance: sessions, active sessions, average active sessions and host CPU, with a warning for an instance carrying more than twice the others' mean | R | none | 12.2 | ha/rac_node_balance.sql |
+
 ## health
 
 | id | title | mode | pack | min_version | file |

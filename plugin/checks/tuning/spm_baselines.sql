@@ -17,5 +17,5 @@ SELECT sql_handle,
        CASE WHEN enabled = 'YES' AND accepted = 'NO' AND created < SYSDATE - 30
             THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   dba_sql_plan_baselines
-ORDER  BY CASE WHEN severity = 'WARNING' THEN 0 ELSE 1 END, sql_handle, plan_name
+ORDER  BY severity DESC, sql_handle, plan_name
 FETCH FIRST 50 ROWS ONLY

@@ -6,7 +6,7 @@
 -- max_rows: 200
 -- pack: none
 -- params: sql_id:sql_id
--- remediation: Read the plan for full scans of large tables, nested loops over many rows and estimated rows far from the actual; check the tables' statistics with stale_stats before changing the statement. "cannot be found" means the cursor has aged out of the shared pool: run the statement again or read its history with plan_history.
+-- remediation: Read the plan for full scans of large tables, nested loops over many rows and estimated rows far from the actual; check the tables' statistics with stale_stats before changing the statement. "cannot be found" means the cursor has aged out of the shared pool: run the statement again to see its plan.
 -- Every child cursor of the sql id, in DISPLAY_CURSOR's own line order.
 SELECT SUBSTR(plan_table_output, 1, 200) AS plan_line,
        'INFO' AS severity

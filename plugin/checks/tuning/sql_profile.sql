@@ -15,5 +15,5 @@ SELECT name,
        DBMS_LOB.SUBSTR(sql_text, 120, 1) AS sql_text,
        CASE WHEN status = 'DISABLED' THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   dba_sql_profiles
-ORDER  BY CASE WHEN severity = 'WARNING' THEN 0 ELSE 1 END, name
+ORDER  BY severity DESC, name
 FETCH FIRST 50 ROWS ONLY

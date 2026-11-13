@@ -17,7 +17,7 @@ from pathlib import Path
 
 HOME, PATH, OS_USER = "<home>", "<path>", "<os-user>"
 HOST, IP, CONNECT = "<host>", "<ip>", "<connect-string>"
-TIER_HOME = "<tier-home>"  # the path after `-home ` in a SQLcl command line
+TIER_HOME = "<tier-home>"
 NUMBERED = ("connection", "db-user", "db-name", "service")  # `<kind-N>` tokens
 _FIXED = "|".join(map(re.escape, (HOME, PATH, OS_USER, HOST, IP, CONNECT, TIER_HOME)))
 _TOKEN = re.compile(rf"({_FIXED}|<(?:{'|'.join(NUMBERED)})-\d+>)")
@@ -221,11 +221,9 @@ def _identity_patterns() -> tuple[tuple[re.Pattern, str], ...]:
 
 
 def redact(text: str, known: Known) -> str:
-    """`text` with the home folder, connect strings, absolute paths, wallet
-    names, addresses, host names, names in `known`, this machine's name and the
-    OS user replaced by tokens, in that order. Host names go before known names,
-    so a host whose first label is a known name is `<host>` whole. Names `text`
-    carries that `known` lacks are added to it first."""
+    """`text` with identifiers replaced by tokens, in the module's order. Host
+    names go before known names, so a host whose first label is a known name is
+    `<host>` whole. Names `text` carries that `known` lacks are added to it first."""
     _gather(text, known)
     for pattern in _home_patterns():
         text = pattern.sub(HOME, text)

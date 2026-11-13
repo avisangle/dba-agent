@@ -10,9 +10,8 @@
 -- Plans come from DBA_HIST_SQL_PLAN (first seen = when generated) and
 -- DBA_HIST_SQLSTAT (snapshots with executions); the newest is the latest first seen.
 WITH ctx AS (
-  SELECT (SELECT con_dbid FROM v$database) AS dbid,
-         (SELECT instance_number FROM v$instance) AS inst
-  FROM   dual
+  SELECT d.con_dbid AS dbid, i.instance_number AS inst
+  FROM   v$database d, v$instance i
 ),
 plans AS (
   SELECT p.plan_hash_value AS plan_hash, MIN(p.timestamp) AS planned
@@ -50,8 +49,7 @@ judged AS (
          m.elapsed / NULLIF(m.executions, 0) / 1000 AS avg_ms,
          (SUM(m.elapsed) OVER () - m.elapsed)
            / NULLIF(SUM(m.executions) OVER () - m.executions, 0) / 1000 AS others_avg_ms,
-         ROW_NUMBER() OVER (ORDER BY m.first_seen DESC, m.last_seen DESC, m.plan_hash) AS age,
-         COUNT(*) OVER () AS plan_count
+         ROW_NUMBER() OVER (ORDER BY m.first_seen DESC, m.last_seen DESC, m.plan_hash) AS age
   FROM   merged m
 )
 SELECT plan_hash,
@@ -59,7 +57,7 @@ SELECT plan_hash,
        TO_CHAR(last_seen, 'YYYY-MM-DD HH24:MI:SS') AS last_seen,
        executions,
        ROUND(avg_ms, 3) AS avg_elapsed_ms,
-       CASE WHEN age = 1 AND plan_count > 1 AND avg_ms > others_avg_ms
+       CASE WHEN age = 1 AND avg_ms > others_avg_ms
             THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   judged
 ORDER  BY age

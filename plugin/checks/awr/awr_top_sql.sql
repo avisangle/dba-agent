@@ -10,9 +10,8 @@
 -- A DBA_HIST_SQLSTAT row at snap n holds the deltas of the interval ending at
 -- snap n, so the window (begin, end] is snap_id > begin AND snap_id <= end.
 WITH ctx AS (
-  SELECT (SELECT con_dbid FROM v$database) AS dbid,
-         (SELECT instance_number FROM v$instance) AS inst
-  FROM   dual
+  SELECT d.con_dbid AS dbid, i.instance_number AS inst
+  FROM   v$database d, v$instance i
 ),
 snaps AS (
   SELECT s.snap_id
@@ -45,6 +44,8 @@ top AS (
   AND    q.snap_id <= w.end_snap
   GROUP  BY q.sql_id, q.plan_hash_value
   HAVING SUM(q.elapsed_time_delta) > 0 OR SUM(q.executions_delta) > 0
+  ORDER  BY elapsed DESC, q.sql_id, q.plan_hash_value
+  FETCH FIRST 20 ROWS ONLY
 )
 SELECT t.sql_id,
        t.plan_hash_value AS plan_hash,
@@ -53,7 +54,7 @@ SELECT t.sql_id,
        ROUND(t.cpu / 1e6, 3) AS cpu_s,
        t.gets,
        t.reads,
-       (SELECT MAX(SUBSTR(TRANSLATE(DBMS_LOB.SUBSTR(x.sql_text, 120, 1), CHR(9) || CHR(10) || CHR(13), '   '), 1, 120))
+       (SELECT MAX(DBMS_LOB.SUBSTR(x.sql_text, 120, 1))
         FROM   dba_hist_sqltext x, ctx
         WHERE  x.dbid = ctx.dbid
         AND    x.sql_id = t.sql_id) AS sql_text,

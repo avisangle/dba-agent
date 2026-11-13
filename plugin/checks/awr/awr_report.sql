@@ -10,9 +10,8 @@
 -- Figures are the end snapshot's cumulative value minus the begin snapshot's.
 -- DBA_HIST_SNAPSHOT.DBID holds the container's dbid (v$database.con_dbid).
 WITH ctx AS (
-  SELECT (SELECT con_dbid FROM v$database) AS dbid,
-         (SELECT instance_number FROM v$instance) AS inst
-  FROM   dual
+  SELECT d.con_dbid AS dbid, i.instance_number AS inst
+  FROM   v$database d, v$instance i
 ),
 snaps AS (
   SELECT s.snap_id, s.end_interval_time, s.startup_time
@@ -31,6 +30,9 @@ win AS (
          l.end_snap
   FROM   last_snap l
 ),
+win_ids AS (
+  SELECT begin_snap AS snap_id FROM win UNION ALL SELECT end_snap FROM win
+),
 bounds AS (
   SELECT w.begin_snap, w.end_snap, b.end_interval_time AS begin_time,
          e.end_interval_time AS end_time,
@@ -46,41 +48,38 @@ bounds AS (
   JOIN   snaps e ON e.snap_id = w.end_snap
 ),
 vals AS (
-  SELECT t.snap_id, t.stat_name AS name, t.value / 1e6 AS value
+  SELECT 'load' AS kind, t.snap_id, t.stat_name AS name, t.value / 1e6 AS value
   FROM   dba_hist_sys_time_model t, ctx
   WHERE  t.dbid = ctx.dbid
   AND    t.instance_number = ctx.inst
+  AND    t.snap_id IN (SELECT snap_id FROM win_ids)
   AND    t.stat_name IN ('DB time', 'DB CPU')
   UNION ALL
-  SELECT s.snap_id, s.stat_name, s.value
+  SELECT 'load', s.snap_id, s.stat_name, s.value
   FROM   dba_hist_sysstat s, ctx
   WHERE  s.dbid = ctx.dbid
   AND    s.instance_number = ctx.inst
+  AND    s.snap_id IN (SELECT snap_id FROM win_ids)
   AND    s.stat_name IN ('session logical reads', 'physical reads', 'redo size',
                          'execute count', 'parse count (hard)', 'user calls', 'user commits')
+  UNION ALL
+  SELECT 'event', x.snap_id, x.event_name, x.time_waited_micro / 1e6
+  FROM   dba_hist_system_event x, ctx
+  WHERE  x.dbid = ctx.dbid
+  AND    x.instance_number = ctx.inst
+  AND    x.snap_id IN (SELECT snap_id FROM win_ids)
+  AND    x.wait_class <> 'Idle'
 ),
-load AS (
-  SELECT v.name,
+deltas AS (
+  SELECT v.kind, v.name,
          NVL(SUM(CASE WHEN v.snap_id = b.end_snap THEN v.value END), 0)
            - NVL(SUM(CASE WHEN v.snap_id = b.begin_snap THEN v.value END), 0) AS delta
   FROM   vals v, bounds b
   WHERE  v.snap_id IN (b.begin_snap, b.end_snap)
-  GROUP  BY v.name
-),
-events AS (
-  SELECT x.event_name AS name,
-         (NVL(SUM(CASE WHEN x.snap_id = b.end_snap THEN x.time_waited_micro END), 0)
-           - NVL(SUM(CASE WHEN x.snap_id = b.begin_snap THEN x.time_waited_micro END), 0))
-           / 1e6 AS delta
-  FROM   dba_hist_system_event x, ctx, bounds b
-  WHERE  x.dbid = ctx.dbid
-  AND    x.instance_number = ctx.inst
-  AND    x.snap_id IN (b.begin_snap, b.end_snap)
-  AND    x.wait_class <> 'Idle'
-  GROUP  BY x.event_name
+  GROUP  BY v.kind, v.name
 ),
 db_time AS (
-  SELECT NULLIF(MAX(delta), 0) AS secs FROM load WHERE name = 'DB time'
+  SELECT NULLIF(MAX(delta), 0) AS secs FROM deltas WHERE kind = 'load' AND name = 'DB time'
 )
 SELECT section, item, value, per_second, pct_of_db_time, severity
 FROM (
@@ -101,13 +100,15 @@ FROM (
          'load', l.name, ROUND(l.delta, 2), ROUND(l.delta / NULLIF(b.secs, 0), 3),
          CASE WHEN l.name IN ('DB time', 'DB CPU') THEN ROUND(100 * l.delta / d.secs, 1) END,
          b.verdict
-  FROM   load l, bounds b, db_time d
+  FROM   deltas l, bounds b, db_time d
+  WHERE  l.kind = 'load'
   UNION ALL
   SELECT 3, ROW_NUMBER() OVER (ORDER BY e.delta DESC, e.name), 'event', e.name,
          ROUND(e.delta, 3), ROUND(e.delta / NULLIF(b.secs, 0), 4),
          ROUND(100 * e.delta / d.secs, 1), b.verdict
-  FROM   events e, bounds b, db_time d
-  WHERE  e.delta > 0
+  FROM   deltas e, bounds b, db_time d
+  WHERE  e.kind = 'event'
+  AND    e.delta > 0
 )
 ORDER  BY grp, ord
 FETCH FIRST 40 ROWS ONLY

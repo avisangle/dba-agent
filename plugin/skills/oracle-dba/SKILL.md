@@ -28,7 +28,7 @@ Pick the playbook that matches the question and follow it. Each one lists the ch
 - [Storage](playbooks/storage.md): tablespaces, datafiles, temp, undo, the fast recovery area, large and growing segments.
 - [Sessions and locks](playbooks/sessions.md): who is running what, who blocks whom, open idle transactions.
 - [Performance](playbooks/performance.md): load, wait events, top SQL, memory and parameters.
-- [AWR and ASH](playbooks/awr.md): what ran over the last minutes from active session history, and whether AWR snapshots are being taken.
+- [AWR and ASH](playbooks/awr.md): what ran over the last minutes from active session history, whether AWR snapshots are being taken, what happened between two snapshots, plan changes of one SQL id, ADDM findings, and two periods compared.
 - [High availability](playbooks/ha.md): Data Guard standby lag and transport, RAC interconnect and instance balance, flashback and restore points.
 - [Backup and recovery](playbooks/backup.md): RMAN backup jobs, datafile backup age, archive log mode and gaps, and the retention policy.
 - [SQL tuning](playbooks/tuning.md): one slow statement: its execution plan, its tables' statistics, and SQL plan baselines and SQL profiles.

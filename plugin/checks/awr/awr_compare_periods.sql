@@ -11,9 +11,8 @@
 -- divided by the window's seconds. CHANGE_PCT is empty when the first value is 0
 -- and the second is not.
 WITH ctx AS (
-  SELECT (SELECT con_dbid FROM v$database) AS dbid,
-         (SELECT instance_number FROM v$instance) AS inst
-  FROM   dual
+  SELECT d.con_dbid AS dbid, i.instance_number AS inst
+  FROM   v$database d, v$instance i
 ),
 snaps AS (
   SELECT s.snap_id, s.end_interval_time
@@ -55,17 +54,22 @@ periods AS (
   JOIN   snaps sb ON sb.snap_id = p.b
   JOIN   snaps se ON se.snap_id = p.e
 ),
+period_ids AS (
+  SELECT b AS snap_id FROM periods UNION ALL SELECT e FROM periods
+),
 vals AS (
   SELECT 'load' AS kind, t.snap_id, t.stat_name AS name, t.value / 1e6 AS value
   FROM   dba_hist_sys_time_model t, ctx
   WHERE  t.dbid = ctx.dbid
   AND    t.instance_number = ctx.inst
+  AND    t.snap_id IN (SELECT snap_id FROM period_ids)
   AND    t.stat_name IN ('DB time', 'DB CPU')
   UNION ALL
   SELECT 'load', s.snap_id, s.stat_name, s.value
   FROM   dba_hist_sysstat s, ctx
   WHERE  s.dbid = ctx.dbid
   AND    s.instance_number = ctx.inst
+  AND    s.snap_id IN (SELECT snap_id FROM period_ids)
   AND    s.stat_name IN ('session logical reads', 'physical reads', 'redo size',
                          'execute count', 'parse count (hard)', 'user calls', 'user commits')
   UNION ALL
@@ -73,6 +77,7 @@ vals AS (
   FROM   dba_hist_system_event x, ctx
   WHERE  x.dbid = ctx.dbid
   AND    x.instance_number = ctx.inst
+  AND    x.snap_id IN (SELECT snap_id FROM period_ids)
   AND    x.wait_class <> 'Idle'
 ),
 rates AS (
@@ -93,21 +98,21 @@ paired AS (
 ),
 items AS (
   SELECT 0 AS grp, 0 AS ord,
-         'elapsed seconds (snaps ' || w.b1 || ' to ' || w.e1 || ', then ' || w.b2 || ' to ' || w.e2 || ')' AS item,
-         ROUND(p1.secs, 1) AS first_value, ROUND(p2.secs, 1) AS second_value, 'N' AS judged
-  FROM   win w
-  JOIN   periods p1 ON p1.period = 1
+         'elapsed seconds (snaps ' || p1.b || ' to ' || p1.e || ', then ' || p2.b || ' to ' || p2.e || ')' AS item,
+         ROUND(p1.secs, 1) AS first_value, ROUND(p2.secs, 1) AS second_value
+  FROM   periods p1
   JOIN   periods p2 ON p2.period = 2
+  WHERE  p1.period = 1
   UNION ALL
   SELECT 1,
          DECODE(name, 'DB time', 1, 'DB CPU', 2, 'session logical reads', 3, 'physical reads', 4,
                 'redo size', 5, 'execute count', 6, 'parse count (hard)', 7, 'user calls', 8, 9),
-         name, first_value, second_value, 'Y'
+         name, first_value, second_value
   FROM   paired
   WHERE  kind = 'load'
   UNION ALL
   SELECT 2, ROW_NUMBER() OVER (ORDER BY GREATEST(first_value, second_value) DESC, name),
-         name, first_value, second_value, 'Y'
+         name, first_value, second_value
   FROM   paired
   WHERE  kind = 'event'
   AND    GREATEST(first_value, second_value) > 0
@@ -118,7 +123,7 @@ SELECT item,
        CASE WHEN second_value = first_value THEN 0
             WHEN first_value <> 0 THEN ROUND(100 * (second_value - first_value) / ABS(first_value), 1)
        END AS change_pct,
-       CASE WHEN judged = 'Y' AND second_value > 0
+       CASE WHEN grp > 0 AND second_value > 0
                  AND (first_value = 0 OR (first_value > 0 AND second_value >= 2 * first_value))
             THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   items

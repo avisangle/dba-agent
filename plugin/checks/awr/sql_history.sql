@@ -10,9 +10,8 @@
 -- One row per snapshot and plan hash; "plan changed" compares with the previous
 -- row in snap id order. Interval times are zoneless in the host's clock.
 WITH ctx AS (
-  SELECT (SELECT con_dbid FROM v$database) AS dbid,
-         (SELECT instance_number FROM v$instance) AS inst
-  FROM   dual
+  SELECT d.con_dbid AS dbid, i.instance_number AS inst
+  FROM   v$database d, v$instance i
 ),
 hist AS (
   SELECT q.snap_id, s.end_interval_time, q.plan_hash_value AS plan_hash,
@@ -30,17 +29,12 @@ hist AS (
   GROUP  BY q.snap_id, s.end_interval_time, q.plan_hash_value
   HAVING SUM(q.executions_delta) > 0 OR SUM(q.elapsed_time_delta) > 0
 ),
-ordered AS (
-  SELECT h.*, LAG(h.plan_hash) OVER (ORDER BY h.snap_id, h.plan_hash) AS prev_plan
-  FROM   hist h
-),
 judged AS (
-  SELECT r.snap_id, r.end_interval_time, r.plan_hash, r.executions, r.ms_per_exec,
-         r.gets_per_exec, r.prev_plan, MEDIAN(o.ms_per_exec) AS others_median
-  FROM   ordered r
-  LEFT   JOIN ordered o ON NOT (o.snap_id = r.snap_id AND o.plan_hash = r.plan_hash)
-  GROUP  BY r.snap_id, r.end_interval_time, r.plan_hash, r.executions, r.ms_per_exec,
-            r.gets_per_exec, r.prev_plan
+  SELECT h.*,
+         LAG(h.plan_hash) OVER (ORDER BY h.snap_id, h.plan_hash) AS prev_plan,
+         (SELECT MEDIAN(o.ms_per_exec) FROM hist o
+          WHERE  NOT (o.snap_id = h.snap_id AND o.plan_hash = h.plan_hash)) AS others_median
+  FROM   hist h
 )
 SELECT snap_id,
        TO_CHAR(end_interval_time, 'YYYY-MM-DD HH24:MI:SS') AS end_time,

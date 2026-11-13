@@ -19,6 +19,7 @@ HEADER_LINE = re.compile(r"^--\s*(\w+)\s*:\s*(.*?)\s*$")
 INTEGER = re.compile(r"[0-9]+")  # not str.isdigit(), which accepts digits int() rejects
 MAX_ROWS_LIMIT = 1000
 SEVERITIES = ("CRITICAL", "WARNING", "OK", "INFO")
+WORST_FIRST = ("CRITICAL", "WARNING", "INFO", "OK")  # SEVERITIES ranked (skill rule 3)
 # SQLcl client commands, not SQL: a check must not contain them, and run-sql does not take them
 CLIENT_COMMAND = re.compile(
     r"^\s*(@|(SET|DEFINE|SPOOL|HOST|PROMPT|ACCEPT)(\s|$)|EXIT\b)", re.IGNORECASE

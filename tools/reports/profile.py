@@ -6,6 +6,7 @@ the user's `<pack_home>/profiles/<name>.json` wins over the built-in one
 """
 
 import json
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -92,8 +93,7 @@ def load_profile(path) -> Profile:
             raise ProfileError(f"{path}: template {template} is not a file next to the profile")
         template = path.parent / template
     checks = tuple(_entry(path, e) for e in data["checks"])
-    ids = [c.id for c in checks]
-    if dupes := sorted({i for i in ids if ids.count(i) > 1}):
+    if dupes := sorted(i for i, n in Counter(c.id for c in checks).items() if n > 1):
         raise ProfileError(f"{path}: checks listed more than once: {', '.join(dupes)}")
     return Profile(path.stem, title, template, checks)
 

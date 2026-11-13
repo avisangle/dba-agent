@@ -103,15 +103,15 @@ def render(template: str, fmt: str, report: Report) -> str:
     errors = [o for o in report.outcomes if o.severity == "ERROR"]
     summary = [(o.check.id, o.check.title, o.severity,
                 len(o.result.rows) if o.result is not None else "-") for o in report.outcomes]
+    errors_block = f.sep.join([f.heading(2, "Checks with ERROR"),
+                               f.items(f"{o.check.id}: {o.problem}" for o in errors)])
     fields = {
         "title": f.text(report.title),
         "connection": f.text(report.connection),
         "version": f.text(report.version),
         "generated": f.text(report.generated),
         "score": f.para(_score_line(report.score)) if report.score else "",
-        "errors": f.sep.join([f.heading(2, "Checks with ERROR"),
-                              f.items(f"{o.check.id}: {o.problem}" for o in errors)])
-        if errors else "",
+        "errors": errors_block if errors else "",
         "summary": f.table(("Check", "Title", "Severity", "Rows"), summary),
         "details": f.sep.join(_details(o, f) for o in report.outcomes),
     }

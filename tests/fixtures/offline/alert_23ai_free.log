@@ -1,0 +1,273 @@
+2026-11-13T17:02:22.049771+00:00
+Shutting down ORACLE instance (immediate) (OS id: 466)
+Shutdown is initiated by sqlplus@testhost (TNS V1-V3).
+Stopping background process SMCO.
+Shutting down instance: further logons disabled
+2026-11-13T17:02:22.523569+00:00
+Stopping background process CJQ0
+2026-11-13T17:02:22.608402+00:00
+Killed process oracle@testhost (Q001) with pid is 86, OS pid 285
+2026-11-13T17:02:22.608681+00:00
+Process termination requested for pid 289 (db_q003_FREE) [source = rdbms], [info = 2] [request issued by pid: 283, uid: 54321]
+Killed process oracle@testhost (Q004) with pid is 89, OS pid 291
+Stopping background process MMNL.
+2026-11-13T17:02:22.610627+00:00
+Process termination requested for pid 285 (Q001) [source = rdbms], [info = 2] [request issued by pid: 466, uid: 54321]
+2026-11-13T17:02:22.611272+00:00
+Process termination requested for pid 291 (Q004) [source = rdbms], [info = 2] [request issued by pid: 466, uid: 54321]
+Stopping background process MMON.
+alter pluggable database all close immediate
+2026-11-13T17:02:22.768597+00:00
+FREEPDB1(3):JIT: pid 466 requesting stop
+2026-11-13T17:02:22.781134+00:00
+FREEPDB1(3):Stopped service freepdb1
+Completed: Pluggable database FREEPDB1 closed services=None
+Completed: alter pluggable database all close immediate
+PDB$SEED(2):JIT: pid 466 requesting stop
+License high water mark = 3
+
+Data Pump shutdown in progress
+2026-11-13T17:02:22.901029+00:00
+Process termination requested for pid 259 (PPA7) [source = rdbms], [info = 2] [request issued by pid: 466, uid: 54321]
+2026-11-13T17:02:23.895053+00:00
+ALTER DATABASE CLOSE NORMAL
+alter pluggable database all close immediate
+Completed: alter pluggable database all close immediate
+alter pluggable database all close immediate
+Completed: alter pluggable database all close immediate
+2026-11-13T17:02:23.959277+00:00
+Stopping change tracking
+2026-11-13T17:02:23.975989+00:00
+Thread 1 closed at log sequence 13
+Successful close of redo thread 1
+Completed: ALTER DATABASE CLOSE NORMAL
+ALTER DATABASE DISMOUNT
+Completed: ALTER DATABASE DISMOUNT
+2026-11-13T17:02:24.333130+00:00
+Instance shutdown complete (OS id: 466)
+2026-11-13T17:02:24.638453+00:00
+Adjusting the default value of parameter "parallel_max_servers" from 0 to 1.
+Starting ORACLE instance (normal) (OS id: 32)
+2026-11-13T17:02:24.643047+00:00
+****************************************************
+ Sys-V shared memory will be used for creating SGA 
+ ****************************************************
+2026-11-13T17:02:24.643343+00:00
+**********************************************************************
+2026-11-13T17:02:24.643363+00:00
+Dump of system resources acquired for SHARED GLOBAL AREA (SGA) 
+
+2026-11-13T17:02:24.643393+00:00
+ Per process system memlock (soft) limit = 8192K
+2026-11-13T17:02:24.643412+00:00
+ Expected per process system memlock (soft) limit to lock
+ instance MAX SHARED GLOBAL AREA (SGA) into memory: 1532M
+2026-11-13T17:02:24.643452+00:00
+ Available system pagesizes:
+  4K, 2048K 
+2026-11-13T17:02:24.643488+00:00
+ Supported system pagesize(s):
+2026-11-13T17:02:24.643508+00:00
+  PAGESIZE  AVAILABLE_PAGES  EXPECTED_PAGES  ALLOCATED_PAGES  ERROR(s)
+2026-11-13T17:02:24.643526+00:00
+        4K       Configured               5           391459        NONE
+2026-11-13T17:02:24.643553+00:00
+     2048K                0             766                0        NONE
+2026-11-13T17:02:24.643571+00:00
+RECOMMENDATION:
+2026-11-13T17:02:24.643590+00:00
+ 1. For optimal performance, configure system with expected number 
+ of pages for every supported system pagesize prior to the next 
+ instance restart operation.
+2026-11-13T17:02:24.643640+00:00
+ 2. Increase per process memlock (soft) limit to at least 1532MB
+ to lock 100% of SHARED GLOBAL AREA (SGA) pages into physical memory
+2026-11-13T17:02:24.643672+00:00
+**********************************************************************
+Using an SGA granule size of 16MB
+Memory protection keys NOT enabled.
+Hugetlbfs Dynamic SGA NOT enabled.
+LICENSE_MAX_SESSION = 0
+LICENSE_SESSIONS_WARNING = 0
+Using LOG_ARCHIVE_DEST_1 parameter default value as /opt/oracle/product/26ai/dbhomeFree/dbs/arch
+.... (PID:): Enable RFS client   [kcrlc.c:611]
+Autotune of undo retention is turned on. 
+Log buffer boundaries=(0xd0000000, 0xd0452000)
+IMODE=BR
+ILAT =35
+NOTE: Using default ASM root directory ASM
+Oracle AI Database 26ai Free Release 23.26.3.0.0 - Develop, Learn, and Run for Free
+Version 23.26.3.0.0.
+ORACLE_HOME:    /opt/oracle/product/26ai/dbhomeFree
+System name:	Linux
+Node name:	testhost
+Release:	6.8.0-117-generic
+Version:	#117-Ubuntu SMP PREEMPT_DYNAMIC Thu May  7 17:26:37 UTC 2026
+Machine:	aarch64
+Using parameter settings in server-side spfile /opt/oracle/product/26ai/dbhomeFree/dbs/spfileFREE.ora
+System parameters with non-default values:
+  processes                = 200
+  cpu_count                = "2"
+  _enable_memory_protection_keys= FALSE
+  nls_language             = "AMERICAN"
+  nls_territory            = "AMERICA"
+  sga_target               = 1536M
+  control_files            = "/opt/oracle/oradata/FREE/control01.ctl"
+  control_files            = "/opt/oracle/oradata/FREE/control02.ctl"
+  db_block_size            = 8192
+  compatible               = "23.6.0"
+  _instance_recovery_bloom_filter_size= 1048576
+  undo_tablespace          = "UNDOTBS1"
+  fast_start_parallel_rollback= "FALSE"
+  remote_login_passwordfile= "EXCLUSIVE"
+  dispatchers              = "(PROTOCOL=TCP) (SERVICE=FREEXDB)"
+  shared_servers           = 0
+  local_listener           = ""
+  job_queue_processes      = 1
+  db_name                  = "FREE"
+  open_cursors             = 300
+  pga_aggregate_target     = 512M
+  _dmm_blas_library        = "libora_netlib.so"
+  control_management_pack_access= "DIAGNOSTIC+TUNING"
+  spatial_vector_acceleration= FALSE
+  diagnostic_dest          = "/opt/oracle"
+  enable_pluggable_database= TRUE
+  common_user_prefix       = ""
+  mle_prog_languages       = "OFF"
+2026-11-13T17:02:24.796165+00:00
+Oracle instance running with ODM in SGA: Oracle File Server ODM Library, Version: 1.0 
+Oracle instance running with ODM in SGA: Object Store ODM Library Version 8.0 
+Broadcast on commit is enabled and is using Message mode.
+2026-11-13T17:02:24.857762+00:00
+Errors in file /opt/oracle/diag/rdbms/free/FREE/trace/FREE_vktm_47.trc  (incident=1643) (PDBNAME=CDB$ROOT):
+ORA-00800: soft external error, arguments: [Set Priority Failed], [VKTM], [Check traces and OS configuration], [Check Oracle document and MOS notes], []
+Incident details in: /opt/oracle/diag/rdbms/free/FREE/incident/incdir_1643/FREE_vktm_47_i1643.trc
+--ATTENTION--
+The priority of process VKTM cannot be elevated.
+
+Failed to elevate VKTM's priority from 0 to 1, policy 5
+Error : Category(-2), Opname(skgdism_create), Loc(sp.c:setpr:1), ErrMsg(Error 0) Dism(16)
+NMON services are only available for Exadata and OCI. Not running on proper platform, disable NMON services.
+Using default pga_aggregate_limit of 2048 MB
+2026-11-13T17:02:25.033644+00:00
+Errors in file /opt/oracle/diag/rdbms/free/FREE/trace/FREE_lgwr_86.trc  (incident=1763) (PDBNAME=CDB$ROOT):
+ORA-00800: soft external error, arguments: [Set Priority Failed], [LGWR], [Check traces and OS configuration], [Check Oracle document and MOS notes], []
+Incident details in: /opt/oracle/diag/rdbms/free/FREE/incident/incdir_1763/FREE_lgwr_86_i1763.trc
+--ATTENTION--
+The priority of process LGWR cannot be elevated.
+
+Failed to elevate LGWR's priority from 0 to 1, policy 5
+Error : Category(-2), Opname(skgdism_create), Loc(sp.c:setpr:1), ErrMsg(Error 0) Dism(16)
+starting up 1 dispatcher(s) for network address '(ADDRESS=(PARTIAL=YES)(PROTOCOL=TCP))'...
+Warning: Shared server clients will not be able to connect because SHARED_SERVERS is 0
+WALLET_ROOT location is not configured.
+ORACLE_BASE from environment = /opt/oracle
+PMEM FILESTORE feature is only available in Oracle Database Enterprise Edition.
+2026-11-13T17:02:25.311119+00:00
+ALTER DATABASE   MOUNT
+Control File SGA cache allocated 8388608 bytes. 
+	Address           : 0x7ed2fc50
+	Number of buckets : 128
+	Number of pools   : 4
+	Number of buffers : 512
+	Block size        : 16384
+	Version           : 0
+	Stat              : 
+(
+0x0000000000000080 (USESEQLIST)
+, 0x0000000000000002 (ACTIVE)
+, 0x0000000000000001 (CREATE)
+)
+	Trace level-10325 : 
+(0x0000000000000000)
+2026-11-13T17:02:25.370627+00:00
+.... (PID:178): RT_PMODE: PRIMARY            mounting with mode MAXIMUM PERFORMANCE  level NO PROTECTION  [krsj.c:4558]
+2026-11-13T17:02:25.376282+00:00
+Successful mount of redo thread 1, with mount id 1521298401
+2026-11-13T17:02:25.376393+00:00
+Database mounted in Exclusive Mode
+Lost write protection mode set to "auto"
+Database name: FREE
+Database unique name: FREE
+Database id: 1514744604
+Completed: ALTER DATABASE   MOUNT
+ALTER DATABASE OPEN
+*** 2026-11-13T17:02:25.433167+00:00
+Crash Recovery excluding pdb 2 which was cleanly closed.
+*** 2026-11-13T17:02:25.433271+00:00
+Crash Recovery excluding pdb 3 which was cleanly closed.
+2026-11-13T17:02:25.438287+00:00
+Redo log for group 1, sequence 13 is not located on DAX storage
+Thread 1 opened at log sequence 13
+  Current log# 1 seq# 13 mem# 0: /opt/oracle/oradata/FREE/redo01.log
+Successful open of redo thread 1
+MTTR advisory is disabled because FAST_START_MTTR_TARGET is not set
+2026-11-13T17:02:25.445566+00:00
+Stopping change tracking
+replication_dependency_tracking turned off (no async multimaster replication found)
+Opening with Resource Manager plan: DEFAULT_CDB_PLAN 
+CLID: P
+PDB$SEED(2):Autotune of undo retention is turned on. 
+PDB$SEED(2):Opening pdb with Resource Manager plan: DEFAULT_PLAN
+2026-11-13T17:02:26.294492+00:00
+Unable to obtain current patch information due to error: 20013, ORA-20013: DBMS_QOPATCH ran mostly in non install area
+ORA-06512: at "SYS.DBMS_QOPATCH", line 2408
+ORA-06512: at "SYS.DBMS_QOPATCH", line 908
+ORA-06512: at "SYS.DBMS_QOPATCH", line 644
+ORA-06512: at "SYS.DBMS_QOPATCH", line 2390
+
+===========================================================
+Dumping current patch information
+===========================================================
+Unable to obtain current patch information due to error: 20013
+===========================================================
+FREEPDB1(3):Autotune of undo retention is turned on. 
+2026-11-13T17:02:26.768356+00:00
+FREEPDB1(3):Opening pdb with Resource Manager plan: DEFAULT_PLAN
+Completed: Pluggable database FREEPDB1 opened read write 
+Completed: ALTER DATABASE OPEN
+2026-11-13T17:02:37.886285+00:00
+FREEPDB1(3):ALTER SYSTEM SET open_cursors=300 SCOPE=MEMORY PDB='FREEPDB1';
+2026-11-13T17:02:37.947019+00:00
+FREEPDB1(3): : 
+FREEPDB1(3):ORA-20281: dba28 planted 4fe3994b record 1 of 3
+2026-11-13T17:03:02.059279+00:00
+FREEPDB1(3): : 
+FREEPDB1(3):ORA-20281: dba28 planted 4fe3994b record 2 of 3
+2026-11-13T17:03:04.108691+00:00
+FREEPDB1(3): : 
+FREEPDB1(3):ORA-20281: dba28 planted 4fe3994b record 3 of 3
+2026-11-13T17:03:06.159487+00:00
+FREEPDB1(3): : 
+FREEPDB1(3):ORA-20282: dba28 planted 4fe3994b line 1 of 2
+FREEPDB1(3):ORA-20282: dba28 planted 4fe3994b line 2 of 2
+2026-11-13T17:03:10.615740+00:00
+Thread 1 advanced to log sequence 14 (LGWR switch),  current SCN: 2147344
+  Current log# 2 seq# 14 mem# 0: /opt/oracle/oradata/FREE/redo02.log
+Thread 1 cannot allocate new log, sequence 15
+Checkpoint not complete
+  Current log# 2 seq# 14 mem# 0: /opt/oracle/oradata/FREE/redo02.log
+2026-11-13T17:03:10.729850+00:00
+Thread 1 advanced to log sequence 15 (LGWR switch),  current SCN: 2147351
+  Current log# 1 seq# 15 mem# 0: /opt/oracle/oradata/FREE/redo01.log
+2026-11-13T17:03:10.743461+00:00
+Thread 1 advanced to log sequence 16 (LGWR switch),  current SCN: 2147361
+  Current log# 2 seq# 16 mem# 0: /opt/oracle/oradata/FREE/redo02.log
+Thread 1 cannot allocate new log, sequence 17
+Checkpoint not complete
+  Current log# 2 seq# 16 mem# 0: /opt/oracle/oradata/FREE/redo02.log
+2026-11-13T17:03:10.856275+00:00
+Thread 1 advanced to log sequence 17 (LGWR switch),  current SCN: 2147371
+  Current log# 1 seq# 17 mem# 0: /opt/oracle/oradata/FREE/redo01.log
+Thread 1 cannot allocate new log, sequence 18
+Checkpoint not complete
+  Current log# 1 seq# 17 mem# 0: /opt/oracle/oradata/FREE/redo01.log
+2026-11-13T17:03:10.974399+00:00
+Thread 1 advanced to log sequence 18 (LGWR switch),  current SCN: 2147381
+  Current log# 2 seq# 18 mem# 0: /opt/oracle/oradata/FREE/redo02.log
+Thread 1 cannot allocate new log, sequence 19
+Checkpoint not complete
+  Current log# 2 seq# 18 mem# 0: /opt/oracle/oradata/FREE/redo02.log
+2026-11-13T17:03:11.093801+00:00
+Thread 1 advanced to log sequence 19 (LGWR switch),  current SCN: 2147391
+  Current log# 1 seq# 19 mem# 0: /opt/oracle/oradata/FREE/redo01.log

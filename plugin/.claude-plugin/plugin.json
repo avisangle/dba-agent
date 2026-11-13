@@ -1,0 +1,5 @@
+{
+  "name": "oradba",
+  "version": "0.1.0",
+  "description": "Read-only Oracle DBA skills and tested SQL checks, run through Oracle's SQLcl MCP server at restrict level 4"
+}

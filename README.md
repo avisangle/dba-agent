@@ -3,6 +3,38 @@
 Working repo for an open-source AI assistant for Oracle DBA work. The product
 plan lives in the "Oracle DBA AI Agent: Product & Build Plan" doc on claude.ai.
 
+## Install
+
+Prerequisites, installed from Oracle and python.org; the pack bundles none of them:
+
+- SQLcl 25.3.2 or newer (`docs/decisions/D-DBA-8-minimum-sqlcl-25-3-2.md`)
+- Java 17 or 21, for SQLcl
+- Python 3.10+, for the tools (standard library only)
+
+Unzip the package (`python -m tools package` builds it into `dist/`) and run every
+command below from the unzipped folder.
+
+1. `python -m tools setup-sql --tier read-only` prints the SQL that creates the
+   read-only database user. A DBA reviews it and runs it on the database; the
+   pack never creates users itself.
+2. `python -m tools setup-home --tier read-only` creates the read-only tier's
+   SQLcl home folder and prints the commands for the next step.
+3. Save the connection in your own terminal, so SQLcl prompts for the password
+   and the pack never sees it:
+   `sql -home <read-only home> /nolog`, then
+   `conn -save dba_agent_ro -savepwd dba_agent_ro@//<host>:<port>/<service>`.
+4. `python -m tools config --client <client>` prints the MCP configuration for
+   one client (`claude-code`, `claude-desktop`, `cursor`, `vscode-copilot`,
+   `cline`, `codex`), which registers SQLcl's MCP server as
+   `sql -home <read-only home> -R 4 -mcp`. Keep `-R 4`: without it SQLcl 26.3.1
+   runs operating system commands sent through its MCP server. The snippets and
+   where each client keeps them are in `plugin/config/README.md`.
+5. `python -m tools doctor` checks SQLcl, Java, the read-only home, the saved
+   connection, its grants and its restrict level, and prints the fix for each
+   problem.
+
+In Claude Code, load the skills with `claude --plugin-dir <unzipped folder>/plugin`.
+
 ## Layout
 
 | Path | What it is |
@@ -12,8 +44,9 @@ plan lives in the "Oracle DBA AI Agent: Product & Build Plan" doc on claude.ai.
 | `spike/checks/` | Sample DBA check SQL used by the spike. |
 | `spike/sql/` | Setup and teardown of the read-only `spike_ro` test user. |
 | `spike/RESULTS.md` | Results template, filled in by whoever runs the spike. |
-| `plugin/` | Claude Code plugin: skills, check SQL and profiles. |
+| `plugin/` | Claude Code plugin: manifest (`.claude-plugin/`), skills, check SQL, profiles and MCP client config snippets (`config/`). |
 | `tools/` | Python 3.10+ standard-library CLI, run as `python -m tools <command>`. |
+| `dist/` | Package zip written by `python -m tools package` (not tracked). |
 | `db/` | SQL templates for the tier database users (`db/tiers/`). |
 | `tests/` | pytest suites: `tests/unit/` and `tests/integration/`; scripts they use in `tests/support/`. |
 | `.github/` | CI workflow and the SQLcl install script it uses. |

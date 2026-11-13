@@ -31,15 +31,25 @@ def add_arguments(parser):
 def run(args):
     if args.user:
         return _run_user()
+    if args.check:
+        return check()
+    try:
+        text = build_index(discover(CHECKS_ROOT))
+    except CheckFormatError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    (CHECKS_ROOT / "INDEX.md").write_text(text, encoding="utf-8", newline="\n")
+    return 0
+
+
+def check() -> int:
+    """0 when the committed INDEX.md matches the check headers, else 1 with a diff."""
     path = CHECKS_ROOT / "INDEX.md"
     try:
         text = build_index(discover(CHECKS_ROOT))
     except CheckFormatError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    if not args.check:
-        path.write_text(text, encoding="utf-8", newline="\n")
-        return 0
     current = path.read_bytes().decode("utf-8") if path.is_file() else ""
     if current == text:
         return 0

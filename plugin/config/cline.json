@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "<PACK_NAME>-read-only": {
+      "command": "<SQLCL_BIN>",
+      "args": ["-home", "<PACK_HOME>/homes/read-only", "-R", "4", "-mcp"]
+    }
+  }
+}

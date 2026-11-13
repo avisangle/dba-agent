@@ -5,6 +5,7 @@ from pathlib import Path
 
 PACK_NAME = "oradba"
 VERSION = "0.1.0"
+PACK_ROOT = Path(__file__).resolve().parents[1]  # holds plugin/, tools/, db/
 
 
 def pack_home() -> Path:

@@ -190,12 +190,14 @@ def test_command_discovery_adds_module_and_rejects_incomplete_module(tmp_path):
 
 def test_pack_name_literal_appears_only_in_config():
     """AC: the literal name appears in no tracked file except tools/config.py
-    (spike/ and this test excluded). Case-sensitive, per the issue wording."""
+    (spike/ and this test excluded). Case-sensitive, per the issue wording.
+    DBA-18: the plugin manifest is JSON and cannot read the constant, so it holds
+    the literal too; tests/unit/test_package.py keeps it equal to PACK_NAME."""
     files = _repo_files()
     assert "tools/config.py" in files, "tools/config.py must exist and not be ignored"
     assert NAME_LITERAL.encode() in (REPO_ROOT / "tools/config.py").read_bytes()
 
-    excluded = {"tools/config.py", THIS_FILE}
+    excluded = {"tools/config.py", "plugin/.claude-plugin/plugin.json", THIS_FILE}
     offenders = [
         p
         for p in files

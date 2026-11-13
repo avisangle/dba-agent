@@ -10,7 +10,18 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.offline.awr import _PAIR, _RULE, _SPEC, PAIR_COLUMNS, Table, _cut, _norm, _starts
+from tools.offline.awr import (
+    _RULE,
+    _SPEC,
+    PAIR_COLUMNS,
+    SUMMARY_KEYS,
+    Table,
+    _cut,
+    _norm,
+    _pair_table,
+    _starts,
+    _table,
+)
 
 # Section name -> exact title. A title line is the title alone or followed by a
 # space (then "DB/Inst: ...", "for DB: ..." or column headings).
@@ -24,10 +35,6 @@ SECTIONS = {
     "sql_by_reads": "SQL ordered by Reads",
     "init_params": "init.ora Parameters",
 }
-SUMMARY_KEYS = (
-    "db_name", "instance", "release", "begin_snap_id", "end_snap_id",
-    "begin_time", "end_time", "elapsed", "db_time",
-)
 SQL_EXTRA_COLUMNS = ["SQL Module", "SQL Text"]
 SQL_PIECE = 64  # SQL text is printed one 64-character piece per line, trailing spaces trimmed
 
@@ -65,16 +72,12 @@ def parse_statspack(path) -> StatspackReport:
         if not starts:
             continue
         if name == "instance_efficiency":
-            sections[name] = Table(title, PAIR_COLUMNS, _pair_rows(lines, starts[0]))
+            sections[name] = Table(title, PAIR_COLUMNS, _pair_table(lines, starts[0]))
             continue
         table = None
         for t in starts:  # a long section repeats its title on each page
-            parsed = _fixed_table(lines, t, title, name.startswith("sql_by_"), table)
-            if table is None:
-                table = parsed
+            table = _fixed_table(lines, t, title, name.startswith("sql_by_"), table)
         if table is not None:
-            if not table.columns[0]:
-                table.columns[0] = title  # Load Profile's blank row-label header
             if name.startswith("sql_by_"):
                 for row in table.rows:
                     row[-1] = _norm(row[-1])
@@ -158,7 +161,7 @@ def _fixed_table(lines: list[str], t: int, title: str, sql: bool, table: Table |
     starts = _starts(lines[i])
     if table is None:
         columns = _header(lines, i, t, starts, title)
-        table = Table(title, columns + SQL_EXTRA_COLUMNS if sql else columns, [])
+        table = _table(title, columns + SQL_EXTRA_COLUMNS if sql else columns, [])
     rows = table.rows
 
     for line in lines[i + 1 :]:
@@ -178,18 +181,9 @@ def _fixed_table(lines: list[str], t: int, title: str, sql: bool, table: Table |
                 text = rows[-1][-1]
                 pad = -len(text) % SQL_PIECE  # restore the spaces trimmed off a piece
                 rows[-1][-1] = text + " " * pad + line
-        elif not cells[0] and rows:  # a value wrapped onto the next line (init.ora)
+        elif not cells[0] and rows:  # a value wrapped onto the next line (as in init.ora)
             rows[-1] = [a + b for a, b in zip(rows[-1], cells, strict=True)]
         else:
             rows.append(cells)
     return table
 
-
-def _pair_rows(lines: list[str], t: int) -> list[list[str]]:
-    rows, i = [], t + 1
-    while i < len(lines) and lines[i].startswith("~"):
-        i += 1
-    while i < len(lines) and lines[i].strip():
-        rows += [[_norm(k), v] for k, v in _PAIR.findall(lines[i])]
-        i += 1
-    return rows

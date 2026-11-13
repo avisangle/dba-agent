@@ -116,6 +116,11 @@ class _FileLinter:
         for key, (line, _) in self.raw.header.items():
             if key not in KNOWN_KEYS:
                 self.add(line, "L002", f"unknown header key: {key}")
+        # the skill sends the whole file, header included, and `&` substitutes in comments too
+        header = self.path.read_text(encoding="utf-8").splitlines()[: self.raw.body_line - 1]
+        for n, text in enumerate(header, start=1):
+            for match in SUBSTITUTION.finditer(text):
+                self.add(n, "L010", f"substitution variable: {match[0]}")
 
         if entry := self.raw.value("id"):
             line, check_id = entry

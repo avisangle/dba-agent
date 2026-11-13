@@ -6,7 +6,7 @@
 
 **Decision:** The read-only tier's database user (`dba_agent_ro` by default, created by `db/tiers/read-only.sql` through `setup-sql`) is granted `CREATE SESSION` and `SELECT_CATALOG_ROLE`, gets no tablespace quota and no other privilege, and has its own profile with finite `SESSIONS_PER_USER`, `IDLE_TIME` and `CPU_PER_CALL`. `tools.tiers.TIERS["read-only"]` lists the same grants.
 
-**Why:** Database privileges are the guard: whatever SQL the model writes, this user cannot change anything. `SELECT_CATALOG_ROLE` covers the data dictionary and `V$` views the read-only checks read. A profile of its own caps runaway sessions without changing the shared `DEFAULT` profile.
+**Why:** Database privileges are the guard: whatever SQL the model writes, this user cannot change anything. `SELECT_CATALOG_ROLE` covers the data dictionary and `V$` views the read-only checks read, except the alert log view behind D-DBA-10-optional-alert-log-grant. A profile of its own caps runaway sessions without changing the shared `DEFAULT` profile.
 
 **Rejected:** `SELECT ANY DICTIONARY`: broader than needed (it also reaches objects in `SYS` beyond the catalog views). `ADVISOR`: advisor tasks write; they belong to the advisory tier's own user in a later epic.
 

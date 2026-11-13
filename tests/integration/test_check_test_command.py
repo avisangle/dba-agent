@@ -2,7 +2,7 @@
 against the test container.
 
 Each test saves a SYSTEM connection named `admin` in a fresh SQLcl home under
-the pytest temp dir. The default home is `<pack_home>/homes/<tier>`; pack_home is
+the pytest temp dir. The default home is the tier's `<pack_home>/homes/<home_name>`; pack_home is
 redirected to a temp dir through its `<PACK_NAME upper>_HOME` override
 (tools/config.py), so the real pack home is never touched.
 """
@@ -69,7 +69,7 @@ def test_check_test_by_id_prints_raw_rows_and_exits_0(pack_home):
 
 
 def test_check_test_defaults_to_the_read_only_tier_home(pack_home):
-    """AC: without --home, check-test uses <pack_home>/homes/<tier>, tier
+    """AC: without --home, check-test uses <pack_home>/homes/<home_name>, tier
     read-only by default; --tier read-only names it explicitly."""
     for extra in ([], ["--tier", "read-only"]):
         proc = _check_test(pack_home, "tablespace_usage", "--connection", "admin", *extra)

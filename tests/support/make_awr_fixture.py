@@ -22,7 +22,7 @@ for path in (REPO_ROOT, REPO_ROOT / "tests" / "support"):
 
 from save_connection import save_connection  # noqa: E402
 
-from tools.sqlcl import SqlclSession  # noqa: E402
+from tools.sqlcl import SqlclSession, sqlcl_bin  # noqa: E402
 
 OUT_DIR = REPO_ROOT / "tests" / "fixtures" / "offline"
 STEM = "awr_23ai_free"
@@ -60,7 +60,7 @@ def _report(session, function, window):
 
 
 def main() -> int:
-    sql_bin = os.environ.get("SQLCL_BIN", "sql")
+    sql_bin = sqlcl_bin()
     dsn = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
     password = os.environ.get("ORACLE_TEST_PASSWORD")
     if not password:

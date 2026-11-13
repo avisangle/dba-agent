@@ -8,7 +8,6 @@ from dataclasses import asdict
 
 from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import CheckFormatError
-from tools.checks.index import discover
 from tools.checks.resolve import resolve_checks
 from tools.config import PACK_NAME, VERSION
 from tools.doctor.checks import first_line, java_bin, run_all
@@ -77,33 +76,21 @@ def _checks() -> dict:
         resolved = resolve_checks(CHECKS_ROOT, user_checks_root())
     except CheckFormatError as exc:
         return {"error": str(exc)}
-    builtin = {c.id for c in discover(CHECKS_ROOT)}
+    builtin = {p.stem for p in CHECKS_ROOT.rglob("*.sql")}  # file name is the id (L003)
     user = sorted(i for i, r in resolved.items() if r.source == "user")
     overridden = len(builtin.intersection(user))
     return {"builtin": len(builtin) - overridden, "overridden": overridden,
             "added": len(user) - overridden, "user_ids": user}
 
 
-def _strings(value):
+def _map_strings(value, fn):
+    """`value` with `fn` applied to every string in it (dict keys stay)."""
     if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for v in value.values():
-            yield from _strings(v)
-    elif isinstance(value, list):
-        for v in value:
-            yield from _strings(v)
-
-
-def _redacted(value, known):
-    """Every string in `value` redacted. Strings are redacted before JSON encoding,
-    which would double the backslashes of a Windows path and hide it from `redact`."""
-    if isinstance(value, str):
-        return redact(value, known)
+        return fn(value)
     if isinstance(value, dict):
-        return {k: _redacted(v, known) for k, v in value.items()}
+        return {k: _map_strings(v, fn) for k, v in value.items()}
     if isinstance(value, list):
-        return [_redacted(v, known) for v in value]
+        return [_map_strings(v, fn) for v in value]
     return value
 
 
@@ -121,7 +108,12 @@ def build(env: Env, tier: Tier) -> dict[str, str]:
     data = {"doctor.json": results, "versions.json": versions, "checks.json": _checks()}
     # Per-connection checks are named `<check>:<connection>`.
     connections = [r["check"].partition(":")[2] for r in results if ":" in r["check"]]
-    known = collect("\n".join(_strings(data)), connections=connections, db_users=[tier.db_user])
-    files = {name: json.dumps(_redacted(v, known), indent=2) + "\n" for name, v in data.items()}
+    texts = []
+    _map_strings(data, lambda s: texts.append(s) or s)
+    known = collect("\n".join(texts), connections=connections, db_users=[tier.db_user])
+    # Each string is redacted before JSON encoding, which would double a Windows
+    # path's backslashes and hide it from `redact`.
+    files = {name: json.dumps(_map_strings(v, lambda s: redact(s, known)), indent=2) + "\n"
+             for name, v in data.items()}
     files["README.txt"] = redact(README, known)
     return files

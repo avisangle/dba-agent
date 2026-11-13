@@ -3,7 +3,7 @@
 Redaction fails closed (docs/decisions/D-DBA-17-redaction-fails-closed.md):
 anything that could be an identifier is replaced, chosen by the shape of the
 text and never by which error message carries it. Order matters: the home
-folder, connect strings, absolute paths, known names (wallet names first),
+folder standing alone, connect strings, absolute paths, known names (wallet names first),
 addresses, host names, then the OS user.
 """
 
@@ -16,9 +16,9 @@ from pathlib import Path
 
 HOME, PATH, OS_USER = "<home>", "<path>", "<os-user>"
 HOST, IP, CONNECT = "<host>", "<ip>", "<connect-string>"
-KINDS = ("connection", "db-user", "db-name", "service", "host")
-_TOKEN = re.compile(r"(<(?:home|path|os-user|host|ip|connect-string"
-                    r"|(?:connection|db-user|db-name|service)-\d+)>)")
+NUMBERED = ("connection", "db-user", "db-name", "service")  # `<kind-N>` tokens
+_FIXED = "|".join(map(re.escape, (HOME, PATH, OS_USER, HOST, IP, CONNECT)))
+_TOKEN = re.compile(rf"({_FIXED}|<(?:{'|'.join(NUMBERED)})-\d+>)")
 _OS_CASE = re.I if os.name == "nt" else 0  # paths and user names ignore case on Windows
 
 # Connect strings.
@@ -43,17 +43,20 @@ _NO_SESSION = re.compile(r"\b[Uu]ser ([A-Za-z][\w$#]*) (?:does not have|lacks) C
 # An Autonomous Database wallet names its database: `Wallet_<NAME>[.zip]`. Case
 # matters: sqlnet.ora's `WALLET_LOCATION` is no wallet.
 _WALLET = re.compile(r"(?<![A-Za-z0-9])(Wallet_)(\w+)")
+# In this order, so numbering follows it.
+_NAMED = ((_UNKNOWN_HOST, "host"), (_HOST_PORT, "host"), (_UNREGISTERED, "service"),
+          (_ALIAS, "service"), (_NO_SESSION, "db-user"), (_WALLET, "db-name"))
 
-# Absolute paths: a root (`/`, `~/`, `C:\`, `C:/`, `\\server`, or the home) with
-# at least one component, not preceded by a letter or digit. A Windows folder may
+# Absolute paths: a root (`/`, `~/`, `C:\`, `C:/`, `\\server`) with at least one
+# component, not preceded by a letter or digit. A Windows folder may
 # hold spaces when a `\` follows it.
 _COMP = r"[^\s\"'`<>|;,()\[\]{}/\\]"  # first character of a component
 _RUN = r"[^\s\"'`<>|;,()\[\]{}]"  # a path continues over these
 _WIN_FOLDER = r"[^\\/:*?\"<>|\r\n]+\\"
 _PATH_RE = re.compile(
     rf"(?<![A-Za-z0-9])(?:"
-    rf"(?:[A-Za-z]:[\\/]|\\\\|{HOME}\\)(?:{_WIN_FOLDER})*{_COMP}{_RUN}*"
-    rf"|(?:~|{HOME})?/{_COMP}{_RUN}*)"
+    rf"(?:[A-Za-z]:[\\/]|\\\\)(?:{_WIN_FOLDER})*{_COMP}{_RUN}*"
+    rf"|~?/{_COMP}{_RUN}*)"
 )
 _PATH_TAIL = re.compile(r"[.:]+$")  # sentence punctuation after a path stays outside it
 
@@ -62,7 +65,8 @@ _IPV4_RE = re.compile(rf"(?<![\w.]){_IPV4}(?!\w|\.\d)")  # a fifth dotted group 
 _VERSION_BEFORE = re.compile(r"(?:release|build|version)\W{0,3}$", re.I)
 _H = r"[0-9A-Fa-f]{1,4}"
 _IPV6_RE = re.compile(
-    rf"(?<![\w:.])(?:(?:{_H}:){{7}}{_H}|(?:{_H}(?::{_H})*)?::(?:{_H}(?::{_H})*)?)(?![\w:])")
+    rf"(?<![\w:.])(?=[:\w]*[0-9A-Fa-f])"  # at least one group: a bare `::` is no address
+    rf"(?:(?:{_H}:){{7}}{_H}|(?:{_H}(?::{_H})*)?::(?:{_H}(?::{_H})*)?)(?![\w:])")
 _LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
 _FQDN_RE = re.compile(
     rf"(?<![\w.-])(?:{_LABEL}\.)+(?P<tld>[A-Za-z][A-Za-z0-9-]*[A-Za-z0-9])(?![\w-]|\.\w)")
@@ -80,47 +84,43 @@ class Known:
 
     def __init__(self):
         self._tokens: dict[str, str] = {}  # upper-cased name -> token
-        self._counts = dict.fromkeys(KINDS, 0)
+        self._counts = dict.fromkeys(NUMBERED, 0)
+        self._pattern = None  # built on first use after a name is added
 
     def add(self, kind: str, name: str) -> str:
-        """The token for `name`; a name seen before keeps its first token."""
+        """The token for `name`, `<host>` for kind "host" and else `<kind-N>`;
+        a name seen before keeps its first token."""
         key = name.upper()
         if key not in self._tokens:
-            if kind == "host":
-                self._tokens[key] = HOST
-            else:
+            if kind in self._counts:
                 self._counts[kind] += 1
                 self._tokens[key] = f"<{kind}-{self._counts[kind]}>"
+            else:
+                self._tokens[key] = HOST
+            self._pattern = None
         return self._tokens[key]
 
     def sub(self, text: str) -> str:
         if not self._tokens:
             return text
-        alts = "|".join(map(re.escape, sorted(self._tokens, key=len, reverse=True)))
-        pattern = re.compile(rf"(?<![\w$#-])(?:{alts})(?![\w$#-])", re.I)
-        return pattern.sub(lambda m: self._tokens[m[0].upper()], text)
+        if self._pattern is None:
+            alts = "|".join(map(re.escape, sorted(self._tokens, key=len, reverse=True)))
+            self._pattern = re.compile(rf"(?<![\w$#-])(?:{alts})(?![\w$#-])", re.I)
+        return self._pattern.sub(lambda m: self._tokens[m[0].upper()], text)
 
 
 def _gather(text: str, known: Known) -> None:
     """Add to `known` the names `text` carries in connect strings, connect errors
     and wallet names."""
     for m in _EZCONNECT.finditer(text):
-        for group in ("h1", "h2"):
-            if m[group]:
-                known.add("host", m[group])
-        for group in ("s1", "s2", "s3"):
-            if m[group]:
-                known.add("service", m[group])
+        known.add("host", m["h1"] or m["h2"])
+        if service := m["s1"] or m["s2"] or m["s3"]:
+            known.add("service", service)
     for key, value in _DESCRIPTION_NAMES.findall(text):
         known.add("host" if key.upper() == "HOST" else "service", value)
-    for name in _UNKNOWN_HOST.findall(text) + _HOST_PORT.findall(text):
-        known.add("host", name)
-    for name in _UNREGISTERED.findall(text) + _ALIAS.findall(text):
-        known.add("service", name)
-    for name in _NO_SESSION.findall(text):
-        known.add("db-user", name)
-    for _, name in _WALLET.findall(text):
-        known.add("db-name", name)
+    for pattern, kind in _NAMED:
+        for m in pattern.finditer(text):
+            known.add(kind, m[m.lastindex])
 
 
 def collect(text: str, connections=(), db_users=()) -> Known:
@@ -174,7 +174,7 @@ def _ipv4(m: re.Match) -> str:
 
 def _hosts(text: str) -> str:
     text = _IPV4_RE.sub(_ipv4, text)
-    text = _IPV6_RE.sub(lambda m: m[0] if m[0] == "::" else IP, text)
+    text = _IPV6_RE.sub(IP, text)
     text = _FQDN_RE.sub(lambda m: m[0] if m["tld"].lower() in FILE_TYPES else HOST, text)
     for pattern, token in _identity_patterns():
         text = pattern.sub(token, text)
@@ -188,12 +188,13 @@ def _word(name: str, flags=0) -> re.Pattern:
 
 @functools.cache
 def _home_patterns() -> tuple[re.Pattern, ...]:
-    """The home folder, as written by this OS and resolved; none when it is a root."""
+    """The home folder standing alone, as written by this OS and resolved; none
+    when it is a root. A path under it is left whole for the path rule."""
     home = Path.home()
     if home == Path(home.anchor):  # a home of `/` would match every path
         return ()
     paths = dict.fromkeys((str(home), str(home.resolve()), home.as_posix()))
-    return tuple(re.compile(rf"{re.escape(path)}(?![\w.-])", _OS_CASE) for path in paths)
+    return tuple(re.compile(rf"{re.escape(path)}(?![\w.\\/-])", _OS_CASE) for path in paths)
 
 
 @functools.cache

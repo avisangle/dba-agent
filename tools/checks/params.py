@@ -12,8 +12,8 @@ from dataclasses import dataclass
 NAME = re.compile(r"[a-z][a-z0-9_]*")
 TYPES = {"sql_id": re.compile(r"[0-9a-z]{13}"), "int": re.compile(r"[0-9]{1,9}")}
 ITEM = re.compile(r"([^:=]*):([^:=]*)(?:=(.*))?")
-PLACEHOLDER = re.compile(r"\{\{([a-z][a-z0-9_]*)\}\}")
-OPEN = re.compile(r"\{\{")
+# `{{name}}`, or a bare `{{` (no group 1) that names nothing
+PLACEHOLDER = re.compile(rf"\{{\{{(?:({NAME.pattern})\}}\}})?")
 
 
 class ParamError(ValueError):
@@ -49,19 +49,6 @@ def parse_params(text: str) -> tuple[Param, ...]:
             raise ParamError(f"parameter {name}: default {default!r} is not an int")
         params[name] = Param(name, type_, default)
     return tuple(params.values())
-
-
-def parse_values(items) -> dict[str, str]:
-    """`--param name=value` arguments (None when none were given) as a dict."""
-    values: dict[str, str] = {}
-    for item in items or ():
-        name, sep, value = item.partition("=")
-        if not sep:
-            raise ParamError(f"--param {item!r} is not name=value")
-        if name in values:
-            raise ParamError(f"parameter {name} is given twice")
-        values[name] = value
-    return values
 
 
 def _checked(check, values: dict[str, str]) -> dict[str, str]:

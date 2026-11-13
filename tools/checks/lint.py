@@ -21,7 +21,7 @@ from tools.checks.header import (
     parse_max_rows,
     split_check,
 )
-from tools.checks.params import OPEN, PLACEHOLDER, ParamError, parse_params
+from tools.checks.params import PLACEHOLDER, ParamError, parse_params
 
 CATEGORIES = ("discovery", "health", "storage", "sessions", "performance", "custom")
 MODES = ("R", "A", "W", "X")
@@ -199,14 +199,12 @@ class _FileLinter:
         body = self.raw.body
         declared = {p.name for p in self.params}
         used = set()
-        for match in OPEN.finditer(body):
-            placeholder = PLACEHOLDER.match(body, match.start())
-            if placeholder and placeholder[1] in declared:
-                used.add(placeholder[1])
+        for match in PLACEHOLDER.finditer(body):
+            if match[1] in declared:
+                used.add(match[1])
             else:
-                text = placeholder[0] if placeholder else "{{"
                 self.add(self.body_line(match.start()), "L016",
-                         f"placeholder {text} is not a declared parameter")
+                         f"placeholder {match[0]} is not a declared parameter")
         for param in self.params:
             if param.name not in used:
                 self.add(self.raw.header["params"][0], "L017",

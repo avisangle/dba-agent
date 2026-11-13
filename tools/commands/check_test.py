@@ -3,9 +3,9 @@
 import sys
 from pathlib import Path
 
-from tools.checks.params import ParamError, bind, parse_values
-from tools.checks.resolve import load_target
+from tools.checks.params import ParamError, bind
 from tools.checks.run import run_check, validate_result
+from tools.checks.target import add_param_argument, load_target, parse_values
 from tools.mcp_client import McpError, McpTimeout
 from tools.sqlcl import SqlclSession, sqlcl_bin
 from tools.tiers import tier_arg
@@ -26,8 +26,7 @@ def add_arguments(parser):
                         help="tier whose home is used without --home (default: %(default)s)")
     parser.add_argument("--home", type=Path, metavar="DIR",
                         help="SQLcl home (default: the tier's home under <pack home>/homes)")
-    parser.add_argument("--param", action="append", metavar="NAME=VALUE",
-                        help="a value for one of the check's parameters; repeatable")
+    add_param_argument(parser)
 
 
 def run(args):

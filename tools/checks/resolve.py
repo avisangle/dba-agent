@@ -3,14 +3,12 @@
 nowhere else: a user check with a built-in id replaces it; a new id adds one.
 """
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from tools.checks import CHECKS_ROOT, user_checks_root
 from tools.checks.header import Check, CheckFormatError, split_check
 from tools.checks.index import discover, find_checks, load_check
-from tools.checks.lint import lint_file
 
 
 @dataclass(frozen=True)
@@ -62,32 +60,3 @@ def resolve_target(target: str) -> Check | None:
     entry = resolve_check(CHECKS_ROOT, user_checks_root(), target)
     return entry.check if entry else None
 
-
-def _fails_lint(path) -> bool:
-    """Print the lint findings for `path` to stderr; True if there are any."""
-    findings = lint_file(path)
-    for finding in findings:
-        print(finding, file=sys.stderr)
-    if findings:
-        print(f"error: {path} fails lint; not used", file=sys.stderr)
-    return bool(findings)
-
-
-def load_target(target: str) -> tuple[Check | None, int]:
-    """For a command that runs or prints a check (D-DBA-1-check-test-lints-before-running):
-    (check, 0) when `target` resolves and lints clean; else (None, exit code), 1 for a
-    check that fails to parse or lint and 2 for no such check, the reason on stderr."""
-    try:
-        check = resolve_target(target)
-    except CheckFormatError as exc:
-        # Lint reports every problem in the file; the parser stops at the first.
-        # L014 (two user files for one id) carries no path: it is not a per-file finding.
-        if exc.path is None or not _fails_lint(exc.path):
-            print(f"error: {exc}", file=sys.stderr)
-        return None, 1
-    if check is None:
-        print(f"error: no check {target}", file=sys.stderr)
-        return None, 2
-    if _fails_lint(check.path):
-        return None, 1
-    return check, 0

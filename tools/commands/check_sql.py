@@ -3,8 +3,8 @@ unchanged through SQLcl's run tool. Opens no database connection."""
 
 import sys
 
-from tools.checks.params import ParamError, parse_values, render_file
-from tools.checks.resolve import load_target
+from tools.checks.params import ParamError, render_file
+from tools.checks.target import add_param_argument, load_target, parse_values
 
 NAME = "check-sql"
 HELP = (
@@ -15,8 +15,7 @@ HELP = (
 
 def add_arguments(parser):
     parser.add_argument("target", metavar="ID_OR_PATH", help="a check id or a check file path")
-    parser.add_argument("--param", action="append", metavar="NAME=VALUE",
-                        help="a value for one of the check's parameters; repeatable")
+    add_param_argument(parser)
 
 
 def run(args):

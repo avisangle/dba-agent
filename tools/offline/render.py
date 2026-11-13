@@ -1,6 +1,63 @@
-"""Output shared by the offline report extractors: capped section tables and Markdown."""
+"""Shared by the offline report extractors: their options, capped section tables
+and Markdown."""
+
+import json
+import sys
+from pathlib import Path
 
 SQL_TEXT_LIMIT = 200
+
+
+def extract_arguments(parser, kind: str, sections) -> None:
+    parser.add_argument("file", type=Path, metavar="FILE", help=f"{kind} report, HTML or text")
+    parser.add_argument(
+        "--sections",
+        metavar="a,b,c",
+        help=f"comma-separated sections (default: all): {', '.join(sections)}",
+    )
+    parser.add_argument(
+        "--max-rows", type=int, default=20, metavar="N", help="data rows per table (default 20)"
+    )
+    parser.add_argument("--format", choices=("md", "json"), default="md", help="default md")
+
+
+def extract(args, kind: str, sections, parse, not_report, labels) -> int:
+    """Print the summary and capped `sections` of the report `parse(args.file)`, whose
+    .summary keys are those of `labels` and .sections hold the found tables. Exit
+    code: 0; 1 when `parse` raises `not_report`; 2 for a bad option or no file."""
+    wanted = [s.strip() for s in args.sections.split(",") if s.strip()] if args.sections else []
+    unknown = [s for s in wanted if s not in sections]
+    if unknown:
+        print(f"error: unknown section: {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    if args.max_rows < 1:
+        print("error: --max-rows must be at least 1", file=sys.stderr)
+        return 2
+    if not args.file.is_file():
+        print(f"error: {args.file}: no such file", file=sys.stderr)
+        return 2
+    try:
+        report = parse(args.file)
+    except not_report:
+        article = "an" if kind[0] in "AEIOU" else "a"
+        print(f"error: {args.file}: not {article} {kind} report", file=sys.stderr)
+        return 1
+
+    names = [n for n in sections if n in wanted] if wanted else list(sections)
+    found = {
+        name: capped(report.sections[name], args.max_rows)
+        for name in names
+        if name in report.sections
+    }
+    not_found = [n for n in names if n not in report.sections]
+    if args.format == "json":
+        out = {"summary": report.summary, "sections": found, "sections_not_found": not_found}
+        print(json.dumps(out, indent=1))
+    else:
+        summary = {labels[key]: value for key, value in report.summary.items()}
+        titled = {name: (report.sections[name].title, table) for name, table in found.items()}
+        print(markdown(f"{kind} report extract: {args.file.name}", summary, titled, not_found))
+    return 0
 
 
 def capped(table, max_rows: int) -> dict:

@@ -81,31 +81,8 @@ def _summary(fields: dict[str, str], lines) -> dict[str, str]:
 # --- HTML ----------------------------------------------------------------------
 
 
-class _AshTableCollector(_TableCollector):
-    """Also drops `<div class="hidden">` text: an ASH continuation row repeats the
-    previous row's values there, where the text report leaves them blank."""
-
-    def __init__(self):
-        super().__init__()
-        self._in_hidden = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "div" and ("class", "hidden") in attrs:
-            self._in_hidden = True
-        super().handle_starttag(tag, attrs)
-
-    def handle_endtag(self, tag):
-        if tag == "div":
-            self._in_hidden = False
-        super().handle_endtag(tag)
-
-    def handle_data(self, data):
-        if not self._in_hidden:
-            super().handle_data(data)
-
-
 def _parse_html(text: str) -> AshReport:
-    collector = _AshTableCollector()
+    collector = _TableCollector()  # drops the values a continuation row hides
     collector.feed(text)
     collector.close()
 
@@ -121,12 +98,12 @@ def _parse_html(text: str) -> AshReport:
                 fields.setdefault(column, value)
     summary = _summary(fields, ("  ".join(row) for _, _, rows in tables for row in rows))
 
-    sections = {}
-    for name, title in SECTIONS.items():
-        for label, columns, rows in tables:
-            if label == title:
-                sections[name] = Table(title, columns, rows)
-                break
+    first = {}  # label -> (columns, rows) of its first table
+    for label, columns, rows in tables:
+        first.setdefault(label, (columns, rows))
+    sections = {
+        name: Table(title, *first[title]) for name, title in SECTIONS.items() if title in first
+    }
     return AshReport(summary, sections)
 
 
@@ -172,7 +149,8 @@ def _fixed_table(lines: list[str], t: int, sql: bool):
 
     size, rows = len(tiers), []
     for chunk in chunks:
-        records = [chunk[:size]] if sql else [chunk[k : k + size] for k in range(0, len(chunk), size)]
+        step = len(chunk) if sql else size  # past the tier lines, top_sql has its text
+        records = [chunk[k : k + size] for k in range(0, len(chunk), step)]
         for record in records:
             row = []
             for (starts, _), line in zip(tiers, record, strict=False):
@@ -196,13 +174,14 @@ def _parse_text(text: str) -> AshReport:
                 fields.setdefault(column, value)
     summary = _summary(fields, lines)
 
-    titles = [(i, title) for i in range(len(lines)) if (title := _title(lines, i))]
+    first = {}  # title -> index of its first line
+    for i in range(len(lines)):
+        if title := _title(lines, i):
+            first.setdefault(title, i)
     sections = {}
     for name, title in SECTIONS.items():
-        for i, found in titles:
-            if found == title:
-                parsed = _fixed_table(lines, i, name == "top_sql")
-                if parsed is not None:
-                    sections[name] = Table(title, *parsed)
-                break
+        if title in first:
+            parsed = _fixed_table(lines, first[title], name == "top_sql")
+            if parsed is not None:
+                sections[name] = Table(title, *parsed)
     return AshReport(summary, sections)

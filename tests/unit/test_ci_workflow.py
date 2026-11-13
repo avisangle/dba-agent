@@ -383,6 +383,113 @@ def test_readme_states_minimum_sqlcl_25_3_2():
     assert "25.2+" not in readme
 
 
+# --- DBA-27: Statspack install step and tests/support/install_statspack.sh ---
+
+STATSPACK_SCRIPT = REPO_ROOT / "tests" / "support" / "install_statspack.sh"
+STATSPACK_REL = STATSPACK_SCRIPT.relative_to(REPO_ROOT).as_posix()
+
+FAKE_DOCKER = """#!{python}
+\"\"\"Fake docker: log argv and stdin as one JSON line, print nothing, exit 0.\"\"\"
+import json, os, sys
+stdin = "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read()
+with open(os.environ["FAKE_DOCKER_LOG"], "a") as log:
+    log.write(json.dumps({{"argv": sys.argv[1:], "stdin": stdin}}) + "\\n")
+"""
+
+
+def _run_install_statspack(tmp_path, password):
+    """Run install_statspack.sh from the repo root with a fake `docker` first on
+    PATH. Returns (result, docker calls as dicts, sandbox)."""
+    import json
+
+    assert STATSPACK_SCRIPT.is_file(), f"{STATSPACK_REL} missing"
+    shims, sandbox = tmp_path / "shims", tmp_path / "sandbox"
+    for d in (shims, sandbox / "home", sandbox / "tmp"):
+        d.mkdir(parents=True, exist_ok=True)
+    shim = shims / "docker"
+    shim.write_text(FAKE_DOCKER.format(python=sys.executable))
+    shim.chmod(0o755)
+    log = tmp_path / "docker.log"
+    log.touch()
+    env = dict(os.environ)
+    env.update(PATH=f"{shims}{os.pathsep}{env['PATH']}", HOME=str(sandbox / "home"),
+               TMPDIR=str(sandbox / "tmp"), FAKE_DOCKER_LOG=str(log))
+    env.pop("ORACLE_TEST_PASSWORD", None)
+    if password is not None:
+        env["ORACLE_TEST_PASSWORD"] = password
+    result = subprocess.run(
+        ["bash", str(STATSPACK_SCRIPT)], cwd=REPO_ROOT, env=env, stdin=subprocess.DEVNULL,
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    calls = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    return result, calls, sandbox
+
+
+def test_integration_job_installs_statspack_after_the_database_starts():
+    """AC (DBA-27): the `integration` job has a step running
+    tests/support/install_statspack.sh after the `docker compose ... up -d
+    --wait` step and before `pytest -m integration`. Falsifier: run it before
+    the database is up, or drop the step."""
+    runs = _runs(_job(_workflow(), "integration"))
+
+    def index(needle):
+        found = [i for i, r in enumerate(runs) if needle in r]
+        assert len(found) == 1, f"{needle!r} in {len(found)} steps: {runs}"
+        return found[0]
+
+    up = index("docker compose -f tests/docker-compose.yml up -d --wait")
+    install = index(STATSPACK_REL)
+    tests = index("pytest -m integration")
+    assert up < install < tests, runs
+
+
+@posix_only
+def test_install_statspack_refuses_to_run_without_oracle_test_password(tmp_path):
+    """AC (DBA-27): the script reads ORACLE_TEST_PASSWORD; unset, it exits
+    non-zero naming the variable and calls docker not at all."""
+    result, calls, _ = _run_install_statspack(tmp_path, None)
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "ORACLE_TEST_PASSWORD" in result.stdout + result.stderr
+    assert calls == [], calls
+
+
+@posix_only
+def test_install_statspack_runs_sqlplus_through_compose_exec_and_hides_the_password(tmp_path):
+    """AC (DBA-27): every docker call goes through `docker compose -f
+    <tests/docker-compose.yml> ...`, at least one is `exec -T oracle` running
+    sqlplus, and none is a bare `docker exec` or `docker run`; the
+    ORACLE_TEST_PASSWORD value appears neither in the script's output nor in
+    any docker argument (a process listing would show it), nor in any file
+    left under HOME, TMPDIR or the repo. The fake docker answers nothing, so
+    whatever the script does next, these hold on every path it takes."""
+    password = "Pfake" + os.urandom(8).hex()
+    before = _untracked_files()
+    result, calls, sandbox = _run_install_statspack(tmp_path, password)
+
+    assert calls, f"docker never called: {result.stdout}{result.stderr}"
+    for call in calls:
+        argv = call["argv"]
+        assert argv[:2] == ["compose", "-f"], argv
+        assert Path(argv[2]).resolve() == (REPO_ROOT / "tests" / "docker-compose.yml"), argv
+        assert password not in " ".join(argv), "password passed as a docker argument"
+    execs = [c["argv"][3:] for c in calls if c["argv"][3:4] == ["exec"]]
+    assert execs, f"no `docker compose ... exec` call: {calls}"
+    assert all(e[:3] == ["exec", "-T", "oracle"] for e in execs), execs
+    assert any("sqlplus" in a for e in execs for a in e[3:]), execs
+
+    assert password not in result.stdout + result.stderr, "password printed"
+    leftovers = [p for p in sandbox.rglob("*") if p.is_file() and password in p.read_text()]
+    leftovers += [f for f in _untracked_files() - before
+                  if password in (REPO_ROOT / f).read_text(errors="ignore")]
+    assert leftovers == [], leftovers
+
+
+def _untracked_files() -> set[str]:
+    out = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"], cwd=REPO_ROOT,
+                         capture_output=True, text=True, check=True).stdout
+    return set(out.split())
+
+
 # --- contract test -----------------------------------------------------------
 
 

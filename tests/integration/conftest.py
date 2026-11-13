@@ -82,8 +82,8 @@ def sysdba(_integration_ready, tmp_path_factory):
     yield from _connected(tmp_path_factory, "sysdba", "sys", PASSWORD, as_sysdba=True)
 
 
-def _setup_sql_statements(password: str) -> list[str]:
-    """The `setup-sql --tier read-only` script as statements for run_sql.
+def _setup_sql_statements(tier, password: str) -> list[str]:
+    """The `setup-sql --tier <tier>` script as statements for run_sql.
 
     run-sql calls do not share substitution variables, and an unresolved one
     returns "Substitution cancelled" with no error. So the password is
@@ -91,7 +91,7 @@ def _setup_sql_statements(password: str) -> list[str]:
     """
     lines = [
         ln
-        for ln in render(TIERS["read-only"]).splitlines()
+        for ln in render(tier).splitlines()
         if ln.strip()
         and not ln.lstrip().startswith("--")
         and not CLIENT_COMMAND.match(ln)  # ACCEPT, SET: SQLcl-only, run-sql takes SQL
@@ -104,23 +104,41 @@ def _setup_sql_statements(password: str) -> list[str]:
     return statements
 
 
+def _tier_user(tier, admin, sys_grantor, tmp_path_factory):
+    """Recreate the tier's db_user by applying its setup-sql script with a fresh
+    password: the object grants (on SYS objects) as `sys_grantor`, the rest as
+    `admin`. Yield a SqlclSession connected as the user."""
+    user = tier.db_user
+    password = "P" + secrets.token_hex(12)
+    statements = _setup_sql_statements(tier, password)
+    object_grants = [g.lower() for g in tier.object_grants]
+    assert admin.run_sql(f"drop user if exists {user} cascade").error is None
+    # 23ai has no DROP PROFILE IF EXISTS; ORA-02380 means it was not there
+    dropped = admin.run_sql(f"drop profile {profile_name(user)} cascade")
+    assert dropped.error is None or dropped.error.startswith("ORA-02380"), dropped.error
+    for sql in statements:
+        on_sys = any(g in " ".join(sql.split()).lower() for g in object_grants)
+        grantor = sys_grantor if on_sys else admin
+        result = grantor.run_sql(sql)
+        assert result.error is None, f"{sql.replace(password, '***')}: {result.error}"
+    created = admin.run_sql(f"select username from dba_users where username = '{user.upper()}'")
+    assert created.rows == [[user.upper()]], f"setup-sql did not create {user}: {created.text}"
+    yield from _connected(tmp_path_factory, user, user, password)
+
+
 @pytest.fixture(scope="session")
 def ro(admin, tmp_path_factory):
     """SqlclSession connected as the read-only tier's db_user, created by applying the
     setup-sql script. The user is recreated with a fresh password each test session."""
-    password = "P" + secrets.token_hex(12)
-    statements = _setup_sql_statements(password)
-    assert admin.run_sql(f"drop user if exists {RO_USER} cascade").error is None
-    # 23ai has no DROP PROFILE IF EXISTS; ORA-02380 means it was not there
-    dropped = admin.run_sql(f"drop profile {profile_name(RO_USER)} cascade")
-    assert dropped.error is None or dropped.error.startswith("ORA-02380"), dropped.error
-    for sql in statements:
-        result = admin.run_sql(sql)
-        assert result.error is None, f"{sql.replace(password, '***')}: {result.error}"
-    user = RO_USER.upper()
-    created = admin.run_sql(f"select username from dba_users where username = '{user}'")
-    assert created.rows == [[user]], f"setup-sql did not create {RO_USER}: {created.text}"
-    yield from _connected(tmp_path_factory, RO_USER, RO_USER, password)
+    yield from _tier_user(TIERS["read-only"], admin, None, tmp_path_factory)
+
+
+@pytest.fixture(scope="session")
+def adv(admin, sysdba, tmp_path_factory):
+    """SqlclSession connected as the advisory tier's db_user, created by applying the
+    `setup-sql --tier advisory` script: its object grants as SYS (SYSTEM cannot grant
+    on SYS objects), the rest as SYSTEM. Fresh password each test session."""
+    yield from _tier_user(TIERS["advisory"], admin, sysdba, tmp_path_factory)
 
 
 def alert_log_statement(user: str = RO_USER) -> str:

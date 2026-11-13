@@ -17,14 +17,14 @@ HELP = "print the SQL that creates a tier's database user (review it, then run i
 USER_RE = re.compile(r"[A-Za-z][A-Za-z0-9_$#]{0,29}")
 
 AUDIT_SQL = """\
--- Optional on the read-only tier: unified audit of every action by {user}.
+-- Optional on the {tier} tier: unified audit of every action by {user}.
 CREATE AUDIT POLICY {policy} ACTIONS ALL;
 AUDIT POLICY {policy} BY {user};
 """
 
 # Optional object grant (docs/decisions/D-DBA-10-optional-alert-log-grant.md).
 ALERT_LOG_SQL = """\
--- Optional on the read-only tier: lets the alert_log_errors check read the alert
+-- Optional on the {tier} tier: lets the alert_log_errors check read the alert
 -- log (v$diag_alert_ext). Skip it and that check reports "not available".
 -- Run as SYS: SYSTEM gets ORA-01031 granting on a view owned by SYS.
 -- For a user that already exists, run only this GRANT.
@@ -47,9 +47,9 @@ def render(
         .replace("{{profile}}", profile_name(user))
     )
     if alert_log:
-        script += ALERT_LOG_SQL.format(user=user)
+        script += ALERT_LOG_SQL.format(user=user, tier=tier.name)
     if audit:
-        script += AUDIT_SQL.format(user=user, policy=f"{user}_audit")
+        script += AUDIT_SQL.format(user=user, tier=tier.name, policy=f"{user}_audit")
     return script
 
 

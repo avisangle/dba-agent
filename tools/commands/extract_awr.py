@@ -5,10 +5,10 @@ import sys
 from pathlib import Path
 
 from tools.offline.awr import SECTIONS, NotAwrReport, parse_awr
+from tools.offline.render import capped, markdown
 
 NAME = "extract-awr"
 HELP = "extract the summary and key section tables from an AWR report (HTML or text)"
-SQL_TEXT_LIMIT = 200
 
 SUMMARY_LABELS = {
     "db_name": "DB name",
@@ -56,7 +56,7 @@ def run(args):
 
     names = [n for n in SECTIONS if n in wanted] if wanted else list(SECTIONS)
     sections = {
-        name: _capped(report.sections[name], args.max_rows)
+        name: capped(report.sections[name], args.max_rows)
         for name in names
         if name in report.sections
     }
@@ -65,38 +65,8 @@ def run(args):
         out = {"summary": report.summary, "sections": sections, "sections_not_found": not_found}
         print(json.dumps(out, indent=1))
     else:
-        print(_markdown(args.file.name, report, sections, not_found))
+        summary = {SUMMARY_LABELS[key]: value for key, value in report.summary.items()}
+        titled = {name: (report.sections[name].title, table) for name, table in sections.items()}
+        print(markdown(f"AWR report extract: {args.file.name}", summary, titled, not_found))
     return 0
 
-
-def _capped(table, max_rows: int) -> dict:
-    sql_cols = [i for i, c in enumerate(table.columns) if "sql text" in c.lower()]
-    rows = [
-        [cell[:SQL_TEXT_LIMIT] if i in sql_cols else cell for i, cell in enumerate(row)]
-        for row in table.rows[:max_rows]
-    ]
-    return {
-        "columns": table.columns,
-        "rows": rows,
-        "dropped": max(len(table.rows) - max_rows, 0),
-    }
-
-
-def _md_cell(text: str) -> str:
-    return text.replace("|", "\\|")
-
-
-def _markdown(file_name, report, sections, not_found) -> str:
-    out = [f"# AWR report extract: {file_name}", "", "## Summary", ""]
-    out += [f"- {SUMMARY_LABELS[key]}: {value}" for key, value in report.summary.items()]
-    for name, table in sections.items():
-        out += ["", f"## {name}: {report.sections[name].title}", ""]
-        out.append("| " + " | ".join(_md_cell(c) for c in table["columns"]) + " |")
-        out.append("|" + "---|" * len(table["columns"]))
-        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in table["rows"]]
-        if table["dropped"]:
-            out += ["", f"{table['dropped']} more rows dropped (--max-rows {len(table['rows'])})."]
-    if not_found:
-        out += ["", "## Sections not found", ""]
-        out += [f"- {name}" for name in not_found]
-    return "\n".join(out)

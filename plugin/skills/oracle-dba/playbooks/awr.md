@@ -1,6 +1,6 @@
 # AWR and ASH playbook
 
-History and active session sampling: what the database was doing over the last minutes (active session history) and whether AWR snapshots are being taken. Both checks have `pack: diagnostics`, so rule 8 applies: give its one-line notice the first time, then run them in the same turn.
+History and active session sampling: what the database was doing over the last minutes (active session history) and whether AWR snapshots are being taken. Both checks have `pack: diagnostics`, so rule 8 applies.
 
 Both checks take a parameter, so their files hold `{{name}}` placeholders. Send what `python -m tools check-sql <id>` prints, unchanged, instead of the file itself; it fills in the defaults, and `--param minutes=<n>` or `--param days=<n>` sets another window.
 

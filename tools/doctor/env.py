@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Protocol
 
-from tools.sqlcl import SqlclSession, sqlcl_bin
+from tools.sqlcl import SqlclSession, launcher, sqlcl_bin
 from tools.tiers import Tier
 
 MCP_TIMEOUT = 30.0  # seconds for `sql -mcp` to answer initialize, and for each tool call
@@ -28,7 +28,9 @@ class Env(Protocol):
 
 class RealEnv:
     def run(self, cmd: list[str]) -> tuple[int, str, str]:
-        exe = shutil.which(cmd[0])  # also finds sql.exe / sql.cmd on Windows
+        # launcher: `bin\sql` or `bin\java` becomes the .exe beside it on Windows,
+        # which shutil.which before 3.12 does not try for a path with a directory
+        exe = shutil.which(launcher(cmd[0]))
         if exe is None:
             return 127, "", f"{cmd[0]}: not found"
         try:

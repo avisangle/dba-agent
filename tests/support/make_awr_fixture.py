@@ -89,7 +89,7 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for ext, text in reports.items():
         path = OUT_DIR / f"{STEM}.{ext}"
-        path.write_text(text.replace(host, "testhost"))
+        path.write_text(text.replace(host, "testhost"), encoding="utf-8")
         print(f"wrote {path.relative_to(REPO_ROOT)} (snapshots {begin}-{end})")
     return 0
 

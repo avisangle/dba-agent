@@ -36,7 +36,7 @@ def load_check(path) -> Check:
     try:
         return parse_check(path)
     except CheckFormatError as exc:
-        raise CheckFormatError(exc.code, exc.line, f"{path}: {exc.message}") from exc
+        raise CheckFormatError(exc.code, exc.line, f"{path}: {exc.message}", path) from exc
 
 
 def discover(root) -> list[Check]:

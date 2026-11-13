@@ -27,6 +27,7 @@ ALERT_LOG_SQL = """\
 -- Optional on the read-only tier: lets the alert_log_errors check read the alert
 -- log (v$diag_alert_ext). Skip it and that check reports "not available".
 -- Run as SYS: SYSTEM gets ORA-01031 granting on a view owned by SYS.
+-- For a user that already exists, run only this GRANT.
 GRANT SELECT ON SYS.V_$DIAG_ALERT_EXT TO {user};
 """
 

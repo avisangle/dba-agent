@@ -106,8 +106,8 @@ def _setup_sql_statements(password: str) -> list[str]:
 
 @pytest.fixture(scope="session")
 def ro(admin, tmp_path_factory):
-    """SqlclSession connected as dba_agent_ro, created by applying the setup-sql script.
-    The user is recreated with a fresh password each test session."""
+    """SqlclSession connected as the read-only tier's db_user, created by applying the
+    setup-sql script. The user is recreated with a fresh password each test session."""
     password = "P" + secrets.token_hex(12)
     statements = _setup_sql_statements(password)
     assert admin.run_sql(f"drop user if exists {RO_USER} cascade").error is None
@@ -167,6 +167,6 @@ def alert_log_grantor(sysdba):
 @pytest.fixture
 def alert_log_grant(alert_log_grantor, ro):
     """`with alert_log_grant(): ...` holds the optional alert log statement from
-    `setup-sql --alert-log` for dba_agent_ro and revokes it on exit, so the
+    `setup-sql --alert-log` for the `ro` user and revokes it on exit, so the
     session-scoped `ro` user is back to the default tier afterwards."""
     return lambda: _alert_log_granted(alert_log_grantor)

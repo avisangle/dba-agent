@@ -10,21 +10,18 @@ Dictionary columns used (Oracle 23ai reference, read as `ro` on 23.26.3):
 V$INSTANCE.VERSION_FULL (e.g. 23.26.3.0.0; VERSION reads 23.0.0.0.0, too coarse).
 
 Every test here must skip without SQLcl or the database (tests/unit/test_mcp_client.py
-checks that), so that the harness picks up plugin/checks/storage/tablespace_usage.sql
-is asserted in tests/unit/test_check_run.py, which collects this file.
+checks that). tests/unit/test_check_run.py collects this file and asserts that every
+file under plugin/checks/ is a test id.
 """
-
-from pathlib import Path
 
 import pytest
 
+from tools.checks import CHECKS_ROOT
 from tools.checks.header import parse_check
 from tools.checks.lint import lint_file
 
 pytestmark = pytest.mark.integration
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CHECKS_ROOT = REPO_ROOT / "plugin" / "checks"
 CHECK_FILES = sorted(CHECKS_ROOT.rglob("*.sql"))
 
 

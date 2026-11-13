@@ -5,7 +5,7 @@
 -- min_version: 12.1
 -- max_rows: 50
 -- pack: none
--- remediation: Look up each ORA code; ORA-00600 and ORA-07445 need an Oracle Support SR with the incident trace. For the not-available row, print the optional grant with python -m tools setup-sql --tier read-only --alert-log and have a DBA run it as SYS.
+-- remediation: Look up each ORA code; ORA-00600 and ORA-07445 need an Oracle Support SR with the incident trace. For the not-available row, print the optional grant with python -m tools setup-sql --tier read-only --alert-log (plus --user NAME if the tier user has another name) and have a DBA run only its final GRANT statement as SYS.
 WITH probe AS (
   SELECT CASE WHEN SYS_CONTEXT('USERENV', 'SESSION_USER') = 'SYS'
                 OR EXISTS (SELECT 1 FROM session_privs

@@ -175,6 +175,25 @@ def test_check_test_refuses_a_check_that_fails_lint(tmp_path):
     assert proc.stdout == "", "nothing ran, so no result is printed"
 
 
+def test_check_test_reports_lint_findings_for_a_check_that_does_not_parse(tmp_path):
+    """/integrate 3: a check the parser rejects gets lint's full report, as from
+    `lint`: every finding in lint's format, not only the parser's first error."""
+    path = tmp_path / "storage" / "broken.sql"
+    path.parent.mkdir()
+    path.write_text(
+        "-- id: broken\n-- category: storage\n-- mode: R\n-- min_version: 12.1\n"
+        "-- max_rows: 10\n-- pack: none\n-- remediation: none\n"
+        "SELECT 'OK' severity FROM dual WHERE 1 = &x\n",
+        encoding="utf-8",
+    )
+    proc = _run_tools("check-test", str(path), "--connection", "anything",
+                      "--home", str(tmp_path))
+    assert proc.returncode == 1, (proc.stdout, proc.stderr)
+    assert f"{path}:1: L001" in proc.stderr, proc.stderr
+    assert "L010" in proc.stderr and "fails lint" in proc.stderr, proc.stderr
+    assert proc.stdout == "", "nothing ran, so no result is printed"
+
+
 def test_plugin_tablespace_check_exists_and_lints_clean():
     """AC: plugin/checks/storage/tablespace_usage.sql exists, lints clean, is a
     read-only storage check capped at 200 rows."""

@@ -1,15 +1,18 @@
 """Generate the AWR report fixtures under tests/fixtures/offline/ from the test container.
 
-    python tests/support/make_awr_fixture.py
+    python tests/support/make_awr_fixture.py [--stem STEM] [--rows N]
 
 As the `admin` session (SYSTEM on the test PDB) it takes an AWR snapshot, runs a
 small workload, takes a second snapshot, and writes the HTML and text AWR reports
-for that window with the container host name replaced by `testhost`. Reads the
+for that window, STEM.html and STEM.txt, with the container host name replaced by
+`testhost`. The defaults made awr_23ai_free.*; awr_23ai_free_b.* came from
+`--stem awr_23ai_free_b --rows 200000`, a heavier window for compare-awr. Reads the
 same environment as tests/integration/conftest.py: SQLCL_BIN, ORACLE_TEST_DSN,
 ORACLE_TEST_PASSWORD. Only for the throwaway test container: the user approved
 running AWR report functions there (DBA-6, 2026-11-12).
 """
 
+import argparse
 import os
 import sys
 import tempfile
@@ -25,16 +28,18 @@ from save_connection import save_connection  # noqa: E402
 from tools.sqlcl import SqlclSession, sqlcl_bin  # noqa: E402
 
 OUT_DIR = REPO_ROOT / "tests" / "fixtures" / "offline"
-STEM = "awr_23ai_free"
 TABLE = "awr_fixture_load"
-# No DML: through `sql -mcp` with SQLcl 26.3 an UPDATE or INSERT applies but
-# reports ORA-17273 (could not commit with auto-commit enabled).
-WORKLOAD = [
-    f"create table {TABLE} as select level id, rpad('x', 200, 'x') pad"
-    " from dual connect by level <= 20000",
-    f"select count(*), max(pad) from {TABLE} where mod(id, 7) = 0",
-    f"select mod(id, 10) bucket, count(*) from {TABLE} group by mod(id, 10) order by 1",
-]
+
+
+def workload(rows: int) -> list[str]:
+    # No DML: through `sql -mcp` with SQLcl 26.3 an UPDATE or INSERT applies but
+    # reports ORA-17273 (could not commit with auto-commit enabled).
+    return [
+        f"create table {TABLE} as select level id, rpad('x', 200, 'x') pad"
+        f" from dual connect by level <= {rows}",
+        f"select count(*), max(pad) from {TABLE} where mod(id, 7) = 0",
+        f"select mod(id, 10) bucket, count(*) from {TABLE} group by mod(id, 10) order by 1",
+    ]
 
 
 def _sql(session, sql):
@@ -58,6 +63,17 @@ def _report(session, function, window):
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Write AWR report fixtures from the test container."
+    )
+    parser.add_argument(
+        "--stem", default="awr_23ai_free", help="output file name without extension"
+    )
+    parser.add_argument(
+        "--rows", type=int, default=20000, help="rows in the workload table (default 20000)"
+    )
+    args = parser.parse_args()
+
     sql_bin = sqlcl_bin()
     dsn = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
     password = os.environ.get("ORACLE_TEST_PASSWORD")
@@ -76,7 +92,7 @@ def main() -> int:
 
             _sql(admin, f"drop table if exists {TABLE} purge")
             begin = _value(admin, create_snapshot)
-            for sql in WORKLOAD:
+            for sql in workload(args.rows):
                 _sql(admin, sql)
             end = _value(admin, create_snapshot)
             window = f"{dbid}, {inst}, {begin}, {end}"
@@ -88,7 +104,7 @@ def main() -> int:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for ext, text in reports.items():
-        path = OUT_DIR / f"{STEM}.{ext}"
+        path = OUT_DIR / f"{args.stem}.{ext}"
         path.write_text(text.replace(host, "testhost"), encoding="utf-8")
         print(f"wrote {path.relative_to(REPO_ROOT)} (snapshots {begin}-{end})")
     return 0

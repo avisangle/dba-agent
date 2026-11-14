@@ -4,16 +4,15 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tools.connection import SESSION_ERRORS, NoConnection, add_connection_arguments, connected
-from tools.health_score import score as health_score
-from tools.reports.profile import (
-    PROFILES_ROOT,
-    ProfileError,
-    bind_checks,
-    find_profile,
-    load_profile,
-    user_profiles_root,
+from tools.connection import (
+    SESSION_ERRORS,
+    NoConnection,
+    add_connection_arguments,
+    advisory_refusal,
+    connected,
 )
+from tools.health_score import score as health_score
+from tools.reports.profile import ProfileError, bind_checks, load_profile, resolve_profile
 from tools.reports.render import FORMATS, Report, default_template, render
 from tools.reports.runner import VersionUnreadable, database_version, run_checks
 
@@ -21,7 +20,8 @@ NAME = "report"
 HELP = (
     "run a report profile's checks on a saved connection and write a Markdown or HTML report; "
     "exit 0 when the report is written (ERROR checks included), 1 for a SQLcl or write "
-    "failure, 2 for a bad profile, argument or unknown connection"
+    "failure, 2 for a bad profile, argument or unknown connection, or the advisory tier "
+    "(that tier runs only through `advise`)"
 )
 
 
@@ -40,12 +40,11 @@ def _error(message) -> None:
 
 
 def run(args):
-    path = find_profile(args.profile)
-    if path is None:
-        _error(f"no profile {args.profile} in {user_profiles_root()} or {PROFILES_ROOT}")
+    if refusal := advisory_refusal(args):
+        _error(refusal)
         return 2
     try:
-        profile = load_profile(path)
+        profile = load_profile(resolve_profile(args.profile))
         checks = bind_checks(profile)
         template = (profile.template or default_template(args.format)).read_text(encoding="utf-8")
     except (ProfileError, OSError) as exc:

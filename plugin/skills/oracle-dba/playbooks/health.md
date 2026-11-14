@@ -1,18 +1,24 @@
 # Health check playbook
 
-A scored health check over the profile `plugin/profiles/health_check.json`.
+A scored health check over the `health_check` profile. The tool resolves the name: a user's copy in the pack home wins over the built-in profile, as for `python -m tools report`.
 
 ## Start with
 
-Read `plugin/profiles/health_check.json` and run every id it lists, in its order, beginning with `db_overview`, `instance_info` and `alert_log_errors`. Read the check files first, then run them one after another. Do not skip a check because an earlier one failed; one failed check costs one entry, not the whole report.
+Get the list of checks from the tool:
+
+```
+python -m tools health-score --profile health_check --checks
+```
+
+It prints `profile` (the file it resolved) and `checks`, each entry with `id`, `weight`, `params` and `file`. Run every entry, in the tool's order: for the built-in profile that begins with `db_overview`, `instance_info` and `alert_log_errors`, but a user's copy may list other checks. Read each entry's `file` and send it as rule 3 says; when its `params` is not empty, send instead the output of `python -m tools check-sql <id> --param <name>=<value>`, one `--param` per entry in `params` (rule 3). Do not skip a check because an earlier one failed; one failed check costs one entry, not the whole report. Exit code 2 means the profile cannot be run: report the tool's message and stop.
 
 Record each check's worst severity (rule 3), or `ERROR` when it failed to run: an error under rule 4, or a `min_version` above the database version.
 
-Then pipe one JSON object with every profile id to the tool:
+Then pipe one JSON object with every listed id to the tool:
 
 ```
 echo '{"db_overview": "OK", "instance_info": "OK", "alert_log_errors": "INFO", ...}' \
-  | python -m tools health-score --profile plugin/profiles/health_check.json
+  | python -m tools health-score --profile health_check
 ```
 
 The tool prints `score`, `grade`, `counts`, `incomplete` and `worst`. Exit code 2 means the input did not match the profile (a missing or extra id, or a severity outside `CRITICAL`, `WARNING`, `OK`, `INFO`, `ERROR`): fix the input and run it again; never report a score from a failed run.

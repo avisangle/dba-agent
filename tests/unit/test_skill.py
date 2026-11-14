@@ -271,7 +271,8 @@ def test_contract_for_dependent_dba18():
     folder plugin/skills/oracle-dba/ holds SKILL.md named `oracle-dba` and
     playbooks/{discovery,health,storage,sessions,performance}.md, and
     plugin/profiles/health_check.json has the `{"checks": [{"id", "weight"}]}`
-    shape that tools.health_score.load_profile reads."""
+    shape that tools.reports.profile.load_profile reads, with a weight per check
+    (`Profile.weights`, DBA-46)."""
     assert SKILL_DIR.is_dir()
     assert SKILL.is_file()
     meta, _ = _skill_parts()
@@ -279,8 +280,8 @@ def test_contract_for_dependent_dba18():
     for path in PLAYBOOKS.values():
         assert path.is_file(), path
 
-    from tools.health_score import load_profile
+    from tools.reports.profile import load_profile
 
-    profile = load_profile(PROFILE)
-    assert isinstance(profile, dict) and profile
-    assert all(isinstance(k, str) and isinstance(v, int) for k, v in profile.items())
+    weights = load_profile(PROFILE).weights
+    assert isinstance(weights, dict) and weights
+    assert all(isinstance(k, str) and isinstance(v, int) for k, v in weights.items())

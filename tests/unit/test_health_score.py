@@ -157,9 +157,11 @@ def test_contract_for_dba16_health_ids_command_and_profile_shape(tmp_path):
     """Contract for DBA-16 (skill playbook and plugin/profiles/health_check.json):
     the five check ids exist as mode-R files in category `health`; the
     `health-score` command exists and accepts a profile shaped
-    {"checks": [{"id", "weight"}]} naming them; `tools.health_score` exposes
-    load_profile(path) and score(profile, results) -> dict with keys score
-    (int), grade (str), counts (dict), incomplete (bool), worst (list);
+    {"checks": [{"id", "weight"}]} naming them; profiles load through
+    tools.reports.profile.load_profile(path), whose `weights` feed
+    tools.health_score.score(profile, results) -> dict with keys score (int),
+    grade (str), counts (dict), incomplete (bool), worst (list), and
+    tools.health_score has no loader of its own (DBA-46);
     `setup-sql --tier read-only --alert-log` exists (render takes `alert_log`)
     and alert_log_errors' remediation names it; the decision records
     D-DBA-10-health-check-is-a-profile and D-DBA-10-optional-alert-log-grant
@@ -192,13 +194,15 @@ def test_contract_for_dba16_health_ids_command_and_profile_shape(tmp_path):
     assert "health-score" in names
 
     lib = importlib.import_module("tools.health_score")
-    assert list(inspect.signature(lib.load_profile).parameters) == ["path"]
+    assert not hasattr(lib, "load_profile")
     assert list(inspect.signature(lib.score).parameters) == ["profile", "results"]
+    load_profile = importlib.import_module("tools.reports.profile").load_profile
+    assert list(inspect.signature(load_profile).parameters) == ["path"]
 
     profile = tmp_path / "health_check.json"
     profile.write_text(json.dumps({"checks": [{"id": i, "weight": 1} for i in HEALTH_IDS]}))
     results = {i: "OK" for i in HEALTH_IDS}
-    for out in (lib.score(lib.load_profile(profile), results), _scored(results, profile)):
+    for out in (lib.score(load_profile(profile).weights, results), _scored(results, profile)):
         assert set(out) >= OUTPUT_KEYS, out
         assert isinstance(out["score"], int) and not isinstance(out["score"], bool)
         assert isinstance(out["grade"], str)

@@ -58,10 +58,64 @@ V$ACTIVE_SESSION_HISTORY SAMPLE_TIME, SQL_ID, EVENT, WAIT_CLASS, SESSION_ID,
 SESSION_SERIAL#, SESSION_STATE, MODULE, CON_ID; DBA_HIST_SNAPSHOT SNAP_ID, DBID,
 INSTANCE_NUMBER, BEGIN_INTERVAL_TIME, END_INTERVAL_TIME, CON_ID;
 DBA_HIST_WR_CONTROL DBID, SNAP_INTERVAL, RETENTION, CON_ID; V$DATABASE CON_DBID.
+
+DBA-39 adds six checks (awr_report, awr_top_sql, awr_compare_periods,
+sql_history, plan_history, addm_findings), all reading this container's AWR
+data. Snapshot parameters default to 0, meaning the latest two snapshots of this
+container. Pinned here beyond the issue table:
+- awr_report: exactly one `summary` row whose ITEM names the begin then the end
+  snap id; `load` rows include ITEM `DB time`.
+- awr_top_sql: rows from most to least ELAPSED_S.
+- awr_compare_periods: one row per item, `DB time` among them; CHANGE_PCT is 0
+  when a figure is the same in both windows, 0 in both included.
+- plan_history: the WARNING sits on the newer, slower plan's row; older plans
+  are INFO.
+
+Probed 2026-11-14 on the test container (23.26.3), as `ro` in FREEPDB1 unless
+said otherwise:
+- Every source view below is readable as `ro`. DBA_HIST_SNAPSHOT has no CON_DBID
+  (its DBID is the container's, as above); the other DBA_HIST_ views have both
+  DBID and CON_DBID, equal to `v$database.con_dbid` for this PDB's rows.
+- A 2 s tagged workload between two snapshots as `admin` was the top
+  DBA_HIST_SQLSTAT row of the end snapshot by ELAPSED_TIME_DELTA, with its text
+  in DBA_HIST_SQLTEXT and its plan in DBA_HIST_SQL_PLAN. DBA_HIST_SYS_TIME_MODEL
+  has `DB time` and `DB CPU` (microseconds); DBA_HIST_SYSSTAT `session logical
+  reads`, `physical reads`, `redo size`, `execute count`, `user calls`.
+- With nothing running, 20 s between two snapshots held 0.47 s of DB time (the
+  snapshot calls themselves): about 0.02 s per second against nearly 1 for the
+  `awr_window` workload.
+- ADDM runs by itself for each new pair of PDB snapshots: DBA_ADDM_TASKS gets a
+  task `ADDM:<con_dbid>_<instance>_<end snap>` with BEGIN_SNAP_ID, END_SNAP_ID and
+  HOW_CREATED AUTO within 15 s. For windows of 4 to 15 s with one busy session,
+  its only finding was INFORMATION, impact 0, "There was no significant database
+  activity to run the ADDM." No window in reach of a test gives an impact of 10
+  percent or more, so the WARNING row is a pending.md line.
+- `dbms_workload_repository.add_colored_sql` and `remove_colored_sql` as `admin`
+  take effect but report ORA-17273 (bug.md). A coloured SQL id is recorded in
+  every snapshot. Dropping the unique index behind the `plan_change` statement
+  gave a new plan hash under the same sql id; elapsed per execution was 1718 us
+  in the first window (hard parse), 34 and 143 us in the next two, 22792 us
+  with the full scan.
+
+Source columns (read as `ro`; all exist in 19c): DBA_HIST_SNAPSHOT STARTUP_TIME,
+BEGIN_INTERVAL_TIME, END_INTERVAL_TIME; DBA_HIST_SYS_TIME_MODEL and
+DBA_HIST_SYSSTAT SNAP_ID, DBID, INSTANCE_NUMBER, STAT_ID, STAT_NAME, VALUE,
+CON_DBID; DBA_HIST_SYSTEM_EVENT SNAP_ID, DBID, INSTANCE_NUMBER, EVENT_ID,
+EVENT_NAME, WAIT_CLASS, TOTAL_WAITS, TIME_WAITED_MICRO, CON_DBID;
+DBA_HIST_SQLSTAT SNAP_ID, DBID, INSTANCE_NUMBER, SQL_ID, PLAN_HASH_VALUE,
+EXECUTIONS_DELTA, ELAPSED_TIME_DELTA, CPU_TIME_DELTA, BUFFER_GETS_DELTA,
+DISK_READS_DELTA, CON_DBID; DBA_HIST_SQLTEXT DBID, SQL_ID, SQL_TEXT, CON_DBID;
+DBA_HIST_SQL_PLAN DBID, SQL_ID, PLAN_HASH_VALUE, TIMESTAMP, CON_DBID;
+DBA_ADVISOR_TASKS TASK_ID, TASK_NAME, ADVISOR_NAME, CREATED, STATUS;
+DBA_ADVISOR_FINDINGS TASK_ID, TASK_NAME, TYPE, IMPACT, IMPACT_TYPE, MESSAGE;
+DBA_ADDM_TASKS TASK_NAME, DBID, BEGIN_SNAP_ID, END_SNAP_ID, DATABASE_TIME;
+DBA_ADDM_FINDINGS TASK_NAME, TYPE, IMPACT, PERC_ACTIVE_SESS, MESSAGE.
 """
 
 import contextlib
 import importlib
+import re
+import secrets
 import sys
 import time
 from pathlib import Path
@@ -84,15 +138,37 @@ SKILL_DIR = REPO_ROOT / "plugin" / "skills" / "oracle-dba"
 RECORD = REPO_ROOT / "docs" / "decisions" / "D-DBA-31-no-pack-licence-check.md"
 
 # id -> (max_rows, params), from the issue table; all mode R, pack diagnostics
+WINDOW = (Param("begin_snap", "int", "0"), Param("end_snap", "int", "0"))
 HEADERS = {
     "ash_top_activity": (20, (Param("minutes", "int", "15"),)),
     "awr_snapshot_list": (50, (Param("days", "int", "1"),)),
+    # DBA-39
+    "awr_report": (40, WINDOW),
+    "awr_top_sql": (20, WINDOW),
+    "awr_compare_periods": (40, (Param("first_begin", "int", "0"), Param("first_end", "int", "0"),
+                                 Param("second_begin", "int", "0"),
+                                 Param("second_end", "int", "0"))),
+    "sql_history": (100, (Param("sql_id", "sql_id", None), Param("days", "int", "7"))),
+    "plan_history": (20, (Param("sql_id", "sql_id", None),)),
+    "addm_findings": (30, (Param("days", "int", "1"),)),
 }
+DBA39 = ("awr_report", "awr_top_sql", "awr_compare_periods", "sql_history", "plan_history",
+         "addm_findings")
 
 COLUMNS = {
     "ash_top_activity": ["SQL_ID", "EVENT", "WAIT_CLASS", "SAMPLES", "PCT_OF_SAMPLES",
                          "DISTINCT_SESSIONS", "TOP_MODULE", "SEVERITY"],
     "awr_snapshot_list": ["SNAP_ID", "BEGIN_TIME", "END_TIME", "ELAPSED_MIN", "SEVERITY"],
+    # DBA-39
+    "awr_report": ["SECTION", "ITEM", "VALUE", "PER_SECOND", "PCT_OF_DB_TIME", "SEVERITY"],
+    "awr_top_sql": ["SQL_ID", "PLAN_HASH", "EXECUTIONS", "ELAPSED_S", "CPU_S", "GETS", "READS",
+                    "SQL_TEXT", "SEVERITY"],
+    "awr_compare_periods": ["ITEM", "FIRST_VALUE", "SECOND_VALUE", "CHANGE_PCT", "SEVERITY"],
+    "sql_history": ["SNAP_ID", "END_TIME", "PLAN_HASH", "EXECUTIONS", "ELAPSED_PER_EXEC_MS",
+                    "GETS_PER_EXEC", "SEVERITY"],
+    "plan_history": ["PLAN_HASH", "FIRST_SEEN", "LAST_SEEN", "EXECUTIONS", "AVG_ELAPSED_MS",
+                     "SEVERITY"],
+    "addm_findings": ["TASK", "TYPE", "IMPACT_PCT", "MESSAGE", "SEVERITY"],
 }
 
 SHIFT_HOURS = 9  # session time zone offset from the database's, in the window tests
@@ -246,9 +322,292 @@ def test_awr_snapshot_list_shows_this_containers_snapshots(ro, admin, awr_window
 @pytest.mark.parametrize("check_id", sorted(COLUMNS))
 def test_columns_and_text_width(ro, awr_window, check_id):
     """AC: each check returns the issue's columns (SEVERITY last), has rows after
-    the `awr_window` workload, and no cell is over 200 characters."""
-    result = _run(ro, check_id)
+    the `awr_window` workload, and no cell is over 200 characters. DBA-31's
+    checks run with their defaults; DBA-39's over the `awr_window` ids, or with
+    the first workload sql id that has history."""
+    runs = _column_runs(check_id, awr_window)
+    results = (_run(ro, check_id, **values) for values in runs)
+    result = next((r for r in results if r.rows), None)
+    assert result is not None, f"{check_id} returned no rows for {runs}"
     assert result.header == COLUMNS[check_id], result.header
-    assert result.rows, f"{check_id} returned no rows"
     for row in result.rows:
         assert all(len(cell) <= 200 for cell in row), row
+
+
+# --- DBA-39: AWR checks part 2 -------------------------------------------------
+
+DBA39_RECORD = REPO_ROOT / "docs" / "decisions" / "D-DBA-39-awr-summaries-in-sql.md"
+PLAYBOOK = SKILL_DIR / "playbooks" / "awr.md"
+QUIET_SECONDS = 20  # a window with no workload, for awr_compare_periods
+PLAN_ROWS = 200000  # rows behind the plan change: a full scan is far slower than the index
+PLAN_RUNS = 3  # executions of the plan change statement per window
+ADDM_WAIT_SECONDS = 60  # ADDM's own run after a snapshot took under 15 s (probe)
+
+
+def _snap(admin) -> int:
+    return int(_ok(admin, "select dbms_workload_repository.create_snapshot() from dual").rows[0][0])
+
+
+def _number(cell: str) -> float | None:
+    return float(cell) if cell.strip() else None
+
+
+def _names_window(text: str, begin: int, end: int) -> bool:
+    """True when `text` holds the snap ids `begin` and `end` as whole numbers, in order."""
+    return re.search(rf"(?<!\d){begin}(?!\d).*(?<!\d){end}(?!\d)", text) is not None
+
+
+def _window_args(window) -> dict[str, int]:
+    return {"begin_snap": window["begin"], "end_snap": window["end"]}
+
+
+def _column_runs(check_id, window) -> list[dict]:
+    """Parameter values for test_columns_and_text_width, tried in order."""
+    begin, end = window["begin"], window["end"]
+    if check_id in ("awr_report", "awr_top_sql"):
+        return [{"begin_snap": begin, "end_snap": end}]
+    if check_id == "awr_compare_periods":
+        return [{"first_begin": begin, "first_end": end, "second_begin": begin,
+                 "second_end": end}]
+    if check_id in ("sql_history", "plan_history"):
+        return [{"sql_id": s} for s in sorted(window["sql_ids"])]
+    return [{}]
+
+
+def _committing_call(session, block):
+    """Run a PL/SQL block that commits. Through `sql -mcp` it takes effect but
+    reports ORA-17273 (bug.md); any other error fails."""
+    result = session.run_sql(block)
+    assert result.error is None or result.error.startswith("ORA-17273"), \
+        f"{block}: {result.error}"
+
+
+def _plan_hashes(admin, sql_id) -> set[str]:
+    found = _ok(admin, f"select distinct plan_hash_value from v$sql where sql_id = '{sql_id}'")
+    return {row[0] for row in found.rows}
+
+
+@pytest.fixture(scope="module")
+def quiet_window(admin, awr_window):
+    """(begin, end): two snapshots of this PDB QUIET_SECONDS apart, taken after
+    `awr_window` with no workload between them."""
+    begin = _snap(admin)
+    time.sleep(QUIET_SECONDS)
+    return begin, _snap(admin)
+
+
+@pytest.fixture(scope="module")
+def plan_change(admin):
+    """{"sql_id", "fast_plan", "slow_plan", "snaps"}: one tagged statement,
+    coloured so every snapshot records it, run PLAN_RUNS times through a unique
+    index in each of two windows (fast plan), then, after the index is dropped,
+    PLAN_RUNS times with a full scan (slow plan) in a third. `snaps` are the four
+    snapshot ids; the slow plan's executions fall in the window ending snaps[3]."""
+    tag = f"AWRPC_{secrets.token_hex(4).upper()}"
+    table = f"system.{tag}"
+    query = f"select /* {tag} */ max(pad) from {table} where id = 4242"
+    sql_id = None
+    try:
+        _ok(admin, f"create table {table} as select level as id, rpad('x', 200, 'x') as pad "
+                   f"from dual connect by level <= {PLAN_ROWS}")
+        _ok(admin, f"create unique index {table}_PK on {table} (id)")
+        _ok(admin, query)
+        # The lookup's own text must not contain the tag comment.
+        found = _ok(admin, "select distinct sql_id from v$sql "
+                           f"where sql_text like '%/* ' || '{tag}' || ' */%'")
+        assert len(found.rows) == 1, f"tag {tag}: sql ids {found.rows}"
+        sql_id = found.rows[0][0]
+        _committing_call(admin, "begin dbms_workload_repository.add_colored_sql("
+                                f"'{sql_id}'); end;")
+        snaps = [_snap(admin)]
+        for _ in range(2):
+            for _ in range(PLAN_RUNS):
+                _ok(admin, query)
+            snaps.append(_snap(admin))
+        fast = _plan_hashes(admin, sql_id)
+        assert len(fast) == 1, f"index plan: {fast}"
+        _ok(admin, f"drop index {table}_PK")
+        for _ in range(PLAN_RUNS):
+            _ok(admin, query)
+        snaps.append(_snap(admin))
+        slow = _plan_hashes(admin, sql_id) - fast
+        assert len(slow) == 1, f"no new plan after dropping the index: {fast}"
+        yield {"sql_id": sql_id, "fast_plan": fast.pop(), "slow_plan": slow.pop(),
+               "snaps": snaps}
+    finally:
+        if sql_id:
+            _committing_call(admin, "begin dbms_workload_repository.remove_colored_sql("
+                                    f"'{sql_id}'); end;")
+        admin.run_sql(f"drop table if exists {table} purge")
+
+
+def test_contract_for_dependents_dba39_checks(_integration_ready):
+    """Contract (output_for_dependents of DBA-39; needed by no issue yet, used by
+    the oracle-dba skill and the report runner): the six checks resolve under
+    plugin/checks/awr/ with mode R and pack diagnostics, are in INDEX.md, and
+    declare the parameter names and types from the issue. Also the record this
+    story writes exists with a Status line. Shape only."""
+    index = (CHECKS_ROOT / "INDEX.md").read_text(encoding="utf-8")
+    for check_id in DBA39:
+        check = find_check(CHECKS_ROOT, check_id)
+        assert check is not None, f"no check {check_id} under {CHECKS_ROOT}"
+        assert check.path.parent.name == "awr", check.path
+        assert (check.category, check.mode, check.pack) == ("awr", "R", "diagnostics"), check_id
+        assert [(p.name, p.type) for p in check.params] == \
+            [(p.name, p.type) for p in HEADERS[check_id][1]], check_id
+        assert f"| awr/{check_id}.sql |" in index, f"{check_id} missing from INDEX.md"
+    assert DBA39_RECORD.is_file(), DBA39_RECORD
+    assert "**Status:**" in DBA39_RECORD.read_text(encoding="utf-8")
+
+
+def test_awr_report_summarises_the_window(ro, awr_window):
+    """AC: with the `awr_window` ids, one summary row whose item names both ids
+    (begin first), at least one load row (DB time among them) and one event row;
+    sections only summary, load and event; every VALUE, PER_SECOND and
+    PCT_OF_DB_TIME is non-negative; INFO throughout (no restart in the window).
+    Falsifier (the issue's): swap begin and end in the delta and the figures go
+    negative."""
+    rows = _rows(ro, "awr_report", **_window_args(awr_window))
+    sections = [r["SECTION"] for r in rows]
+    assert set(sections) <= {"summary", "load", "event"}, sections
+    summary = [r for r in rows if r["SECTION"] == "summary"]
+    assert len(summary) == 1, summary
+    assert _names_window(summary[0]["ITEM"], awr_window["begin"], awr_window["end"]), summary
+    assert "DB time" in {r["ITEM"] for r in rows if r["SECTION"] == "load"}, rows
+    assert any(r["SECTION"] == "event" for r in rows), f"no event row: {rows}"
+    for row in rows:
+        assert row["SEVERITY"] == "INFO", row
+        for column in ("VALUE", "PER_SECOND", "PCT_OF_DB_TIME"):
+            value = _number(row[column])
+            assert value is None or value >= 0, f"negative {column}: {row}"
+
+
+def test_default_window_is_the_latest_two_snapshots(ro, admin):
+    """AC: with every parameter at its default 0, awr_report summarises the
+    latest two snapshots of this container: two the test has just taken.
+    Falsifier: read 0 as a snap id, or pick the earliest two."""
+    first = _snap(admin)
+    time.sleep(2)
+    second = _snap(admin)
+    summary = [r for r in _rows(ro, "awr_report") if r["SECTION"] == "summary"]
+    assert len(summary) == 1, summary
+    assert _names_window(summary[0]["ITEM"], first, second), (first, second, summary)
+
+
+def test_awr_top_sql_lists_the_workload(ro, awr_window):
+    """AC: over the `awr_window` ids a tagged workload sql id is listed with at
+    least one execution and positive elapsed seconds; rows run from most to least
+    elapsed; sql text at most 120 characters; every row INFO."""
+    rows = _rows(ro, "awr_top_sql", **_window_args(awr_window))
+    tagged = [r for r in rows if r["SQL_ID"] in awr_window["sql_ids"]]
+    assert tagged, f"no tagged sql id {sorted(awr_window['sql_ids'])} in {rows}"
+    assert any(int(r["EXECUTIONS"]) >= 1 and float(r["ELAPSED_S"]) > 0 for r in tagged), tagged
+    elapsed = [float(r["ELAPSED_S"]) for r in rows]
+    assert elapsed == sorted(elapsed, reverse=True), elapsed
+    for row in rows:
+        assert row["SEVERITY"] == "INFO", row
+        assert len(row["SQL_TEXT"]) <= 120, row
+
+
+def test_sql_and_plan_history_of_the_workload(ro, awr_window):
+    """AC: for a workload sql id, sql_history has a row for the `awr_window` end
+    snapshot and plan_history one row per plan hash (one here); one plan, so
+    every row INFO."""
+    found = {}
+    for sql_id in sorted(awr_window["sql_ids"]):
+        history = _rows(ro, "sql_history", sql_id=sql_id)
+        if history:
+            found[sql_id] = (history, _rows(ro, "plan_history", sql_id=sql_id))
+    assert found, f"no history for {sorted(awr_window['sql_ids'])}"
+    for sql_id, (history, plans) in found.items():
+        assert awr_window["end"] in {int(r["SNAP_ID"]) for r in history}, (sql_id, history)
+        assert len(plans) == 1, (sql_id, plans)
+        assert int(plans[0]["EXECUTIONS"]) >= 1, plans
+        assert [r for r in history + plans if r["SEVERITY"] != "INFO"] == [], (history, plans)
+
+
+def test_plan_change_warns_on_the_slower_newer_plan(ro, plan_change):
+    """AC (severity rules): after the plan changed to a far slower one,
+    sql_history warns on exactly the snapshot whose executions used the new plan
+    (elapsed per exec over 3 times the median of the others, plan hash changed),
+    and plan_history lists both plan hashes and warns on the newer, slower one
+    only. Falsifiers: drop the plan-change condition (the first snapshot holds
+    the hard parse, measured at about 12 times the median of the others), or
+    flag the older plan."""
+    fast, slow, snaps = plan_change["fast_plan"], plan_change["slow_plan"], plan_change["snaps"]
+    history = _rows(ro, "sql_history", sql_id=plan_change["sql_id"])
+    assert {snaps[1], snaps[2], snaps[3]} <= {int(r["SNAP_ID"]) for r in history}, history
+    warned = {(int(r["SNAP_ID"]), r["PLAN_HASH"]) for r in history if r["SEVERITY"] == "WARNING"}
+    assert warned == {(snaps[3], slow)}, history
+
+    plans = {r["PLAN_HASH"]: r for r in _rows(ro, "plan_history", sql_id=plan_change["sql_id"])}
+    assert set(plans) == {fast, slow}, plans
+    assert float(plans[slow]["AVG_ELAPSED_MS"]) > float(plans[fast]["AVG_ELAPSED_MS"]), plans
+    assert (plans[slow]["SEVERITY"], plans[fast]["SEVERITY"]) == ("WARNING", "INFO"), plans
+
+
+def test_awr_compare_periods(ro, awr_window, quiet_window):
+    """AC: the same window twice reports a CHANGE_PCT of 0 on every row (a figure
+    at 0 in both windows included), all INFO. Severity
+    rule: from the quiet window to the workload window DB time per second rises
+    by far more than 100 percent (WARNING); the other way round it falls (INFO).
+    Falsifiers: compare totals of unequal windows, or warn on the size of the
+    change rather than a rise."""
+    same = _rows(ro, "awr_compare_periods",
+                 first_begin=awr_window["begin"], first_end=awr_window["end"],
+                 second_begin=awr_window["begin"], second_end=awr_window["end"])
+    assert same, "no rows for the same window twice"
+    for row in same:
+        assert _number(row["CHANGE_PCT"]) == 0, row
+        assert row["SEVERITY"] == "INFO", row
+
+    quiet, busy = quiet_window, (awr_window["begin"], awr_window["end"])
+    for (first, second), expected in (((quiet, busy), "WARNING"), ((busy, quiet), "INFO")):
+        rows = _rows(ro, "awr_compare_periods", first_begin=first[0], first_end=first[1],
+                     second_begin=second[0], second_end=second[1])
+        db_time = [r for r in rows if r["ITEM"] == "DB time"]
+        assert len(db_time) == 1, rows
+        assert db_time[0]["SEVERITY"] == expected, (first, second, db_time)
+
+
+def test_addm_findings_lists_the_windows_auto_task(ro, admin, awr_window):
+    """AC: ADDM runs by itself after each snapshot of this PDB (probe), so with
+    the default 1 day the findings of the task covering the `awr_window`
+    snapshots are listed. Each row's IMPACT_PCT is empty or 0 to 100, its
+    severity WARNING exactly when the impact is 10 or more, its message at most
+    200 characters. Falsifier: filter on another dbid, or drop the ADDM tasks."""
+    task_sql = ("select task_name from dba_addm_tasks "
+                "where dbid = (select con_dbid from v$database) "
+                f"and begin_snap_id = {awr_window['begin']} and end_snap_id = {awr_window['end']}")
+    deadline = time.monotonic() + ADDM_WAIT_SECONDS
+    while not (found := _ok(admin, task_sql).rows) and time.monotonic() < deadline:
+        time.sleep(5)
+    assert found, f"no ADDM task for snapshots {awr_window['begin']}-{awr_window['end']}"
+    task = found[0][0]
+
+    rows = _rows(ro, "addm_findings")
+    assert task in {r["TASK"] for r in rows}, (task, rows)
+    for row in rows:
+        impact = _number(row["IMPACT_PCT"])
+        assert impact is None or 0 <= impact <= 100, row
+        expected = "WARNING" if impact is not None and impact >= 10 else "INFO"
+        assert row["SEVERITY"] == expected, row
+        assert len(row["MESSAGE"]) <= 200, row
+
+
+def test_awr_playbook_branches(_integration_ready):
+    """AC: awr.md names every DBA-39 check; its "Then" section has a branch from
+    `ash_top_activity` or `top_sql` to `sql_history` and `plan_history`, one to
+    `awr_report` for what happened between two times, and one to the offline
+    `compare-awr` command for two report files."""
+    text = PLAYBOOK.read_text(encoding="utf-8")
+    for check_id in DBA39:
+        assert f"`{check_id}`" in text, f"awr.md does not name {check_id}"
+    then = re.search(r"(?ms)^## Then\s*$(.*?)(?=^## )", text)
+    assert then, "awr.md has no Then section"
+    bullets = [b for b in re.split(r"(?m)^- ", then[1]) if b.strip()]
+    assert any(re.match(r"If `(ash_top_activity|top_sql)` ", b)
+               and "`sql_history`" in b and "`plan_history`" in b for b in bullets), \
+        "no branch from ash_top_activity or top_sql to sql_history and plan_history"
+    assert any("`awr_report`" in b for b in bullets), "no branch to awr_report"
+    assert any("compare-awr" in b for b in bullets), "no branch to compare-awr"

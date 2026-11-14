@@ -1,6 +1,6 @@
 """DBA-18, DBA-44: the MCP client configuration snippets in plugin/config/, the
-`config` command that fills them in (DBA-44: per tier), and the README "Install"
-section (DBA-44: advisory tier, optional grants, reports, licensing).
+`config` command that fills them in (read-only server only), and the README
+"Install" section (DBA-44: advisory tier, optional grants, reports, licensing).
 
 No process but `python -m tools` runs, and no database or real SQLcl is touched:
 `--sqlcl-bin` and PATH point at a fake `sql` file the command never starts.
@@ -19,16 +19,18 @@ Client formats (via Context7, 2026-11-13). Each registers one stdio server:
 Pinned here, as the contract /implement follows:
 - Client names are the snippet file stems: claude-code, claude-desktop, cursor,
   vscode-copilot, cline, codex.
-- The committed snippets carry four placeholders: `<SQLCL_BIN>`, `<PACK_HOME>`,
-  `<PACK_NAME>` and `<TIER>` (server name `<PACK_NAME>-<TIER>`, home
-  `<PACK_HOME>/homes/<TIER>`; DBA-44). The pack name may not be written
-  literally outside tools/config.py (CLAUDE.md; enforced by
-  tests/unit/test_skeleton.py), so the snippets name the server through the
-  placeholder and `config` prints the real `<PACK_NAME>-<tier>`.
-- DBA-44: `config --tier` (default `read-only`, argparse type `tier_arg`) fills
-  the home from `TIERS[tier].home` and the name from the tier name. The default
-  output is byte-identical to the DBA-18 rendering (READ_ONLY_RENDERING below,
-  captured from `config` on 2026-11-14 before the change).
+- The committed snippets carry three placeholders: `<SQLCL_BIN>`, `<PACK_HOME>`
+  and `<PACK_NAME>` (server name `<PACK_NAME>-read-only`, home
+  `<PACK_HOME>/homes/read-only`). The pack name may not be written literally
+  outside tools/config.py (CLAUDE.md; enforced by tests/unit/test_skeleton.py),
+  so the snippets name the server through the placeholder and `config` prints
+  the real `<PACK_NAME>-read-only`.
+- DBA-44 (revised 2026-11-14, D-DBA-44-no-advisory-mcp-server): `config` has no
+  `--tier`; it only ever registers the read-only server on
+  `TIERS["read-only"].home`, and its output is byte-identical to the DBA-18
+  rendering (READ_ONLY_RENDERING below, captured from `config` on 2026-11-14).
+  No MCP server is registered on the advisory home; advisory checks run only
+  through `python -m tools advise`.
 - The server arguments are exactly `tools.sqlcl.mcp_argv(home)`
   (D-DBA-15-sqlcl-explicit-restrict-level-4), in the snippets and in `config`'s
   output.
@@ -70,11 +72,11 @@ SNIPPETS = {
     "codex": "codex.toml",
 }
 SQLCL_PLACEHOLDER = "<SQLCL_BIN>"
-HOME_PLACEHOLDER = "<PACK_HOME>/homes/<TIER>"
-NAME_PLACEHOLDER = "<PACK_NAME>-<TIER>"
-PLACEHOLDERS = ("<SQLCL_BIN>", "<PACK_HOME>", "<PACK_NAME>", "<TIER>")
-# `config --client <client>` output before DBA-44, with @SQL@, @HOME@ and @NAME@
-# standing for the SQLcl path, the read-only home and the pack name.
+HOME_PLACEHOLDER = "<PACK_HOME>/homes/read-only"
+NAME_PLACEHOLDER = "<PACK_NAME>-read-only"
+PLACEHOLDERS = ("<SQLCL_BIN>", "<PACK_HOME>", "<PACK_NAME>")
+# `config --client <client>` output as DBA-18 rendered it, with @SQL@, @HOME@ and
+# @NAME@ standing for the SQLcl path, the read-only home and the pack name.
 _MCP_SERVERS_JSON = """{
   "mcpServers": {
     "@NAME@-read-only": {
@@ -215,9 +217,9 @@ def test_one_snippet_per_client_registering_sqlcl_with_mcp_argv():
     """AC: plugin/config/ holds one snippet per client (plus README.md), each
     registering exactly one server, `<PACK_NAME>-read-only`, whose command is
     `<SQLCL_BIN>` and whose arguments equal
-    mcp_argv("<PACK_HOME>/homes/<TIER>"): `-home`, the home, `-R`, `4`, `-mcp`
+    mcp_argv("<PACK_HOME>/homes/read-only"): `-home`, the home, `-R`, `4`, `-mcp`
     in that order. A snippet without `-R 4`, or with another level, fails.
-    DBA-44: the name is `<PACK_NAME>-<TIER>`, so one snippet serves every tier."""
+    DBA-44 (revised): the `<TIER>` placeholder of PR #51 is gone again."""
     present = {p.name for p in CONFIG_DIR.glob("*") if p.is_file()}
     assert present == {*SNIPPETS.values(), "README.md"}
 
@@ -246,6 +248,19 @@ def test_no_snippet_sets_auto_approval():
         data = tomllib.loads(text) if filename.endswith(".toml") else json.loads(text)
         offenders += [f"{filename}: key {k}" for k in _keys(data) if AUTO_APPROVAL.search(k)]
     assert offenders == []
+
+
+def test_no_tier_placeholder_or_tier_option_in_plugin_config():
+    """AC (DBA-44, absence scan): the `<TIER>` placeholder appears in no file under
+    plugin/config/, and claude-code.md no longer mentions `--tier` anywhere, prose
+    included. Falsifier: any snippet left on `<PACK_NAME>-<TIER>`."""
+    offenders = [
+        p.relative_to(REPO_ROOT).as_posix()
+        for p in sorted(CONFIG_DIR.rglob("*"))
+        if p.is_file() and "<TIER>" in p.read_text(encoding="utf-8", errors="replace")
+    ]
+    assert offenders == [], f"<TIER> placeholder in: {offenders}"
+    assert "--tier" not in (CONFIG_DIR / "claude-code.md").read_text(encoding="utf-8")
 
 
 def test_every_mcp_start_command_in_the_plugin_passes_r4():
@@ -350,80 +365,81 @@ def _as_in(client: str, value: str) -> str:
     return shlex.quote(value) if client == "claude-code" else json.dumps(value)[1:-1]
 
 
-def test_config_default_tier_output_is_byte_identical_to_before(tmp_path, pack_env):
-    """AC (DBA-44): with no --tier, and with --tier read-only, every client's output
-    is byte-identical to the DBA-18 rendering: server `<pack name>-read-only` on the
-    read-only home, started with mcp_argv. Fails while `--tier` is unknown, and if
-    the new placeholders leak or change a single byte of the default output."""
+def test_config_output_is_byte_identical_to_the_read_only_rendering(tmp_path, pack_env):
+    """AC (DBA-44): every client's output is byte-identical to the DBA-18
+    rendering: server `<pack name>-read-only` on the read-only home, started with
+    mcp_argv. Fails if a leftover placeholder or tier substitution changes a byte."""
     env, home = pack_env
     sql = _fake_sql(tmp_path / "bin")
     for client in SNIPPETS:
         expected = READ_ONLY_RENDERING[client]
         for token, value in (("@SQL@", str(sql)), ("@HOME@", str(home)), ("@NAME@", PACK_NAME)):
             expected = expected.replace(token, _as_in(client, value))
-        default = _run_config("--client", client, "--sqlcl-bin", str(sql), env=env)
-        explicit = _run_config("--client", client, "--tier", "read-only",
-                               "--sqlcl-bin", str(sql), env=env)
-        assert default.returncode == 0, f"{client}: {default.stderr}"
-        assert explicit.returncode == 0, f"{client}: {explicit.stderr}"
-        assert default.stdout == expected, f"{client} (default tier)"
-        assert explicit.stdout == expected, f"{client} (--tier read-only)"
+        result = _run_config("--client", client, "--sqlcl-bin", str(sql), env=env)
+        assert result.returncode == 0, f"{client}: {result.stderr}"
+        assert result.stdout == expected, client
 
 
-def test_config_tier_advisory_registers_the_advisory_server(tmp_path, pack_env):
-    """AC (DBA-44): `config --tier advisory` names the server `<pack name>-advisory`,
-    points it at the advisory home (TIERS["advisory"].home) and still starts it with
-    mcp_argv (`-R 4`), for every client; no placeholder or read-only trace is left.
-    Falsifier: filling the home from TIERS["read-only"] whatever --tier says."""
-    env, home = pack_env
-    advisory_home = home.parent / "advisory"
+def test_config_tier_option_is_rejected_without_a_snippet(tmp_path, pack_env):
+    """AC (DBA-44, D-DBA-44-no-advisory-mcp-server): `config` has no `--tier`, so
+    `config --client <client> --tier advisory` exits 2 (argparse rejects the
+    unknown option, naming it) and prints no snippet, for every client.
+    Falsifier: leave `--tier` in place and it prints a `<pack name>-advisory`
+    server with exit 0."""
+    env, _ = pack_env
     sql = _fake_sql(tmp_path / "bin")
     for client in SNIPPETS:
         result = _run_config("--client", client, "--tier", "advisory",
                              "--sqlcl-bin", str(sql), env=env)
-        assert result.returncode == 0, f"{client}: {result.stderr}"
-        for placeholder in PLACEHOLDERS:
-            assert placeholder not in result.stdout, f"{client}: {placeholder} left in output"
-        assert "read-only" not in result.stdout, f"{client}: {result.stdout}"
-        servers = _servers(client, result.stdout)
-        assert list(servers) == [f"{PACK_NAME}-advisory"], f"{client}: {list(servers)}"
-        command, args = servers[f"{PACK_NAME}-advisory"]
-        assert command == str(sql), f"{client}: command {command!r}"
-        assert args == mcp_argv(str(advisory_home)), f"{client}: args {args}"
+        assert result.returncode == 2, f"{client}: {result.stdout}{result.stderr}"
+        assert result.stdout == "", f"{client}: printed {result.stdout!r}"
+        assert "--tier" in result.stderr, f"{client}: {result.stderr}"
 
 
-def test_config_unknown_tier_exits_2_without_a_snippet(tmp_path, pack_env):
-    """AC (DBA-44): --tier goes through tier_arg, so an unknown tier exits 2 with
-    tier_arg's message and prints no snippet."""
-    from tools.tiers import NO_TIER
-
-    env, _ = pack_env
+def test_config_registers_only_the_read_only_server(tmp_path, pack_env):
+    """AC (DBA-44): for every client, `config --client <client>` registers exactly
+    one server, `<pack name>-read-only`, on TIERS["read-only"].home, started with
+    mcp_argv (`-R 4`); neither the word `advisory` nor the advisory home path
+    appears in stdout. Replaces the PR #51 test that registered the advisory
+    server."""
+    env, home = pack_env
+    advisory_home = home.parent / "advisory"
+    assert "advisory" not in str(tmp_path), "precondition: temp path names no tier"
     sql = _fake_sql(tmp_path / "bin")
-    result = _run_config("--client", "cursor", "--tier", "admin", "--sqlcl-bin", str(sql), env=env)
-    assert result.returncode == 2, result.stdout + result.stderr
-    assert NO_TIER in result.stderr, result.stderr
-    assert "mcpServers" not in result.stdout
+    for client in SNIPPETS:
+        result = _run_config("--client", client, "--sqlcl-bin", str(sql), env=env)
+        assert result.returncode == 0, f"{client}: {result.stderr}"
+        servers = _servers(client, result.stdout)
+        assert list(servers) == [f"{PACK_NAME}-read-only"], f"{client}: {list(servers)}"
+        command, args = servers[f"{PACK_NAME}-read-only"]
+        assert command == str(sql), f"{client}: command {command!r}"
+        assert args == mcp_argv(str(home)), f"{client}: args {args}"
+        assert "advisory" not in result.stdout.lower(), f"{client}: {result.stdout}"
+        assert _as_in(client, str(advisory_home)) not in result.stdout, client
 
 
-def test_contract_config_tier_argument():
-    """Contract (DBA-44 output_for_dependents: `config --tier`; no consuming story,
-    the promise is to the README's advisory steps and /integrate 3): the `config`
-    parser has `--tier` that defaults to TIERS["read-only"] and parses `advisory`
-    to TIERS["advisory"] through tier_arg, beside the existing `--client` and
-    `--sqlcl-bin`. Shape only."""
+def test_contract_config_has_no_tier_argument():
+    """Contract (DBA-44 output_for_dependents; needed_by none, the promise is to
+    the README's advisory steps and /integrate 3): the `config` parser has the
+    dests `client` and `sqlcl_bin` and no `tier`, and no action answers to
+    `--tier`; decision record D-DBA-44-no-advisory-mcp-server exists with a
+    `**Status:** Accepted` line. Shape only."""
     import argparse
 
     from tools.commands import config
-    from tools.tiers import TIERS, tier_arg
 
     parser = argparse.ArgumentParser()
     config.add_arguments(parser)
-    actions = {a.dest: a for a in parser._actions}
-    assert {"client", "sqlcl_bin", "tier"} <= set(actions)
-    assert actions["tier"].option_strings == ["--tier"]
-    assert actions["tier"].type is tier_arg
-    assert parser.parse_args(["--client", "cursor"]).tier == TIERS["read-only"]
-    assert parser.parse_args(["--client", "cursor", "--tier", "advisory"]).tier == TIERS["advisory"]
+    dests = {a.dest for a in parser._actions}
+    assert {"client", "sqlcl_bin"} <= dests, dests
+    assert "tier" not in dests, dests
+    options = [o for a in parser._actions for o in a.option_strings]
+    assert "--tier" not in options, options
+
+    record = REPO_ROOT / "docs" / "decisions" / "D-DBA-44-no-advisory-mcp-server.md"
+    assert record.is_file(), f"missing {record.relative_to(REPO_ROOT)}"
+    assert re.search(r"(?m)^\*\*Status:\*\* Accepted\b", record.read_text(encoding="utf-8")), \
+        "no **Status:** Accepted line"
 
 
 # --- documentation -----------------------------------------------------------
@@ -438,6 +454,15 @@ def _install_section() -> str:
     level = len(match.group(1))
     end = re.search(rf"(?m)^#{{1,{level}}} ", text[match.end():])
     return text[match.end():match.end() + end.start()] if end else text[match.end():]
+
+
+def _advisory_part(section: str) -> str:
+    """The "Advisory tier" subsection of the Install section, its heading included,
+    up to the next heading."""
+    match = re.search(r"(?mi)^#{3,} Advisory tier\b[^\n]*\n", section)
+    assert match, 'Install has no "Advisory tier" subsection'
+    end = re.search(r"(?m)^#{1,3} ", section[match.end():])
+    return section[match.start():match.end() + end.start()] if end else section[match.start():]
 
 
 def test_readme_install_section():
@@ -475,23 +500,39 @@ def test_config_readme_notes_the_windows_java_24_open_item():
     assert _unrestricted(text) == []
 
 
-def test_config_readme_registers_the_advisory_server_as_optional():
-    """AC (DBA-44): plugin/config/README.md says how to register the advisory server
-    beside the read-only one (`config --client <client> --tier advisory`) and that
-    it is optional, and lists the `<TIER>` placeholder the snippets now carry."""
+def test_config_readme_registers_only_the_read_only_server():
+    """AC (DBA-44, D-DBA-44-no-advisory-mcp-server): plugin/config/README.md has
+    no "Advisory server" section, no `--tier advisory` and no `<TIER>`; any
+    `--tier` it shows names `read-only` (e.g. `setup-home --tier read-only`). It
+    lists the three placeholders `<SQLCL_BIN>`, `<PACK_HOME>`, `<PACK_NAME>`, and
+    says, each in one sentence, that the snippets register only the read-only
+    server and that no MCP server is registered on the advisory home.
+    Falsifier: put the "Advisory server" section back."""
     text = (CONFIG_DIR / "README.md").read_text(encoding="utf-8")
-    assert re.search(r"tools config --client \S+ --tier advisory", text), text
-    assert re.search(r"(?i)\boptional\b", text)
-    assert "<TIER>" in text
+    assert not re.search(r"(?im)^#+\s*advisory server\b", text), "Advisory server section"
+    assert "--tier advisory" not in text, text
+    assert "<TIER>" not in text
+    others = [t for t in re.findall(r"--tier\s+(\S+)", text) if t.strip("`") != "read-only"]
+    assert others == [], f"--tier other than read-only: {others}"
+    for placeholder in PLACEHOLDERS:
+        assert placeholder in text, placeholder
+    assert re.search(r"(?i)\bonly\b[^.]{0,60}\bread-only\b[^.]{0,20}\bservers?\b", text), \
+        "no sentence saying the snippets register only the read-only server"
+    assert re.search(r"(?i)\bno\b[^.]{0,40}\bMCP server\b[^.]{0,80}\badvisory\b", text), \
+        "no sentence saying no MCP server is registered on the advisory home"
     assert _unrestricted(text) == []
 
 
 def test_readme_install_advisory_tier_grants_reports_and_licensing():
-    """AC (DBA-44): README "Install" gains
+    """AC (DBA-44): README "Install" holds
     - an optional advisory tier part, in order: setup-sql --tier advisory (object
       grants run as SYS), setup-home --tier advisory, save the connection,
-      config --client <client> --tier advisory, doctor --tier advisory; scripts
-      land in <pack_home>/scripts/ and the pack never runs them;
+      doctor --tier advisory. Revised 2026-11-14 (D-DBA-44-no-advisory-mcp-server):
+      no line of the part contains `tools config`; it says checks run through
+      `python -m tools advise <check id> --connection <name>` and that no MCP
+      server is registered for the advisory tier, so the AI never connects as the
+      advisory user. Scripts land in <pack_home>/scripts/ and the pack never runs
+      them. Falsifier: restore the "register it beside the read-only one" step;
     - the optional grants --alert-log and --statspack;
     - "Reports without AI": report --profile --connection --format html --out, a
       cron line running it, user profiles in <pack_home>/profiles/;
@@ -499,21 +540,28 @@ def test_readme_install_advisory_tier_grants_reports_and_licensing():
       responsibility) and no other licence wording anywhere in README.md.
     Status wording is covered by test_readme_install_section."""
     section = _install_section()
-    assert re.search(r"(?i)\badvisory tier\b", section)
-    assert re.search(r"(?i)\boptional\b", section)
+    advisory = _advisory_part(section)
+    assert re.search(r"(?i)\boptional\b", advisory)
 
     steps = [r"tools setup-sql --tier advisory", r"tools setup-home --tier advisory",
-             r"conn -save|(?i:save\b.{0,40}\bconnection)",
-             r"tools config --client \S+ --tier advisory", r"tools doctor --tier advisory"]
+             r"conn -save|(?i:save\b.{0,40}\bconnection)", r"tools doctor --tier advisory"]
     starts, cursor = [], 0
     for step in steps:
-        match = re.compile(step).search(section, cursor)
+        match = re.compile(step).search(advisory, cursor)
         assert match, f"advisory part lacks the step {step!r} after offset {cursor}"
         starts.append(match.start())
         cursor = match.end()
-    assert re.search(r"\bSYS\b", section[starts[0]:starts[1]]), "advisory grants: run as SYS"
-    assert re.search(r"(?i)<pack[_ ]?home>/scripts/", section)
-    assert re.search(r"(?i)\bnever runs?\b|\bdoes not run\b", section)
+    assert re.search(r"\bSYS\b", advisory[starts[0]:starts[1]]), "advisory grants: run as SYS"
+    config_lines = [line for line in advisory.splitlines() if "tools config" in line]
+    assert config_lines == [], f"advisory part registers a server: {config_lines}"
+    assert re.search(r"tools advise\s+<check[ _]id>\s+--connection\s+\S+", advisory), \
+        "advisory part lacks `python -m tools advise <check id> --connection <name>`"
+    assert re.search(r"(?i)\bno\b[^.]{0,40}\bMCP server\b[^.]{0,80}\badvisory\b", advisory), \
+        "advisory part does not say no MCP server is registered for the advisory tier"
+    assert re.search(r"(?i)\bAI\b[^.]{0,40}\bnever\b[^.]{0,60}\badvisory user\b", advisory), \
+        "advisory part does not say the AI never connects as the advisory user"
+    assert re.search(r"(?i)<pack[_ ]?home>/scripts/", advisory)
+    assert re.search(r"(?i)\bnever runs?\b|\bdoes not run\b", advisory)
 
     assert "--alert-log" in section and "--statspack" in section
 

@@ -1,6 +1,6 @@
 # SQL tuning playbook
 
-One slow statement: its execution plan, the statistics of the tables it reads, and the SQL plan baselines and SQL profiles that can pin or shape its plan. All four checks read the cursor cache and the data dictionary and change nothing. `sql_profile` has `pack: tuning`, so rule 8 applies.
+One slow statement: its execution plan, the statistics of the tables it reads, and the SQL plan baselines and SQL profiles that can pin or shape its plan. All five checks read the cursor cache and the data dictionary and change nothing; `sql_tuning_advisor` also writes a script the user runs. `sql_profile` and `sql_tuning_advisor` have `pack: tuning`, so rule 8 applies.
 
 ## Start with
 
@@ -14,6 +14,7 @@ One slow statement: its execution plan, the statistics of the tables it reads, a
 - If `explain_plan` shows a note "SQL plan baseline ... used for this statement", run `spm_baselines` because the baseline, not the optimizer's own choice, fixed that plan; look for the statement's sql text there.
 - If `explain_plan` shows a note "SQL profile ... used for this statement", run `sql_profile` because the profile's hints shape that plan; a DISABLED profile there no longer applies.
 - If `spm_baselines` shows a WARNING row, run `explain_plan` with the sql id `top_sql` shows for that sql text because the unaccepted plan may be better than the one in use, and its current plan is the comparison.
+- If `explain_plan` or `top_sql` leaves a slow statement with no cause from the checks above, run `sql_tuning_advisor` through `python -m tools advise sql_tuning_advisor --param sql_id=<sql id> --connection <name>` ([advisory playbook](advisory.md)) because its script runs the SQL Tuning Advisor on that sql id; the file ends with any findings already stored for it, and a WARNING row is a stored recommendation of 30% or more benefit.
 - If `stale_stats` shows WARNING rows for a table in the plan, run `dictionary_stats_age` because the automatic statistics job that should have gathered them also maintains dictionary statistics, and both stale together point at the job not running.
 
 ## Stop when

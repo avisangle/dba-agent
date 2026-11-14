@@ -107,4 +107,5 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | explain_plan | Execution plan of a statement in the cursor cache, by sql id | R | none | 12.1 | tuning/explain_plan.sql |
 | spm_baselines | SQL plan baselines, with a warning for plans left unaccepted over 30 days | R | none | 12.1 | tuning/spm_baselines.sql |
 | sql_profile | SQL profiles, with a warning for disabled ones | R | tuning | 12.1 | tuning/sql_profile.sql |
+| sql_tuning_advisor | SQL Tuning Advisor script for one sql id, with findings already stored for it | A | tuning | 12.1 | tuning/sql_tuning_advisor.sql |
 | stale_stats | Optimizer statistics of application tables: stale, or never gathered on a table with rows | R | none | 12.1 | tuning/stale_stats.sql |

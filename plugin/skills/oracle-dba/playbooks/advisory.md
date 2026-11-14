@@ -1,6 +1,6 @@
 # Advisory scripts playbook
 
-Checks of mode `A` write a script for the user to review and run; the pack never runs it. There are two: `reclaimable_space` (Segment Advisor shrink recommendations as `ALTER TABLE ... ENABLE ROW MOVEMENT` and `SHRINK SPACE` lines) and `restore_validate_script` (an RMAN `RUN` block that validates the spfile, control file and database backups, and the last 7 days of archived logs in ARCHIVELOG mode).
+Checks of mode `A` write a script for the user to review and run; the pack never runs it. There are three: `reclaimable_space` (Segment Advisor shrink recommendations as `ALTER TABLE ... ENABLE ROW MOVEMENT` and `SHRINK SPACE` lines), `restore_validate_script` (an RMAN `RUN` block that validates the spfile, control file and database backups, and the last 7 days of archived logs in ARCHIVELOG mode) and `sql_tuning_advisor` (a PL/SQL block that creates and executes a SQL Tuning Advisor task for one sql id, then the query that prints its report; the [tuning playbook](tuning.md) says when).
 
 Run them only through the advise command, on the advisory tier's SQLcl home, never through the SQL-running tool:
 

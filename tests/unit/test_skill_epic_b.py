@@ -99,26 +99,36 @@ def _flat(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def _invocations(text: str) -> list[tuple[str, set[str]]]:
-    """(command, flags) for every `python -m tools <command> ...` written in an
-    inline code span or a fenced block line."""
+def _invocations(text: str) -> list[tuple[str, set[str], bool]]:
+    """(command, flags, has_args) for every `python -m tools <command> ...` written
+    in an inline code span or a fenced block line. has_args is False for a bare
+    command name, which prose uses to refer to the command, not to run it."""
     found = []
     pieces = INLINE_CODE.findall(FENCE.sub("", text))
     pieces += [line for block in FENCE.findall(text) for line in block.splitlines()]
     for piece in pieces:
         for command, rest in INVOCATION.findall(piece):
-            found.append((command, set(FLAG.findall(rest))))
+            found.append((command, set(FLAG.findall(rest)), bool(rest.strip())))
     return found
 
 
-def _command_flags() -> dict[str, set[str]]:
-    """Command name -> option strings its parser accepts, from the real modules."""
+def _command_options() -> dict[str, tuple[set[str], set[str]]]:
+    """Command name -> (option strings its parser accepts, its required options),
+    from the real modules."""
     result = {}
     for module in discover_commands():
         parser = argparse.ArgumentParser()
         module.add_arguments(parser)
-        result[module.NAME] = {s for a in parser._actions for s in a.option_strings}
+        accepted = {s for a in parser._actions for s in a.option_strings}
+        required = {a.option_strings[0] for a in parser._actions
+                    if a.required and a.option_strings}
+        result[module.NAME] = (accepted, required)
     return result
+
+
+def _command_flags() -> dict[str, set[str]]:
+    """Command name -> option strings its parser accepts."""
+    return {name: accepted for name, (accepted, _) in _command_options().items()}
 
 
 # --- behavioural / structural tests ------------------------------------------
@@ -141,7 +151,7 @@ def test_every_tools_invocation_names_a_real_command_and_flag():
     `python -m tools <command> --flag` it shows is a command that exists with a
     flag its parser accepts. Falsifier: misspell a flag (`--params`) or name a
     command that does not exist, and this fails."""
-    shown = _invocations(_text())
+    shown = [(command, flags) for command, flags, _ in _invocations(_text())]
     real = _command_flags()
 
     unknown = sorted({c for c, _ in shown if c not in real})
@@ -243,3 +253,32 @@ def test_contract_skill_rules_for_epic_b():
     assert "check-sql" in _rule(3)
     assert "python -m tools advise" in _rule(12)
     assert "index --user" in _rule(13)
+
+
+def test_playbooks_remediations_and_readme_show_runnable_commands():
+    """Every `python -m tools <command>` in a skill or playbook,
+    a check's remediation line or README.md names a real command and only flags it
+    accepts; one written with arguments also shows every option the command
+    requires (/integrate 3: a remediation without `--connection` exits 2 as
+    written)."""
+    texts = {p.relative_to(REPO_ROOT): p.read_text(encoding="utf-8")
+             for p in [SKILL, *sorted((SKILL.parent / "playbooks").glob("*.md")),
+                       REPO_ROOT / "plugin" / "skills" / "offline-analysis" / "SKILL.md",
+                       REPO_ROOT / "README.md"]}
+    for path in sorted((REPO_ROOT / "plugin" / "checks").rglob("*.sql")):
+        texts[path.relative_to(REPO_ROOT)] = "\n".join(
+            line for line in path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("-- remediation:"))
+    options = _command_options()
+    problems = []
+    for path, text in texts.items():
+        for command, flags, has_args in _invocations(text):
+            if command not in options:
+                problems.append(f"{path}: no command {command}")
+                continue
+            accepted, required = options[command]
+            problems += [f"{path}: {command} has no {f}" for f in sorted(flags - accepted)]
+            if has_args:
+                problems += [f"{path}: {command} without required {f}"
+                             for f in sorted(required - flags)]
+    assert not problems, "\n".join(problems)

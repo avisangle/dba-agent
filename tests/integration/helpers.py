@@ -30,7 +30,7 @@ def unavailable(reason: str):
     pytest.skip(reason)
 
 
-def _ok_or_autocommit(session, sql):
+def ok_or_autocommit(session, sql):
     """DML or a PL/SQL block: it takes effect, but run-sql reports ORA-17273 (bug.md)."""
     result = session.run_sql(sql)
     assert result.error is None or result.error.startswith("ORA-17273"), f"{sql}: {result.error}"
@@ -51,7 +51,7 @@ def shrinkable_table(admin, table: str, task: str):
     table, task = table.upper(), task.upper()
     drop_task = f"begin dbms_advisor.delete_task('{task}'); exception when others then null; end;"
     try:
-        _ok_or_autocommit(admin, drop_task)
+        ok_or_autocommit(admin, drop_task)
         for sql in (
             f"drop table if exists system.{table} purge",
             f"create table system.{table} tablespace users as select o.* from dba_objects o, "
@@ -59,9 +59,9 @@ def shrinkable_table(admin, table: str, task: str):
         ):
             result = admin.run_sql(sql)
             assert result.error is None, f"{sql}: {result.error}"
-        _ok_or_autocommit(
+        ok_or_autocommit(
             admin, f"begin delete from system.{table} where mod(object_id, 10) <> 0; end;")
-        _ok_or_autocommit(admin, f"""declare
+        ok_or_autocommit(admin, f"""declare
   tid number; oid number; tname varchar2(128) := '{task}';
 begin
   dbms_advisor.create_task('Segment Advisor', tid, tname);
@@ -74,5 +74,5 @@ end;""")
         assert status.rows == [["COMPLETED"]], status.text
         yield "SYSTEM", table
     finally:
-        _ok_or_autocommit(admin, drop_task)
+        ok_or_autocommit(admin, drop_task)
         admin.run_sql(f"drop table if exists system.{table} purge")

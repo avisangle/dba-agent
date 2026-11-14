@@ -94,21 +94,24 @@ advisory tier, so the AI never connects as the advisory user
 and writes a Markdown or HTML report, with no model involved:
 
 ```
-python -m tools report --profile health_check --connection dba_agent_ro --format html --out health.html
+python -m tools report --profile daily_health --connection dba_agent_ro --format html --out health.html
 ```
 
 It exits 0 when the report is written (checks with errors included), 1 when
-SQLcl, the connection or writing the file fails, and 2 for a bad profile or
-argument. A profile lists read-only (mode `R`) checks only; fix-script checks
+SQLcl or writing the file fails, and 2 for a bad profile, argument or unknown
+connection. A profile lists read-only (mode `R`) checks only; fix-script checks
 run through `advise`. To run it
 on a schedule, add a cron line that changes to the unzipped folder first. Cron
 starts with a short PATH, so set `SQLCL_BIN` to the SQLcl executable:
 
 ```
-0 6 * * * cd /opt/dba-pack && SQLCL_BIN=/opt/sqlcl/bin/sql python3 -m tools report --profile health_check --connection dba_agent_ro --format html --out /var/reports/health.html
+0 6 * * * cd /opt/dba-pack && SQLCL_BIN=/opt/sqlcl/bin/sql python3 -m tools report --profile daily_health --connection dba_agent_ro --format html --out /var/reports/health.html
 ```
 
-`--profile` takes a profile name or a path to a `.json` profile. Your own
+`--profile` takes a profile name or a path to a `.json` profile. The built-in
+profiles are `daily_health` (the only scored one), `weekly_capacity`,
+`pre_patch`, `post_patch`, `security_baseline`, `performance_snapshot` and
+`health_check` (the chat health check's list). Your own
 profiles go in `<pack_home>/profiles/`; one there with the same name as a
 built-in profile in `plugin/profiles/` is used instead of it.
 

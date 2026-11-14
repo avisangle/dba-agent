@@ -56,7 +56,7 @@ SELECT plan_hash,
        TO_CHAR(first_seen, 'YYYY-MM-DD HH24:MI:SS') AS first_seen,
        TO_CHAR(last_seen, 'YYYY-MM-DD HH24:MI:SS') AS last_seen,
        executions,
-       ROUND(avg_ms, 3) AS avg_elapsed_ms,
+       ROUND(avg_ms, 3) AS ms_per_exec,
        CASE WHEN age = 1 AND avg_ms > others_avg_ms
             THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   judged

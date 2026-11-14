@@ -161,14 +161,14 @@ COLUMNS = {
     "awr_snapshot_list": ["SNAP_ID", "BEGIN_TIME", "END_TIME", "ELAPSED_MIN", "SEVERITY"],
     # DBA-39
     "awr_report": ["SECTION", "ITEM", "VALUE", "PER_SECOND", "PCT_OF_DB_TIME", "SEVERITY"],
-    "awr_top_sql": ["SQL_ID", "PLAN_HASH", "EXECUTIONS", "ELAPSED_S", "CPU_S", "GETS", "READS",
-                    "SQL_TEXT", "SEVERITY"],
+    "awr_top_sql": ["SQL_ID", "PLAN_HASH", "EXECUTIONS", "ELAPSED_S", "CPU_S", "BUFFER_GETS",
+                    "DISK_READS", "SQL_TEXT", "SEVERITY"],
     "awr_compare_periods": ["ITEM", "FIRST_VALUE", "SECOND_VALUE", "CHANGE_PCT", "SEVERITY"],
-    "sql_history": ["SNAP_ID", "END_TIME", "PLAN_HASH", "EXECUTIONS", "ELAPSED_PER_EXEC_MS",
+    "sql_history": ["SNAP_ID", "END_TIME", "PLAN_HASH", "EXECUTIONS", "MS_PER_EXEC",
                     "GETS_PER_EXEC", "SEVERITY"],
-    "plan_history": ["PLAN_HASH", "FIRST_SEEN", "LAST_SEEN", "EXECUTIONS", "AVG_ELAPSED_MS",
+    "plan_history": ["PLAN_HASH", "FIRST_SEEN", "LAST_SEEN", "EXECUTIONS", "MS_PER_EXEC",
                      "SEVERITY"],
-    "addm_findings": ["TASK", "TYPE", "IMPACT_PCT", "MESSAGE", "SEVERITY"],
+    "addm_findings": ["TASK_NAME", "TYPE", "IMPACT_PCT", "MESSAGE", "SEVERITY"],
 }
 
 SHIFT_HOURS = 9  # session time zone offset from the database's, in the window tests
@@ -374,14 +374,6 @@ def _column_runs(check_id, window) -> list[dict]:
     return [{}]
 
 
-def _committing_call(session, block):
-    """Run a PL/SQL block that commits. Through `sql -mcp` it takes effect but
-    reports ORA-17273 (bug.md); any other error fails."""
-    result = session.run_sql(block)
-    assert result.error is None or result.error.startswith("ORA-17273"), \
-        f"{block}: {result.error}"
-
-
 def _plan_hashes(admin, sql_id) -> set[str]:
     found = _ok(admin, f"select distinct plan_hash_value from v$sql where sql_id = '{sql_id}'")
     return {row[0] for row in found.rows}
@@ -403,6 +395,7 @@ def plan_change(admin):
     index in each of two windows (fast plan), then, after the index is dropped,
     PLAN_RUNS times with a full scan (slow plan) in a third. `snaps` are the four
     snapshot ids; the slow plan's executions fall in the window ending snaps[3]."""
+    commit_ok = importlib.import_module("helpers").ok_or_autocommit
     tag = f"AWRPC_{secrets.token_hex(4).upper()}"
     table = f"system.{tag}"
     query = f"select /* {tag} */ max(pad) from {table} where id = 4242"
@@ -417,8 +410,8 @@ def plan_change(admin):
                            f"where sql_text like '%/* ' || '{tag}' || ' */%'")
         assert len(found.rows) == 1, f"tag {tag}: sql ids {found.rows}"
         sql_id = found.rows[0][0]
-        _committing_call(admin, "begin dbms_workload_repository.add_colored_sql("
-                                f"'{sql_id}'); end;")
+        commit_ok(admin, "begin dbms_workload_repository.add_colored_sql("
+                         f"'{sql_id}'); end;")
         snaps = [_snap(admin)]
         for _ in range(2):
             for _ in range(PLAN_RUNS):
@@ -436,8 +429,8 @@ def plan_change(admin):
                "snaps": snaps}
     finally:
         if sql_id:
-            _committing_call(admin, "begin dbms_workload_repository.remove_colored_sql("
-                                    f"'{sql_id}'); end;")
+            commit_ok(admin, "begin dbms_workload_repository.remove_colored_sql("
+                             f"'{sql_id}'); end;")
         admin.run_sql(f"drop table if exists {table} purge")
 
 
@@ -542,7 +535,7 @@ def test_plan_change_warns_on_the_slower_newer_plan(ro, plan_change):
 
     plans = {r["PLAN_HASH"]: r for r in _rows(ro, "plan_history", sql_id=plan_change["sql_id"])}
     assert set(plans) == {fast, slow}, plans
-    assert float(plans[slow]["AVG_ELAPSED_MS"]) > float(plans[fast]["AVG_ELAPSED_MS"]), plans
+    assert float(plans[slow]["MS_PER_EXEC"]) > float(plans[fast]["MS_PER_EXEC"]), plans
     assert (plans[slow]["SEVERITY"], plans[fast]["SEVERITY"]) == ("WARNING", "INFO"), plans
 
 
@@ -586,7 +579,7 @@ def test_addm_findings_lists_the_windows_auto_task(ro, admin, awr_window):
     task = found[0][0]
 
     rows = _rows(ro, "addm_findings")
-    assert task in {r["TASK"] for r in rows}, (task, rows)
+    assert task in {r["TASK_NAME"] for r in rows}, (task, rows)
     for row in rows:
         impact = _number(row["IMPACT_PCT"])
         assert impact is None or 0 <= impact <= 100, row

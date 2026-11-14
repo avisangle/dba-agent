@@ -20,8 +20,8 @@ from tools.reports.runner import VersionUnreadable, database_version, run_checks
 NAME = "report"
 HELP = (
     "run a report profile's checks on a saved connection and write a Markdown or HTML report; "
-    "exit 0 when the report is written (ERROR checks included), 1 for a SQLcl, connection "
-    "or write failure, 2 for a bad profile or argument"
+    "exit 0 when the report is written (ERROR checks included), 1 for a SQLcl or write "
+    "failure, 2 for a bad profile, argument or unknown connection"
 )
 
 

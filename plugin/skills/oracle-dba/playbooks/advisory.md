@@ -1,21 +1,14 @@
 # Advisory scripts playbook
 
-Checks of mode `A` write a script for the user to review and run; the pack never runs it. There are three: `reclaimable_space` (Segment Advisor shrink recommendations as `ALTER TABLE ... ENABLE ROW MOVEMENT` and `SHRINK SPACE` lines), `restore_validate_script` (an RMAN `RUN` block that validates the spfile, control file and database backups, and the last 7 days of archived logs in ARCHIVELOG mode) and `sql_tuning_advisor` (a PL/SQL block that creates and executes a SQL Tuning Advisor task for one sql id, then the query that prints its report; the [tuning playbook](tuning.md) says when).
+Checks of mode `A` write a script for the user to review and run; the pack never runs it. They are `reclaimable_space` (Segment Advisor shrink recommendations as `ALTER TABLE ... ENABLE ROW MOVEMENT` and `SHRINK SPACE` lines), `restore_validate_script` (an RMAN `RUN` block that validates the spfile, control file and database backups, and the last 7 days of archived logs in ARCHIVELOG mode) and `sql_tuning_advisor` (a PL/SQL block that creates and executes a SQL Tuning Advisor task for one sql id, then the query that prints its report; the [tuning playbook](tuning.md) says when).
 
-Run them only through the advise command, on the advisory tier's SQLcl home, never through the SQL-running tool:
-
-```
-python -m tools advise <id> --connection <name>
-```
-
-`<name>` is the connection the user saved in the advisory home (`python -m tools setup-sql --tier advisory` and `python -m tools setup-home --tier advisory` set it up; `python -m tools doctor --tier advisory` checks it). Ask the user for the name; do not guess it. The command runs the check once and writes `<pack_home>/scripts/<id>-<YYYYmmdd-HHMMSS>.sql`, or prints "nothing to do" when the check returned no lines. Exit 1 means the check failed lint or returned an invalid script, exit 2 an unknown check or connection: report the error and stop.
-
-Report the script's path and line count to the user. Never run the script, never send its lines to the SQL-running tool or any other SQLcl tool: the user reviews and runs it in their own SQLcl or RMAN session.
+Run each one as SKILL.md rule 12 says, with `python -m tools advise <id> --connection <name>` on a connection the user saved in the advisory home. It writes `<pack_home>/scripts/<id>-<YYYYmmdd-HHMMSS>.sql`, or prints "nothing to do" when the check returned no lines, and never runs the script.
 
 ## Start with
 
 1. `reclaimable_space`, when the user asks about space that can be given back: one `ENABLE ROW MOVEMENT` line then one `SHRINK SPACE` line per recommended segment, largest first. A segment with 1 GB or more to reclaim is a WARNING.
 2. `restore_validate_script`, when the user asks whether their backups can be restored.
+3. `sql_tuning_advisor`, when the [tuning playbook](tuning.md) leaves a slow statement unexplained: add `--param sql_id=<sql id>`.
 
 ## Then
 

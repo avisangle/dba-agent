@@ -211,10 +211,13 @@ def test_columns_and_text_width(ro, check_id):
         assert all(len(cell) <= 200 for cell in row), row
 
 
-def test_backup_playbook_names_the_four_checks_only(_integration_ready):
-    """AC: backup.md names each backup check and does not name
-    restore_validate_script, which DBA-36's advisory playbook owns."""
+def test_backup_playbook_names_its_checks(_integration_ready):
+    """AC: backup.md names each backup check, and its branches reach its mode A
+    check restore_validate_script only through `python -m tools advise`
+    (D-DBA-23-category-playbook-names-its-mode-a-check)."""
     text = PLAYBOOK.read_text(encoding="utf-8")
     for check_id in HEADERS:
         assert f"`{check_id}`" in text, f"backup.md does not name {check_id}"
-    assert "restore_validate_script" not in text
+    branch = [line for line in text.splitlines()
+              if line.startswith("- ") and "restore_validate_script" in line]
+    assert branch and all("python -m tools advise" in line for line in branch), branch

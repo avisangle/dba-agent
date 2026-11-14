@@ -12,41 +12,28 @@ default tier home. The checks read only what the built-in health check reads
 
 import json
 import os
-import secrets
 import subprocess
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
-from save_connection import save_connection
 
 from tools.config import PACK_NAME
-from tools.tiers import TIERS
 
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SQLCL_BIN = os.environ.get("SQLCL_BIN", "sql")
-DSN = os.environ.get("ORACLE_TEST_DSN", "localhost:1521/FREEPDB1")
-RO_USER = TIERS["read-only"].db_user
 CONNECTION = "dba_agent_ro"
 PROFILE = REPO_ROOT / "plugin" / "profiles" / "health_check.json"
 PROFILE_IDS = [c["id"] for c in json.loads(PROFILE.read_text(encoding="utf-8"))["checks"]]
 
 
 @pytest.fixture(scope="module")
-def ro_pack(admin, ro, tmp_path_factory):
-    """A pack home whose read-only tier home holds one saved connection as RO_USER."""
-    password = "P" + secrets.token_hex(12)
-    result = admin.run_sql(f'alter user {RO_USER} identified by "{password}"')
-    assert result.error is None, result.error
-    pack = tmp_path_factory.mktemp("report-pack")
-    home = pack / "homes" / "read-only"
-    home.mkdir(parents=True)
-    home.chmod(0o700)
-    save_connection(SQLCL_BIN, str(home), CONNECTION, RO_USER, password, DSN)
-    return pack
+def ro_pack(ro, tier_pack):
+    """A pack home whose read-only tier home holds one saved connection."""
+    return tier_pack("read-only", CONNECTION, "report-pack")
 
 
 def _report(pack: Path, *args):

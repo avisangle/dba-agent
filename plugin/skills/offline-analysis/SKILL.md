@@ -11,7 +11,7 @@ The user has a report or log file and no database connection is needed or made.
 
 Never open the raw file: a report is hundreds of kilobytes of markup and an alert log can be far larger. Run the extractor for its kind and work only from its output. Every extractor prints a summary block and capped section tables (20 rows each by default). Options shared by all of them:
 
-- `--max-rows N` changes the row cap. A line after a table says how many rows were dropped; if they matter, rerun for that one section with `--sections <name> --max-rows N`.
+- `--max-rows N` changes the row cap. A line after a table says how many rows were dropped; if they matter, rerun with a higher `--max-rows N` (the AWR, ASH and Statspack extractors also take `--sections <name>` to rerun one section).
 - `--format json` gives the same content as JSON.
 
 Exit 0 means the file was read. Exit 1 with "not an AWR report", "not a Statspack report", "not an ASH report" or "not an alert log" means the file is another kind. Exit 2 means a bad option or no such file.

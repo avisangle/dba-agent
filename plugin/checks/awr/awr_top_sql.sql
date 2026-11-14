@@ -35,8 +35,8 @@ top AS (
          SUM(q.executions_delta) AS executions,
          SUM(q.elapsed_time_delta) AS elapsed,
          SUM(q.cpu_time_delta) AS cpu,
-         SUM(q.buffer_gets_delta) AS gets,
-         SUM(q.disk_reads_delta) AS reads
+         SUM(q.buffer_gets_delta) AS buffer_gets,
+         SUM(q.disk_reads_delta) AS disk_reads
   FROM   dba_hist_sqlstat q, ctx, win w
   WHERE  q.dbid = ctx.dbid
   AND    q.instance_number = ctx.inst
@@ -52,8 +52,8 @@ SELECT t.sql_id,
        t.executions,
        ROUND(t.elapsed / 1e6, 3) AS elapsed_s,
        ROUND(t.cpu / 1e6, 3) AS cpu_s,
-       t.gets,
-       t.reads,
+       t.buffer_gets,
+       t.disk_reads,
        (SELECT MAX(DBMS_LOB.SUBSTR(x.sql_text, 120, 1))
         FROM   dba_hist_sqltext x, ctx
         WHERE  x.dbid = ctx.dbid

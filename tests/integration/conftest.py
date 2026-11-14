@@ -65,6 +65,25 @@ def sqlcl_bin_and_dsn(_integration_ready):
 
 
 @pytest.fixture(scope="session")
+def tier_pack(admin, tmp_path_factory):
+    """Factory: make(tier_name, connection, prefix) -> a pack home whose tier home
+    holds `connection`, saved as that tier's user with a password set here (as SYSTEM).
+    Callers also request the user's fixture (`ro`, `adv`), which creates the user."""
+    def make(tier_name: str, connection: str, prefix: str) -> Path:
+        tier = TIERS[tier_name]
+        password = "P" + secrets.token_hex(12)
+        result = admin.run_sql(f'alter user {tier.db_user} identified by "{password}"')
+        assert result.error is None, result.error
+        pack = tmp_path_factory.mktemp(prefix)
+        home = pack / "homes" / tier.home_name
+        home.mkdir(parents=True)
+        home.chmod(0o700)
+        save_connection(SQLCL_BIN, str(home), connection, tier.db_user, password, DSN)
+        return pack
+    return make
+
+
+@pytest.fixture(scope="session")
 def admin(_integration_ready, tmp_path_factory):
     """SqlclSession connected as SYSTEM to the test PDB."""
     yield from _connected(tmp_path_factory, "admin", "system", PASSWORD)

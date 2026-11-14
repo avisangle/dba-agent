@@ -1,3 +1,3 @@
-[mcp_servers."<PACK_NAME>-<TIER>"]
+[mcp_servers."<PACK_NAME>-read-only"]
 command = "<SQLCL_BIN>"
-args = ["-home", "<PACK_HOME>/homes/<TIER>", "-R", "4", "-mcp"]
+args = ["-home", "<PACK_HOME>/homes/read-only", "-R", "4", "-mcp"]

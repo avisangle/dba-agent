@@ -1,14 +1,14 @@
 # MCP client configuration
 
-One file per client. Each registers Oracle's SQLcl MCP server, started on one tier's SQLcl home at restrict level 4:
+One file per client. Each registers Oracle's SQLcl MCP server, started on the read-only tier's SQLcl home at restrict level 4:
 
 ```
-<SQLCL_BIN> -home <PACK_HOME>/homes/<TIER> -R 4 -mcp
+<SQLCL_BIN> -home <PACK_HOME>/homes/read-only -R 4 -mcp
 ```
 
 `-R 4` is always written out: SQLcl 26.3.1 runs `host` commands and attempts `@script` through its MCP server when it is started without `-R` (`docs/decisions/D-DBA-15-sqlcl-explicit-restrict-level-4.md` in the source repository). Keep it when you edit a snippet.
 
-The files hold four placeholders, `<SQLCL_BIN>` (the SQLcl executable), `<PACK_HOME>` (the pack's home folder), `<PACK_NAME>` (the pack's name) and `<TIER>` (the tier: `read-only` or `advisory`), written as `<SQLCL_BIN>`, the home `<PACK_HOME>/homes/<TIER>` and the server name `<PACK_NAME>-<TIER>`. `python -m tools config --client <client>` prints the snippet with all four filled in for this machine and the read-only tier; `--tier` names another tier, and `--sqlcl-bin PATH` picks the SQLcl executable when `sql` is not on PATH.
+The files hold three placeholders: `<SQLCL_BIN>` (the SQLcl executable), `<PACK_HOME>` (the pack's home folder) and `<PACK_NAME>` (the pack's name). `python -m tools config --client <client>` prints the snippet with all three filled in for this machine; `--sqlcl-bin PATH` picks the SQLcl executable when `sql` is not on PATH.
 
 | Client | File | Where it goes |
 | --- | --- | --- |
@@ -21,17 +21,9 @@ The files hold four placeholders, `<SQLCL_BIN>` (the SQLcl executable), `<PACK_H
 
 No snippet turns on automatic approval of the server's tools. Leave each tool call to your client's approval prompt.
 
-The home must be the tier home that `python -m tools setup-home --tier <tier>` creates, holding only that tier's connection. Never point `-home` at your default SQLcl store, which may hold connections to production databases with more privileges.
+The home must be the tier home that `python -m tools setup-home --tier read-only` creates, holding only the read-only connection. Never point `-home` at your default SQLcl store, which may hold connections to production databases with more privileges.
 
-## Advisory server
-
-The advisory tier is optional. Its server is registered beside the read-only server, not in place of it:
-
-```
-python -m tools config --client <client> --tier advisory
-```
-
-Add the server it prints next to the read-only one in your client's file (for Claude Code, run its `claude mcp add` command as well).
+The snippets register only the read-only server. No MCP server is registered on the advisory home: advisory checks run through `python -m tools advise`, which opens its own SQLcl session, so the AI never connects as the advisory user (`docs/decisions/D-DBA-44-no-advisory-mcp-server.md` in the source repository).
 
 ## Known open item
 

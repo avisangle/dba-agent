@@ -79,11 +79,14 @@ the read-only checks.
 3. Save the connection in your own terminal, as for the read-only tier:
    `sql -home <advisory home> /nolog`, then
    `conn -save dba_agent_adv -savepwd dba_agent_adv@//<host>:<port>/<service>`.
-4. `python -m tools config --client <client> --tier advisory` prints the
-   advisory server; register it beside the read-only one
-   (`plugin/config/README.md`).
-5. `python -m tools doctor --tier advisory` checks the advisory home, its saved
+4. `python -m tools doctor --tier advisory` checks the advisory home, its saved
    connection and its grants.
+
+Advisory checks then run through
+`python -m tools advise <check id> --connection dba_agent_adv`, which opens its
+own SQLcl session on the advisory home. No MCP server is registered for the
+advisory tier, so the AI never connects as the advisory user
+(`docs/decisions/D-DBA-44-no-advisory-mcp-server.md` in the source repository).
 
 ### Reports without AI
 

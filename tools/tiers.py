@@ -60,6 +60,7 @@ TIERS = {
                 "SELECT ON SYS.DBA_ADVISOR_OBJECT_TYPES",
                 "SELECT ON SYS.WRI$_ADV_OBJECTS",
                 "SELECT ON SYS.WRI$_ADV_FINDINGS",
+                "SELECT ON SYS.WRI$_ADV_MESSAGE_GROUPS",
             }),
         ),
     )

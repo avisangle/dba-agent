@@ -23,6 +23,7 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | archivelog_gaps | Archive log mode and archived log sequence gaps in the last 7 days | R | none | 12.1 | backup/archivelog_gaps.sql |
 | backup_coverage | Latest backup of each datafile and its age | R | none | 12.1 | backup/backup_coverage.sql |
 | recovery_window_check | Whether full or level 0 backups cover the RMAN recovery window | R | none | 12.1 | backup/recovery_window_check.sql |
+| restore_validate_script | RMAN restore validation script for the spfile, control file, database and recent archived logs | A | none | 12.1 | backup/restore_validate_script.sql |
 | rman_job_status | RMAN backup jobs in the last 7 days | R | none | 12.1 | backup/rman_job_status.sql |
 
 ## discovery
@@ -92,6 +93,7 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | --- | --- | --- | --- | --- | --- |
 | datafile_autoextend | Datafiles that cannot grow while their tablespace fills | R | none | 12.1 | storage/datafile_autoextend.sql |
 | fra_usage | Fast recovery area usage net of reclaimable space | R | none | 12.1 | storage/fra_usage.sql |
+| reclaimable_space | Segment Advisor shrink recommendations as a reviewable script | A | none | 12.1 | storage/reclaimable_space.sql |
 | segment_growth | Segments that grew most in the last 7 days | R | diagnostics | 12.1 | storage/segment_growth.sql |
 | tablespace_usage | Tablespace usage above threshold | R | none | 12.1 | storage/tablespace_usage.sql |
 | temp_usage | Temporary tablespace usage above threshold | R | none | 12.1 | storage/temp_usage.sql |

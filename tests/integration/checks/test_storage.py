@@ -108,7 +108,8 @@ def test_headers_match_the_issue_table(_integration_ready):
     """AC: six new storage checks, all mode R, with the issue's max_rows and
     pack; only segment_growth is pack diagnostics, and its remediation says it
     reads AWR history and that pack licensing is the DBA's decision.
-    reclaimable_space is absent: `ro` cannot execute dbms_space.asa_recommendations."""
+    reclaimable_space is not mode R: `ro` cannot execute dbms_space.asa_recommendations
+    (DBA-36 adds it as a mode A check on the advisory tier)."""
     for check_id, (max_rows, pack) in HEADERS.items():
         check = find_check(CHECKS_ROOT, check_id)
         assert check is not None, f"no check {check_id} under {CHECKS_ROOT}"
@@ -118,7 +119,8 @@ def test_headers_match_the_issue_table(_integration_ready):
     remediation = find_check(CHECKS_ROOT, "segment_growth").remediation.lower()
     assert "awr" in remediation, remediation
     assert "licens" in remediation, remediation
-    assert find_check(CHECKS_ROOT, "reclaimable_space") is None
+    reclaimable = find_check(CHECKS_ROOT, "reclaimable_space")
+    assert reclaimable is None or reclaimable.mode != "R", reclaimable
 
 
 @pytest.fixture

@@ -48,15 +48,15 @@ WITH task AS (
 )
 SELECT line_no,
        script_line,
-       CAST(NULL AS VARCHAR2(128)) AS task_name,
-       CAST(NULL AS VARCHAR2(30)) AS type,
+       NULL AS task_name,
+       NULL AS type,
        CAST(NULL AS NUMBER) AS benefit_pct,
-       CAST(NULL AS VARCHAR2(200)) AS message,
+       NULL AS message,
        'INFO' AS severity
 FROM   script
 UNION ALL
 -- after the script, so the row cap never cuts it; as comments in the written file
-SELECT 9 + ROW_NUMBER() OVER (ORDER BY benefit_pct DESC NULLS LAST, task_name, type),
+SELECT (SELECT MAX(line_no) FROM script) + ROW_NUMBER() OVER (ORDER BY benefit_pct DESC NULLS LAST, task_name, type),
        SUBSTR('-- ' || task_name || ' ' || type || ' ' || benefit_pct || '%: '
               || REGEXP_REPLACE(message, '[[:cntrl:]]', ' '), 1, 400),
        task_name,

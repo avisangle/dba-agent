@@ -45,6 +45,18 @@ GRANT SELECT ON PERFSTAT.STATS$SYS_TIME_MODEL TO {user};
 GRANT SELECT ON PERFSTAT.STATS$TIME_MODEL_STATNAME TO {user};
 """
 
+# Optional object grants (docs/decisions/D-DBA-35-security-optional-grants.md):
+# exactly the SYS views the default_passwords and audit_config probes name.
+SECURITY_SQL = """\
+-- Optional: lets the default_passwords check read
+-- DBA_USERS_WITH_DEFPWD and the audit_config check read the unified audit
+-- policies. Skip it and those checks report "not available".
+-- Run as SYS: SYSTEM gets ORA-01031 granting on views owned by SYS.
+GRANT SELECT ON SYS.DBA_USERS_WITH_DEFPWD TO {user};
+GRANT SELECT ON SYS.AUDIT_UNIFIED_ENABLED_POLICIES TO {user};
+GRANT SELECT ON SYS.AUDIT_UNIFIED_POLICIES TO {user};
+"""
+
 
 def profile_name(user: str) -> str:
     return f"{user}_profile"
@@ -56,6 +68,7 @@ def render(
     audit: bool = False,
     alert_log: bool = False,
     statspack: bool = False,
+    security: bool = False,
 ) -> str:
     """The tier's script for `user` (default: the tier's db_user)."""
     user = user or tier.db_user
@@ -68,6 +81,8 @@ def render(
         script += ALERT_LOG_SQL.format(user=user)
     if statspack:
         script += STATSPACK_SQL.format(user=user)
+    if security:
+        script += SECURITY_SQL.format(user=user)
     if audit:
         script += AUDIT_SQL.format(user=user, policy=f"{user}_audit")
     return script
@@ -97,10 +112,17 @@ def add_arguments(parser):
         help="append the optional grants that let statspack_report read Statspack snapshots "
         "(run as SYS or PERFSTAT)",
     )
+    parser.add_argument(
+        "--security", action="store_true",
+        help="append the optional grants that let default_passwords and audit_config read "
+        "their SYS views (run as SYS)",
+    )
 
 
 def run(args):
-    script = render(args.tier, args.user, args.audit, args.alert_log, args.statspack)
+    script = render(
+        args.tier, args.user, args.audit, args.alert_log, args.statspack, args.security
+    )
     if args.out:
         args.out.write_text(script, encoding="utf-8")
     else:

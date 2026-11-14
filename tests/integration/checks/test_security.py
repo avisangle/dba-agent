@@ -9,10 +9,8 @@ Every check runs as `ro`. Scenario objects (tagged users, profiles, the
 ORA_LOGON_FAILURES policy) are made as `admin` (SYSTEM) or `sysdba` and undone in
 `finally`. The optional grants are the statements `setup-sql --tier read-only
 --security` adds after the default script, taken from render(), applied by SYS
-and revoked on exit, so the session-scoped `ro` user is back at the default
-tier afterwards. PR #48 (conftest's `optional_grant`, `helpers.unavailable`)
-had not merged when this file was written, so `security_grant` follows the
-`alert_log_grant` pattern in tests/integration/conftest.py.
+and revoked on exit by conftest's `optional_grant`, so the session-scoped `ro`
+user is back at the default tier afterwards.
 
 Measured 2026-11-14 on the test container (23.26.3, FREEPDB1):
 - As `ro` (CREATE SESSION + SELECT_CATALOG_ROLE; SESSION_ROLES also lists
@@ -59,7 +57,6 @@ Pinned result columns (uppercase CSV header names, SEVERITY last) are COLUMNS
 below. A NULL cell reads as "" through SQLcl.
 """
 
-import contextlib
 import importlib
 import inspect
 import re
@@ -155,56 +152,13 @@ def _tag() -> str:
 # --- the optional grants: statements from render(), never written here ---------
 
 
-def security_statements(user: str | None = None) -> list[str]:
-    """The statements `setup-sql --tier read-only --security` adds after the
-    default script, without their `;`."""
-    setup_sql = importlib.import_module("tools.commands.setup_sql")
-    tiers = importlib.import_module("tools.tiers")
-    tier = tiers.TIERS["read-only"]
-    user = user or tier.db_user
-    default, full = setup_sql.render(tier, user), setup_sql.render(tier, user, security=True)
-    assert full.startswith(default), "the security block must follow the default script"
-    code = [
-        ln.strip() for ln in full[len(default):].splitlines()
-        if ln.strip() and not ln.lstrip().startswith("--")
-    ]
-    assert code, "setup-sql --security added no statement"
-    return [ln.rstrip(";").strip() for ln in code]
-
-
-def _revoke_of(statement: str) -> str:
-    """`GRANT <priv> ON <obj> TO <user>` turned into its REVOKE ... FROM."""
-    rest = statement.split(None, 1)[1]
-    what, grantee = re.split(r"\s+to\s+", rest, flags=re.I)
-    return f"revoke {what} from {grantee}"
-
-
-@contextlib.contextmanager
-def _security_granted(grantor):
-    applied = []
-    try:
-        for statement in security_statements():
-            _ok(grantor, statement)
-            applied.append(statement)
-        yield applied
-    finally:
-        for statement in applied:
-            revoked = grantor.run_sql(_revoke_of(statement))
-            assert revoked.error is None, revoked.error
-
-
-@pytest.fixture(scope="session")
-def security_grantor(sysdba):
-    """The session that applies and revokes the optional security grants: SYS.
-    Measured: as SYSTEM each grant fails with ORA-01031 (SYS owns the views)."""
-    return sysdba
-
-
 @pytest.fixture
-def security_grant(security_grantor, ro):
+def security_grant(optional_grant):
     """`with security_grant(): ...` holds the optional grants from
-    `setup-sql --security` for `ro` and revokes them on exit."""
-    return lambda: _security_granted(security_grantor)
+    `setup-sql --security` for `ro` and revokes them on exit (conftest's
+    `optional_grant`, applied as SYS: measured, SYSTEM gets ORA-01031 on the
+    three views, which SYS owns)."""
+    return lambda: optional_grant(security=True)
 
 
 def _security_privs(ro) -> set[tuple[str, str]]:

@@ -66,6 +66,17 @@ after adding or changing a check, rerun the command. `file` is relative to `plug
 | top_sql | Top SQL by elapsed time since instance start | R | none | 12.1 | performance/top_sql.sql |
 | wait_events | Top non-idle wait events since instance start | R | none | 12.1 | performance/wait_events.sql |
 
+## security
+
+| id | title | mode | pack | min_version | file |
+| --- | --- | --- | --- | --- | --- |
+| audit_config | Unified auditing mode, enabled audit policies, and whether failed logons are audited | R | none | 19.0 | security/audit_config.sql |
+| default_passwords | Accounts that still have a default password, CRITICAL when open | R | none | 19.0 | security/default_passwords.sql |
+| password_expiry | Non-Oracle-maintained accounts with a password expiry date or an expired password | R | none | 19.0 | security/password_expiry.sql |
+| privileged_grants | System privileges, roles and password file privileges of non-Oracle-maintained grantees and PUBLIC | R | none | 19.0 | security/privileged_grants.sql |
+| tde_status | Transparent Data Encryption keystore status and encrypted tablespaces | R | none | 19.0 | security/tde_status.sql |
+| users_and_profiles | Non-Oracle-maintained users with their profile's failed login, password life and verify function limits | R | none | 19.0 | security/users_and_profiles.sql |
+
 ## sessions
 
 | id | title | mode | pack | min_version | file |

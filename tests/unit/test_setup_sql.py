@@ -550,6 +550,131 @@ def test_performance_playbook_routes_past_periods_to_statspack_report():
     assert "not available:" in text and "setup-sql --statspack" in text
 
 
+# --- DBA-35: optional security grants (`--security`) -------------------------
+
+SECURITY_DIR = REPO_ROOT / "plugin" / "checks" / "security"
+# check id -> the SYS views its probe must find readable (the issue's table)
+SECURITY_PROBES = {
+    "default_passwords": {"DBA_USERS_WITH_DEFPWD"},
+    "audit_config": {"AUDIT_UNIFIED_ENABLED_POLICIES", "AUDIT_UNIFIED_POLICIES"},
+}
+SECURITY_VIEWS = set().union(*SECURITY_PROBES.values())
+SECURITY_GRANT_RE = re.compile(r'GRANT SELECT ON SYS\.(\w+) TO "?(\w+)"?;', re.I)
+# A probe names a view in ALL_TAB_PRIVS as `table_name = 'X'` or `table_name IN ('X', ...)`.
+PROBE_NAME_RE = re.compile(r"\btable_name\s*(?:=\s*'([^']+)'|IN\s*\(([^)]*)\))", re.I)
+
+
+def _security_block(*args):
+    """(default script, full script, added code lines) for `--security`."""
+    plain = _setup_sql(*args)
+    script = _setup_sql(*args, "--security")
+    assert script.startswith(plain), "the security block must follow the default script"
+    base, added = _code_lines(plain), _code_lines(script)
+    assert added[: len(base)] == base, added
+    return plain, script, added[len(base):]
+
+
+def _views_probed_by(check_id: str) -> set[str]:
+    path = SECURITY_DIR / f"{check_id}.sql"
+    assert path.is_file(), f"{path.relative_to(REPO_ROOT)} missing"
+    names = set()
+    for single, listed in PROBE_NAME_RE.findall(path.read_text(encoding="utf-8")):
+        names.update([single] if single else re.findall(r"'([^']+)'", listed))
+    return {name.upper() for name in names}
+
+
+def test_setup_sql_without_security_is_unchanged_and_names_no_security_view():
+    """AC (DBA-35): without `--security` the script is byte-identical to
+    render(TIERS["read-only"]) and neither it nor db/tiers/read-only.sql names
+    any of the three views; render(..., security=False) gives the same text.
+    Falsifier: put one of the grants in the tier template."""
+    script = _setup_sql()
+    assert script == _render_default()
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    tiers = importlib.import_module("tools.tiers")
+    assert setup_sql.render(tiers.TIERS["read-only"], security=False) == script
+    template = (REPO_ROOT / "db" / "tiers" / "read-only.sql").read_text()
+    for view in SECURITY_VIEWS:
+        assert not re.search(view, script, re.I), view
+        assert not re.search(view, template, re.I), f"{view} must not be in the tier template"
+
+
+def test_setup_sql_security_appends_one_commented_block_of_three_grants():
+    """AC (DBA-35): with `--security` the default script comes first, then one
+    block whose code lines are exactly the three `GRANT SELECT ON SYS.<view>
+    TO <user>;` statements (DBA_USERS_WITH_DEFPWD, AUDIT_UNIFIED_ENABLED_POLICIES,
+    AUDIT_UNIFIED_POLICIES); `--user dba_x` makes dba_x the grantee; the
+    block's comments say it is optional, name default_passwords and
+    audit_config, say they report "not available" without it, and say to run
+    it as SYS (measured 2026-11-14 on 23.26.3: SYSTEM gets ORA-01031 on all
+    three views, SYS succeeds). render() takes `security` as a keyword and
+    gives the same text."""
+    for args, user in (((), DEFAULT_USER), (("--user", "dba_x"), "dba_x")):
+        plain, script, extra = _security_block(*args)
+        matches = [SECURITY_GRANT_RE.fullmatch(ln) for ln in extra]
+        assert len(extra) == 3 and all(matches), extra
+        assert {m.group(1).upper() for m in matches} == SECURITY_VIEWS, extra
+        assert {m.group(2).lower() for m in matches} == {user.lower()}, extra
+
+        comments = [ln for ln in script[len(plain):].splitlines() if ln.strip().startswith("--")]
+        joined = "\n".join(comments)
+        assert re.search("optional", joined, re.I), comments
+        assert "default_passwords" in joined and "audit_config" in joined, comments
+        assert "not available" in joined, comments
+        assert re.search(r"run as SYS\b", joined, re.I), comments
+
+    setup_sql = importlib.import_module("tools.commands.setup_sql")
+    tiers = importlib.import_module("tools.tiers")
+    rendered = setup_sql.render(tiers.TIERS["read-only"], security=True)
+    assert rendered == _setup_sql("--security")
+
+
+def test_security_grants_are_exactly_the_views_the_probes_name():
+    """AC (DBA-35, whole-file property): the views granted by `--security` are
+    the views the two checks' probes name in ALL_TAB_PRIVS: default_passwords
+    probes DBA_USERS_WITH_DEFPWD, audit_config both audit views, and together
+    they are the granted set. Falsifier: add a fourth view to one probe, or drop
+    one from SECURITY_SQL."""
+    _, _, extra = _security_block()
+    granted = {SECURITY_GRANT_RE.fullmatch(ln).group(1).upper() for ln in extra}
+    probed = {check_id: _views_probed_by(check_id) for check_id in SECURITY_PROBES}
+    assert probed == SECURITY_PROBES, probed
+    assert granted == set().union(*probed.values()), (granted, probed)
+
+
+def test_security_grants_live_in_one_constant_and_follow_the_other_grant_blocks():
+    """AC (DBA-35): the three grants are written only in
+    tools/commands/setup_sql.py under tools/ and db/, as SECURITY_SQL. With
+    `--security --statspack --alert-log --audit` the default script comes
+    first, then the alert log grant, the Statspack grants, the security grants,
+    and CREATE AUDIT POLICY last, whatever the flag order on the command line."""
+    hits = set()
+    pattern = r"GRANT\s+SELECT\s+ON\s+SYS\.(DBA_USERS_WITH_DEFPWD|AUDIT_UNIFIED_\w+)"
+    for root in ("tools", "db"):
+        for path in (REPO_ROOT / root).rglob("*"):
+            if path.suffix in (".py", ".sql") and path.is_file():
+                if re.search(pattern, path.read_text(encoding="utf-8"), re.I):
+                    hits.add(path.relative_to(REPO_ROOT).as_posix())
+    assert hits == {"tools/commands/setup_sql.py"}, hits
+    assert re.search(r"^SECURITY_SQL\s*=", (REPO_ROOT / hits.pop()).read_text(), re.M)
+
+    script = _setup_sql("--security", "--statspack", "--alert-log", "--audit")
+    code = _code_lines(script)
+    assert code[: len(_code_lines(_setup_sql()))] == _code_lines(_setup_sql())
+
+    def where(regex):
+        found = [i for i, ln in enumerate(code) if re.search(regex, ln, re.I)]
+        assert found, (regex, code)
+        return found
+
+    alert, statspack = where("DIAG_ALERT_EXT"), where(r"ON\s+PERFSTAT\.")
+    security, audit = where(pattern), where(r"^CREATE\s+AUDIT\s+POLICY")
+    assert len(security) == 3, code
+    assert max(alert) < min(statspack), code
+    assert max(statspack) < min(security), code
+    assert max(security) < min(audit), code
+
+
 # --- contract test -----------------------------------------------------------
 
 

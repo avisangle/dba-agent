@@ -32,6 +32,7 @@ Pick the playbook that matches the question and follow it. Each one lists the ch
 - [High availability](playbooks/ha.md): Data Guard standby lag and transport, RAC interconnect and instance balance, flashback and restore points.
 - [Backup and recovery](playbooks/backup.md): RMAN backup jobs, datafile backup age, archive log mode and gaps, and the retention policy.
 - [SQL tuning](playbooks/tuning.md): one slow statement: its execution plan, its tables' statistics, and SQL plan baselines and SQL profiles.
+- [Security](playbooks/security.md): accounts and profiles, default passwords, privileged grants, password expiry, unified auditing and TDE.
 
 ## Rules
 
@@ -93,7 +94,7 @@ This is a read-only connection. When the user asks for a change (DDL, DML, `ALTE
 
 Never suggest ending, committing or rolling back a transaction through the MCP connection: on SQLcl 26.3.1 every DML sent through a saved connection like this one is committed when its call returns, and a `ROLLBACK` cannot undo it.
 
-Never suggest granting the read-only user more privileges. The exceptions are the optional grants: the alert log grant described in the [health playbook](playbooks/health.md) and the Statspack grants (`setup-sql --statspack`) described in the [performance playbook](playbooks/performance.md).
+Never suggest granting the read-only user more privileges. The exceptions are the optional grants: the alert log grant described in the [health playbook](playbooks/health.md), the Statspack grants (`setup-sql --statspack`) described in the [performance playbook](playbooks/performance.md), and the security grants (`setup-sql --security`) described in the [security playbook](playbooks/security.md).
 
 ### 8. Licensed packs
 

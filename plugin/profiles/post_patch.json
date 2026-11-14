@@ -1,0 +1,12 @@
+{
+  "title": "Post-patch",
+  "checks": [
+    {"id": "instance_info"},
+    {"id": "patch_inventory"},
+    {"id": "invalid_objects"},
+    {"id": "unusable_indexes"},
+    {"id": "alert_log_errors"},
+    {"id": "failed_jobs"},
+    {"id": "parameter_review"}
+  ]
+}

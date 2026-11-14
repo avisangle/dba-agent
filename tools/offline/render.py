@@ -1,5 +1,5 @@
-"""Shared by the offline report extractors: their options, capped section tables
-and Markdown."""
+"""Shared by the offline commands (extractors and compare-awr): their options,
+capped section tables and Markdown."""
 
 import argparse
 import json

@@ -426,6 +426,13 @@ def test_not_an_alert_log_exits_1_and_bad_input_exits_2(tmp_path):
 # --- contract test -----------------------------------------------------------
 
 
+def test_every_summary_key_has_a_label():
+    """/integrate 1: the labels sit beside the parser, and a summary key without
+    one would break only the Markdown output."""
+    parser = importlib.import_module("tools.offline.alert_log")
+    assert set(parser.SUMMARY_LABELS) == set(_extract_json(_fixture())["summary"])
+
+
 def test_contract_for_dependents_dba43():
     """Contract for DBA-43 (offline-analysis skill text for the alert log kind): the
     `python -m tools extract-alert-log FILE` command with --since, --max-rows and

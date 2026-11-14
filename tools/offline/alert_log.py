@@ -25,6 +25,16 @@ SECTIONS = {
     "events": ("Instance starts, shutdowns and ALTER commands", ["time", "event", "text"]),
     "recent_errors": ("Latest records with an ORA- code", ["time", "text"]),
 }
+# Summary key -> label (extract-alert-log); parse_alert_log's summary has these keys.
+SUMMARY_LABELS = {
+    "first_time": "First record",
+    "last_time": "Last record",
+    "records": "Records",
+    "since": "Since",
+    "window_records": "Records since",
+    "log_switches": "Log switches",
+    "checkpoint_not_complete": "Checkpoint not complete",
+}
 SINCE_FORMATS = ("%Y-%m-%d", "%Y-%m-%dT%H:%M")
 
 _TIMESTAMP = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+[+-]\d\d:\d\d")

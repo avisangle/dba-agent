@@ -1,9 +1,7 @@
 """Health score: a deterministic score over the worst severity of each check in a profile
 (docs/decisions/D-DBA-10-health-check-is-a-profile.md)."""
 
-import json
 from collections import Counter
-from pathlib import Path
 
 from tools.checks.header import SEVERITIES as CHECK_SEVERITIES
 
@@ -14,12 +12,6 @@ GRADES = ((90, "A"), (75, "B"), (50, "C"))
 
 class InvalidResults(ValueError):
     """The results do not match the profile one for one."""
-
-
-def load_profile(path) -> dict[str, int]:
-    """Check id to weight, in profile order, from `{"checks": [{"id": ..., "weight": ...}]}`."""
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    return {entry["id"]: entry["weight"] for entry in data["checks"]}
 
 
 def validate(profile: dict[str, int], results: dict[str, str]):

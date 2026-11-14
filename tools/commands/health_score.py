@@ -1,35 +1,72 @@
-"""`health-score`: score a health check run from the worst severity per check id on stdin."""
+"""`health-score`: score a health check run from the worst severity per check id on stdin,
+or with `--checks` list the profile's checks to run
+(docs/decisions/D-DBA-46-chat-health-check-honours-user-profile.md)."""
 
 import json
 import sys
-from pathlib import Path
 
-from tools.health_score import InvalidResults, load_profile, score
+from tools.health_score import InvalidResults, score
+from tools.reports.profile import (
+    PROFILES_ROOT,
+    ProfileError,
+    bind_checks,
+    find_profile,
+    load_profile,
+    user_profiles_root,
+)
 
 NAME = "health-score"
-HELP = "score a health check run: JSON {check id: worst severity} on stdin, profile on --profile"
+HELP = (
+    "score a health check run: JSON {check id: worst severity} on stdin, profile on --profile; "
+    "with --checks, print the profile's checks to run instead; exit 2 for a bad profile or input"
+)
 
 
 def add_arguments(parser):
-    parser.add_argument(
-        "--profile", type=Path, required=True, metavar="FILE",
-        help='profile JSON: {"checks": [{"id": ..., "weight": ...}]}',
-    )
+    parser.add_argument("--profile", required=True, metavar="NAME_OR_PATH",
+                        help="a profile name (<pack home>/profiles/ first, then the built-in "
+                             "profiles) or a path to a .json profile; every check needs a weight")
+    parser.add_argument("--checks", action="store_true",
+                        help="print the resolved profile and its checks (id, weight, params, file) "
+                             "as JSON, in order, and read no stdin")
+
+
+def _error(message) -> int:
+    print(f"error: {message}", file=sys.stderr)
+    return 2
+
+
+def _checks(path, profile) -> dict:
+    """The resolved profile path and its checks bound as `report` binds them."""
+    bound = bind_checks(profile)
+    return {
+        "profile": str(path.resolve()),
+        "checks": [{"id": entry.id, "weight": entry.weight, "params": entry.params,
+                    "file": str(check.path.resolve())}
+                   for entry, check in zip(profile.checks, bound, strict=True)],
+    }
 
 
 def run(args):
+    path = find_profile(args.profile)
+    if path is None:
+        return _error(f"no profile {args.profile} in {user_profiles_root()} or {PROFILES_ROOT}")
     try:
-        profile = load_profile(args.profile)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        print(f"error: {args.profile}: not a readable profile: {exc}", file=sys.stderr)
-        return 2
+        profile = load_profile(path)
+        if (weights := profile.weights) is None:
+            unweighted = ", ".join(c.id for c in profile.checks if c.weight is None)
+            raise ProfileError(f"{path}: no weight for {unweighted}; a scored profile needs one "
+                               "per check")
+        if args.checks:
+            print(json.dumps(_checks(path, profile), indent=2))
+            return 0
+    except ProfileError as exc:
+        return _error(exc)
     try:
-        out = score(profile, json.load(sys.stdin))
+        out = score(weights, json.load(sys.stdin))
     except InvalidResults as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
+        return _error(exc)
     except ValueError as exc:
-        print(f"error: stdin is not JSON: {exc}", file=sys.stderr)
-        return 2
+        return _error(f"stdin is not JSON: {exc}")
     print(json.dumps(out, indent=2))
     return 0

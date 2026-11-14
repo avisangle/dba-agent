@@ -4,7 +4,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tools.connection import SESSION_ERRORS, NoConnection, add_connection_arguments, connected
+from tools.connection import (
+    SESSION_ERRORS,
+    NoConnection,
+    add_connection_arguments,
+    advisory_refusal,
+    connected,
+)
 from tools.health_score import score as health_score
 from tools.reports.profile import (
     PROFILES_ROOT,
@@ -21,7 +27,8 @@ NAME = "report"
 HELP = (
     "run a report profile's checks on a saved connection and write a Markdown or HTML report; "
     "exit 0 when the report is written (ERROR checks included), 1 for a SQLcl or write "
-    "failure, 2 for a bad profile, argument or unknown connection"
+    "failure, 2 for a bad profile, argument or unknown connection, or the advisory tier "
+    "(that tier runs only through `advise`)"
 )
 
 
@@ -40,6 +47,9 @@ def _error(message) -> None:
 
 
 def run(args):
+    if refusal := advisory_refusal(args):
+        _error(refusal)
+        return 2
     path = find_profile(args.profile)
     if path is None:
         _error(f"no profile {args.profile} in {user_profiles_root()} or {PROFILES_ROOT}")

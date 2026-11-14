@@ -29,3 +29,4 @@
 - 2026-11-13 DBA-23: filed Epic B (read-only expansion) with 21 stories DBA-24 to DBA-44 in 3 levels; design re-checked against main 17645e9 (B2 spike dropped, B1 split, Statspack to level 1) (no commit)
 - 2026-11-14 DBA-23: 17 merged, 2 parked (DBA-35, DBA-36), 3 blocked (DBA-40, 41, 42); L1 RECONCILED #46, second reconcile #48 awaiting review; CI not running (GitHub billing) (#33-#47, #49-#51)
 - 2026-11-14 DBA-23 resumed: DBA-35, DBA-36, DBA-40, DBA-41, DBA-42 merged, all 22 stories merged; L1 #48, L2 #56 reconciled then CLEAN; L3 escalated on DBA-44 (advisory MCP registration) (#48 #52-#57)
+- 2026-11-15 DBA-23: all 22 stories merged; DBA-44 revised to drop the advisory MCP server (#58); L3 reconciled twice (#59, #60), L2 CLEAN after #56; CI still not running (GitHub billing) (#58-#60)

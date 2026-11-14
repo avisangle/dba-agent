@@ -1,4 +1,5 @@
-"""Lint check files: rules L001 to L017 (docs/decisions/D-DBA-24-check-parameters.md).
+"""Lint check files: rules L001 to L017 (docs/decisions/D-DBA-24-check-parameters.md)
+and L018, the mode A script columns (docs/decisions/D-DBA-36-mode-a-script-contract.md).
 
 Body rules work on a masked copy of the SQL in which the contents of string
 literals, quoted identifiers and comments are blanked out (newlines kept, so
@@ -44,6 +45,8 @@ VERSION = re.compile(r"[0-9]+\.[0-9]+")
 SUBSTITUTION = re.compile(r"&+\w+")
 FETCH_FIRST = re.compile(r"\bFETCH\s+FIRST\s+([0-9]+)\s+ROWS?\b", re.IGNORECASE)
 SEVERITY_ALIAS = re.compile(r"\bAS\s+severity\b", re.IGNORECASE)
+SCRIPT_LINE_ALIAS = re.compile(r"\bAS\s+script_line\b", re.IGNORECASE)
+LINE_NO_ALIAS = re.compile(r"\bAS\s+line_no\b", re.IGNORECASE)
 CASE_OR_END = re.compile(r"\b(CASE|END)\b", re.IGNORECASE)
 ENDS_WITH_END = re.compile(r"\bEND$", re.IGNORECASE)
 ENDS_WITH_THEN_ELSE = re.compile(r"\b(THEN|ELSE)$", re.IGNORECASE)
@@ -204,8 +207,22 @@ class _FileLinter:
                         self.body_line(span.start), "L013",
                         f"severity {value!r} is not one of {', '.join(SEVERITIES)}",
                     )
+        self.script_rules(code)
         if self.params is not None:
             self.placeholder_rules()
+
+    def script_rules(self, code: str):
+        """L018: a mode A check aliases both script columns; a mode R check writes no script."""
+        mode = self.raw.value("mode")
+        mode = mode[1] if mode else None
+        if mode == "A":
+            for name, alias in (("line_no", LINE_NO_ALIAS), ("script_line", SCRIPT_LINE_ALIAS)):
+                if not alias.search(code):
+                    self.add(self.raw.body_line, "L018",
+                             f"mode A check has no column aliased AS {name}")
+        elif mode == "R" and (match := SCRIPT_LINE_ALIAS.search(code)):
+            self.add(self.body_line(match.start()), "L018",
+                     "mode R check has a column aliased AS script_line; scripts are mode A")
 
     def placeholder_rules(self):
         body = self.raw.body

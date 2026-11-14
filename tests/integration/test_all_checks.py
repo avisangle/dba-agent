@@ -3,9 +3,10 @@ new check file is covered with no further wiring.
 
 For each check: lint findings are empty (no database needed) and the check binds
 (`int` parameters take their defaults, `sql_id` parameters PROBE_SQL_ID); then, for
-mode R only, as the `ro` session (CREATE SESSION + SELECT_CATALOG_ROLE): skip when
-the database is older than `min_version`, else run the bound check and require
-`validate_result` to be empty.
+mode R as the `ro` session (CREATE SESSION + SELECT_CATALOG_ROLE) and for mode A as
+the `adv` session (the advisory tier, DBA-36): skip when the database is older than
+`min_version`, else run the bound check and require `validate_result` (and for mode
+A `validate_script_result`) to be empty. Modes W and X are skipped.
 
 Dictionary columns used (Oracle 23ai reference, read as `ro` on 23.26.3):
 V$INSTANCE.VERSION_FULL (e.g. 23.26.3.0.0; VERSION reads 23.0.0.0.0, too coarse).
@@ -44,23 +45,28 @@ def db_version(ro) -> tuple[int, ...]:
     "path", CHECK_FILES, ids=[p.relative_to(CHECKS_ROOT).as_posix() for p in CHECK_FILES]
 )
 def test_check(path, request):
-    """AC: lint clean; mode R checks at or above min_version run as `ro` with
-    no validate_result problems."""
-    from tools.checks.run import run_check, validate_result
+    """AC: lint clean; mode R checks at or above min_version run as `ro`, mode A
+    checks as `adv`, with no validate_result (or, mode A, validate_script_result)
+    problems."""
+    from tools.checks.run import run_check, validate_result, validate_script_result
 
     findings = lint_file(path)
     assert findings == [], "\n".join(map(str, findings))
 
     check = parse_check(path)
     check = bind(check, {p.name: PROBE_SQL_ID for p in check.params if p.type == "sql_id"})
-    if check.mode != "R":
-        pytest.skip(f"mode {check.mode}: the harness runs read-only (R) checks only")
-    ro = request.getfixturevalue("ro")
+    sessions = {"R": "ro", "A": "adv"}
+    if check.mode not in sessions:
+        pytest.skip(f"mode {check.mode}: the harness runs read-only (R) and advisory (A) "
+                    "checks only")
+    session = request.getfixturevalue(sessions[check.mode])
     version = request.getfixturevalue("db_version")
     if version < _version(check.min_version):
         pytest.skip(f"database {'.'.join(map(str, version))} is below min_version "
                     f"{check.min_version}")
 
-    result = run_check(ro, check)
+    result = run_check(session, check)
     problems = validate_result(check, result)
+    if check.mode == "A":
+        problems += validate_script_result(check, result)
     assert problems == [], f"{problems}\n{result.text}"

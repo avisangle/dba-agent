@@ -9,6 +9,8 @@ import re
 from tools.checks.header import SEVERITIES, WORST_FIRST, Check
 from tools.sqlcl import SqlResult
 
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+
 
 def run_check(session, check: Check) -> SqlResult:
     """Send `check.sql` unchanged through `session.run_sql`."""
@@ -43,8 +45,9 @@ def validate_result(check: Check, result: SqlResult) -> list[str]:
 
 def validate_script_result(check: Check, result: SqlResult) -> list[str]:
     """Problems with a mode A result's script columns (D-DBA-36-mode-a-script-contract):
-    LINE_NO and SCRIPT_LINE present, LINE_NO integers in strictly increasing order.
-    An errored result is left to `validate_result`.
+    LINE_NO and SCRIPT_LINE present, LINE_NO integers in strictly increasing order,
+    no control character in a SCRIPT_LINE (a line break would add a script line the
+    check never returned). An errored result is left to `validate_result`.
     """
     if result.error:
         return []
@@ -53,9 +56,11 @@ def validate_script_result(check: Check, result: SqlResult) -> list[str]:
     if missing:
         return [f"no {name} column in the result header: {', '.join(result.header)}"
                 for name in missing]
-    col = upper.index("LINE_NO")
+    col, script = upper.index("LINE_NO"), upper.index("SCRIPT_LINE")
     previous = None
     for row in result.rows:
+        if CONTROL.search(row[script]):
+            return [f"SCRIPT_LINE at LINE_NO {row[col]} holds a control character"]
         text = row[col].strip()
         if not re.fullmatch(r"-?\d+", text):
             return [f"LINE_NO {row[col]!r} is not an integer"]

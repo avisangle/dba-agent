@@ -10,10 +10,12 @@ WITH asa AS (
   SELECT segment_owner, segment_name, segment_type, partition_name,
          allocated_space, reclaimable_space, task_id, mesg_id, c1, c3,
          SUBSTR(recommendations, 1, 200) AS recommendation,
-         -- a command that would not fit in one SCRIPT_LINE is never cut: the whole
+         -- a command that would not fit in one SCRIPT_LINE is never cut, and one with a
+         -- line break (a quoted name may hold one) is never split: the whole
          -- recommendation becomes a comment line instead
          CASE WHEN COALESCE(c1, c3) IS NOT NULL
                AND NVL(LENGTH(c1), 0) < 400 AND NVL(LENGTH(c3), 0) < 400
+               AND NOT REGEXP_LIKE(c1 || c3, '[[:cntrl:]]')
               THEN 1 ELSE 0 END AS writable
   FROM   TABLE(dbms_space.asa_recommendations('TRUE', 'TRUE', 'FALSE'))
 ), lines AS (
@@ -23,7 +25,7 @@ WITH asa AS (
   UNION ALL
   SELECT a.*, 2, c1 || ';' FROM asa a WHERE writable = 1 AND c1 IS NOT NULL
   UNION ALL
-  SELECT a.*, 1, '-- ' || REPLACE(REPLACE(recommendation, CHR(10), ' '), CHR(13), ' ')
+  SELECT a.*, 1, '-- ' || REGEXP_REPLACE(recommendation, '[[:cntrl:]]', ' ')
   FROM   asa a WHERE writable = 0
 )
 SELECT ROW_NUMBER() OVER (ORDER BY reclaimable_space DESC, segment_owner, segment_name,

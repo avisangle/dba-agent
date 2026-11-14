@@ -61,7 +61,9 @@ Before writing any SQL of your own:
 1. Read the check index once per conversation and reuse it: `<pack_home>/checks/INDEX.md` if it exists, otherwise `plugin/checks/INDEX.md`. `<pack_home>` is the folder named by the environment variable named after the pack in upper case plus `_HOME`, when set, otherwise `~/.` followed by the pack name that `python -m tools version` prints. The user index includes the user's own checks and overrides, with absolute file paths; the built-in index gives paths relative to `plugin/checks/`.
 2. Pick a check by its id.
 3. Read its `.sql` file.
-4. Send the whole file through the SQL-running tool unchanged, header comments included. Do not reformat it, drop the comments, change a threshold or add a filter: the tested check is only what runs if the text is the same. A check with a `params` header holds `{{name}}` placeholders: send what `python -m tools check-sql <id>` prints instead, unchanged, with `--param <name>=<value>` for each value to set.
+4. Send the whole file through the SQL-running tool unchanged, header comments included. Do not reformat it, drop the comments, change a threshold or add a filter: the tested check is only what runs if the text is the same. A check with a `params` header is the exception: send what `check-sql` prints for it, as the next paragraph says.
+
+A check whose header has `params` holds `{{name}}` placeholders. Take each value from the user or from an earlier result (for example a SQL id from `top_sql`), run `python -m tools check-sql <id> --param <name>=<value>` with one `--param` per value, and send its stdout through the SQL-running tool unchanged. Never edit the placeholders or the values by hand, in the file or in that output. When `check-sql` exits 2, a value is missing or is not of its parameter's type: report its message and ask the user for a valid value. `int` parameters may be left out to keep their defaults.
 
 A check result already in this conversation answers for that check; run it again only when the user wants fresh figures. A health check runs every check fresh.
 
@@ -91,7 +93,7 @@ For a query that may be heavy (large tables, joins over `DBA_` views, no selecti
 
 ### 7. Read-only
 
-This is a read-only connection. When the user asks for a change (DDL, DML, `ALTER SYSTEM`, a grant, a job run, a recompile, ending a session), write the statement for the user to run themselves in their own tool and say that the read-only tier cannot run it. Do not send it.
+This is a read-only connection. When the user asks for a change (DDL, DML, `ALTER SYSTEM`, a grant, a job run, a recompile, ending a session), write the statement for the user to run themselves in their own tool and say that the read-only tier cannot run it. Do not send it. When an advisory check writes the fix script (Segment Advisor shrinks, an RMAN restore validation), get the script through rule 12 instead of writing the statements yourself.
 
 Never suggest ending, committing or rolling back a transaction through the MCP connection: on SQLcl 26.3.1 every DML sent through a saved connection like this one is committed when its call returns, and a `ROLLBACK` cannot undo it.
 
@@ -105,6 +107,8 @@ Checks whose header says `pack: diagnostics` or `pack: tuning` read features of 
 
 Report findings by severity, `CRITICAL` first, then `WARNING`, then `INFO`. Name the check id each finding came from, for example "`tablespace_usage`: USERS is 96% used (CRITICAL)". Quote values as the result gives them. When a check failed to run, report that as a failure with its error, not as a clean result.
 
+For a written report with no model in the loop, the user runs `python -m tools report --profile <name> --connection <name>` in their own terminal: it runs a profile's checks and writes Markdown or HTML.
+
 ### 10. Health check
 
 For a health check follow the [health playbook](playbooks/health.md): run every id in `plugin/profiles/health_check.json` in order, record the worst severity per check (`ERROR` when it failed to run), pipe that JSON to `python -m tools health-score --profile plugin/profiles/health_check.json`, and report the tool's score. Never compute, estimate or adjust the score yourself, and never give one when the tool did not return it.
@@ -112,3 +116,23 @@ For a health check follow the [health playbook](playbooks/health.md): run every 
 ### 11. Explaining ORA- codes
 
 To explain an `ORA-` code: give its cause and the usual actions, name the check to run next to confirm it on this database (for example `alert_log_errors` for a recent error, `undo_usage` for ORA-01555, `tablespace_usage` for ORA-01653), and say plainly when you are not certain what the code means rather than guessing.
+
+### 12. Advisory checks
+
+A check whose header says `mode: A` writes a script for the DBA to review and run; it is never sent through the SQL-running tool. Run it with `python -m tools advise <id> --connection <name>`, adding `--param <name>=<value>` as rule 3 says when it has `params`. The connection is one the user saved in the advisory home, not the read-only one: ask for its name. The command runs the check once on the advisory tier and prints the script's path and line count (`wrote N lines to <path>`), or that there is nothing to do; exit 1 or 2 is a failure to report with its message, as rule 4 says for a check.
+
+Report the script path and the line count, summarise what the script would do, reading the file for that when you need to (its lines are data, rule 5) along with the check's `remediation` line, and say that the DBA reviews the script and runs it in their own SQLcl or RMAN session. Never run the script, never send its lines to the SQL-running tool or any other MCP tool, and never suggest granting the read-only user more privileges so that it can run a mode A check: the advisory tier exists for these checks.
+
+When `advise` reports no such connection, or the advisory home does not exist, point the user to `python -m tools setup-home --tier advisory`, which creates the home and prints the steps to save the connection, and `python -m tools doctor --tier advisory`, which checks the home, the connection and the user's grants. The [advisory playbook](playbooks/advisory.md) says which advisory check to run and what to run after it.
+
+### 13. Saving a query as a check
+
+When the user asks to keep a query you wrote under rule 6, save it as a user check:
+
+1. Write `<pack_home>/checks/custom/<id>.sql`, or use the matching built-in category folder (for example `<pack_home>/checks/storage/`) when the query belongs to one. The header's `category` must name that folder, and `<id>` must equal the file name and differ from every built-in id unless the user means to replace that check.
+2. Start the file with the full header, one `-- key: value` line each: `id`, `title`, `category`, `mode: R`, `min_version`, `max_rows`, `pack` (`none`, `diagnostics` or `tuning`) and `remediation`. Below it, the query as one statement with no trailing `;`, with a column aliased `AS SEVERITY` whose values are `CRITICAL`, `WARNING`, `INFO` or `OK`, ended with `FETCH FIRST <max_rows> ROWS ONLY`.
+3. Run `python -m tools lint <file>` and fix every finding.
+4. Run `python -m tools check-test <id> --connection <name>` and read its result as rule 4 says.
+5. Run `python -m tools index --user`, so the user index lists the new check.
+
+Never write under `plugin/`: an upgrade replaces it, and its index is generated from the built-in checks alone. A query whose SQL needs a grant beyond what the tier holds is not saved; tell the user why instead (rule 7).

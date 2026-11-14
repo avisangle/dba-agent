@@ -15,6 +15,11 @@ ORA-00942 (23ai names the object in the message). In order:
   SYS.WRI$_ADV_OBJECTS, SYS.WRI$_ADV_FINDINGS
 then the query ran clean (0 rows, columns TABLESPACE_NAME ... RECLAIMABLE_SPACE ...
 TASK_ID, MESG_ID). No system privilege or role beyond ADVISOR was needed.
+Those five were measured on an empty result. With a recommendation present
+(DBA-36 /tdd-prep, 2026-11-13, re-measured 2026-11-14) the query also needs
+  SYS.WRI$_ADV_MESSAGE_GROUPS
+(ORA-00942 naming it, ORA-06512 at SYS.DBMS_SPACE), so the tier has six object
+SELECTs (D-DBA-26, amended by DBA-36).
 With them, SESSION_PRIVS = {ADVISOR, CREATE SESSION}, SESSION_ROLES =
 {SELECT_CATALOG_ROLE, HS_ADMIN_SELECT_ROLE}. USER_TAB_PRIVS also shows a row
 (OWNER SYS, TABLE_NAME <user>, PRIVILEGE INHERIT PRIVILEGES, GRANTEE PUBLIC):
@@ -37,6 +42,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from helpers import rows_as_dicts, shrinkable_table
 from save_connection import save_connection
 
 pytestmark = pytest.mark.integration
@@ -49,6 +55,7 @@ MEASURED_OBJECT_GRANTS = {
     "SELECT ON SYS.DBA_ADVISOR_OBJECT_TYPES",
     "SELECT ON SYS.WRI$_ADV_OBJECTS",
     "SELECT ON SYS.WRI$_ADV_FINDINGS",
+    "SELECT ON SYS.WRI$_ADV_MESSAGE_GROUPS",
 }
 ASA_QUERY = (
     "select * from table(dbms_space.asa_recommendations('TRUE', 'TRUE', 'FALSE')) "
@@ -148,6 +155,22 @@ def test_asa_recommendations_runs_as_advisory_and_fails_as_read_only(adv, ro):
     assert "RECLAIMABLE_SPACE" in result.header, result.header
 
     assert _refused_with(ro.run_sql(ASA_QUERY), "ORA-00942"), ro.run_sql(ASA_QUERY).text
+
+
+def test_asa_recommendations_returns_a_recommendation_as_advisory(admin, adv):
+    """AC (DBA-36): with a shrink recommendation present, ASA_QUERY as `adv`
+    runs without error and returns a row for that table. Falsifier: remove
+    `GRANT SELECT ON SYS.WRI$_ADV_MESSAGE_GROUPS` from db/tiers/advisory.sql
+    (the `adv` fixture builds the user from `setup-sql --tier advisory`) and
+    this fails with ORA-00942 naming that object."""
+    with shrinkable_table(admin, "dba36_tier_probe", "dba36_tier_task") as (owner, table):
+        result = adv.run_sql(
+            "select segment_owner, segment_name from "
+            "table(dbms_space.asa_recommendations('TRUE', 'TRUE', 'FALSE')) "
+            f"where segment_owner = '{owner}' and segment_name = '{table}'"
+        )
+    assert result.error is None, result.text
+    assert rows_as_dicts(result) == [{"SEGMENT_OWNER": owner, "SEGMENT_NAME": table}], result.text
 
 
 @pytest.fixture(scope="module")

@@ -423,7 +423,7 @@ def test_contract_for_dependents_dba31_to_dba42():
 
     for code in ("L015", "L016", "L017"):
         assert any(FIXTURES.glob(f"{code}*/*/*.sql")), code
-    assert not any(FIXTURES.glob("L018*")), "L018 is the next free code"
+    assert not any(FIXTURES.glob("L019*")), "L019 is the next free code (DBA-36 took L018)"
 
     harness = importlib.import_module("test_all_checks")
     assert list(inspect.signature(harness.test_check).parameters) == ["path", "request"]

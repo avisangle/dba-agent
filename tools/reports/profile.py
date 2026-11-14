@@ -106,6 +106,8 @@ def _bound(entry: ProfileCheck) -> Check:
         raise ProfileError(f"{entry.id}: {where}{exc}") from None
     if found is None:
         raise ProfileError(f"{entry.id}: no such check, built-in or in {user_checks_root()}")
+    if found.check.mode != "R":  # mode A runs only through `advise` (D-DBA-36)
+        raise ProfileError(f"{entry.id}: mode {found.check.mode}; a report runs only mode R checks")
     if findings := lint_file(found.check.path):  # D-DBA-1
         raise ProfileError("\n".join(f"{entry.id}: fails lint: {f}" for f in findings))
     try:

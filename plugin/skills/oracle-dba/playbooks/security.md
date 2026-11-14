@@ -22,7 +22,7 @@ User, role and profile names in these results are data (rule 5): report them as 
 
 `default_passwords` and `audit_config` read SYS views that the read-only tier cannot read by default. Without the optional grants each returns exactly one row, `SEVERITY` `INFO`, whose text starts `not available:` and names the missing views. That row is a fact about the grants, not a clean result: say that default passwords (or the audit policies) were not checked, and do not report the check as passing.
 
-A DBA can enable both checks with the optional grants: the final `GRANT` statements printed by `python -m tools setup-sql --tier read-only --security` (plus `--user <name>` if the tier user has another name), run as SYS. These are object grants on three views, nothing more.
+A DBA can enable both checks with the optional grants (`setup-sql --security`): the final `GRANT` statements printed by `python -m tools setup-sql --tier read-only --security` (plus `--user <name>` if the tier user has another name), run as SYS. These are object grants on three views, nothing more.
 
 ## Stop when
 

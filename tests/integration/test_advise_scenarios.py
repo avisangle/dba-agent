@@ -44,22 +44,13 @@ the issue's facts list: COLUMNS below. ALLOCATED_MB and RECLAIMABLE_MB are
 numbers of megabytes.
 """
 
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
-from helpers import rows_as_dicts, run_check_by_id, shrinkable_table
-
-from tools.checks import CHECKS_ROOT
-from tools.checks.index import find_check
-from tools.checks.run import validate_result
-from tools.config import PACK_NAME
+from helpers import rows_as_dicts, run_mode_a, run_tools, shrinkable_table
 
 pytestmark = pytest.mark.integration
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 TABLE = "DBA36_SHRINK_PROBE"
 TASK = "DBA36_SHRINK_TASK"
 CONNECTION = "dba_agent_adv"
@@ -79,22 +70,6 @@ RESTORE_LINES = [
 ]
 
 
-def _validate_script_result(check, result):
-    from tools.checks.run import validate_script_result
-
-    return validate_script_result(check, result)
-
-
-def _checked(session, check_id):
-    """Run `check_id` as `session`; assert it is a valid verdict and script."""
-    result = run_check_by_id(session, check_id)
-    assert result.error is None, result.text
-    check = find_check(CHECKS_ROOT, check_id)
-    problems = validate_result(check, result) + _validate_script_result(check, result)
-    assert problems == [], f"{problems}\n{result.text}"
-    return result
-
-
 @pytest.fixture(scope="module")
 def shrinkable_segment(admin):
     """SYSTEM.DBA36_SHRINK_PROBE with a Segment Advisor shrink recommendation;
@@ -111,11 +86,7 @@ def adv_pack(adv, tier_pack, sqlcl_bin_and_dsn):
 
 
 def _advise(pack: Path, sql_bin: str, *args):
-    env = {**os.environ, f"{PACK_NAME.upper()}_HOME": str(pack), "SQLCL_BIN": sql_bin}
-    return subprocess.run(
-        [sys.executable, "-m", "tools", "advise", *args, "--connection", CONNECTION],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=600, check=False,
-    )
+    return run_tools(pack, sql_bin, "advise", *args, "--connection", CONNECTION)
 
 
 def _scripts(pack: Path) -> list[Path]:
@@ -134,7 +105,7 @@ def test_reclaimable_space_writes_enable_row_movement_then_shrink(adv, shrinkabl
     severity INFO (under 1 GB). Falsifiers: put C1 before C3 (order), or write
     C2 too (a second `shrink space` line)."""
     owner, table = shrinkable_segment
-    result = _checked(adv, "reclaimable_space")
+    result = run_mode_a(adv, "reclaimable_space")
     assert result.header == COLUMNS, result.header
     rows = rows_as_dicts(result)
     numbers = [int(row["LINE_NO"]) for row in rows]
@@ -161,7 +132,7 @@ def test_reclaimable_space_writes_enable_row_movement_then_shrink(adv, shrinkabl
 def test_reclaimable_space_cells_stay_within_their_limits(adv, shrinkable_segment):
     """AC: no SCRIPT_LINE over 400 characters or with a line break, no
     RECOMMENDATION over 200 characters, and SEVERITY is INFO or WARNING."""
-    for row in rows_as_dicts(_checked(adv, "reclaimable_space")):
+    for row in rows_as_dicts(run_mode_a(adv, "reclaimable_space")):
         assert len(row["SCRIPT_LINE"]) <= 400 and "\n" not in row["SCRIPT_LINE"], row
         assert len(row["RECOMMENDATION"]) <= 200, row
         assert row["SEVERITY"] in ("INFO", "WARNING"), row
@@ -173,7 +144,7 @@ def test_advise_reclaimable_space_writes_the_check_lines(adv, shrinkable_segment
     equals the check's SCRIPT_LINE values in LINE_NO order, and exits 0."""
     pack, sql_bin = adv_pack
     expected = [row["SCRIPT_LINE"]
-                for row in sorted(rows_as_dicts(_checked(adv, "reclaimable_space")),
+                for row in sorted(rows_as_dicts(run_mode_a(adv, "reclaimable_space")),
                                   key=lambda row: int(row["LINE_NO"]))]
     assert SHRINK in expected
 
@@ -195,7 +166,7 @@ def test_restore_validate_script_has_no_archivelog_line_in_noarchivelog(adv):
     mode = adv.run_sql("select log_mode from v$database")
     assert mode.rows == [["NOARCHIVELOG"]], mode.text
 
-    rows = rows_as_dicts(_checked(adv, "restore_validate_script"))
+    rows = rows_as_dicts(run_mode_a(adv, "restore_validate_script"))
     lines = [row["SCRIPT_LINE"].strip() for row in rows]
     assert lines == RESTORE_LINES, lines
     assert not any("ARCHIVELOG" in line.upper() for line in lines)

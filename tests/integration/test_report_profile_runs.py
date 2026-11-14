@@ -13,13 +13,10 @@ No new tables are read; the checks' own SQL is DBA-31..35's.
 
 import json
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
-
-from tools.config import PACK_NAME
+from helpers import run_tools
 
 pytestmark = pytest.mark.integration
 
@@ -49,11 +46,8 @@ def test_profile_runs_as_the_read_only_user_and_names_every_id(ro_pack, name):
     """AC: `report --profile <name>` as `ro` exits 0 and the Markdown names
     every id in the profile."""
     ids = _ids(name)
-    env = {**os.environ, f"{PACK_NAME.upper()}_HOME": str(ro_pack), "SQLCL_BIN": SQLCL_BIN}
-    proc = subprocess.run(
-        [sys.executable, "-m", "tools", "report", "--profile", name, "--connection", CONNECTION],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=900, check=False,
-    )
+    proc = run_tools(ro_pack, SQLCL_BIN, "report", "--profile", name, "--connection", CONNECTION,
+                     timeout=900)
     assert proc.returncode == 0, proc.stderr
     missing = [i for i in ids if i not in proc.stdout]
     assert not missing, (missing, proc.stdout)

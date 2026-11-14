@@ -109,11 +109,11 @@ starts with a short PATH, so set `SQLCL_BIN` to the SQLcl executable:
 ```
 
 `--profile` takes a profile name or a path to a `.json` profile. The built-in
-profiles are `daily_health` (the only scored one), `weekly_capacity`,
-`pre_patch`, `post_patch`, `security_baseline`, `performance_snapshot` and
-`health_check` (the chat health check's list). Your own
-profiles go in `<pack_home>/profiles/`; one there with the same name as a
-built-in profile in `plugin/profiles/` is used instead of it.
+profiles are `daily_health`, `weekly_capacity`, `pre_patch`, `post_patch`,
+`security_baseline`, `performance_snapshot` and `health_check` (the chat health
+check's list). A profile gets a health score when every check in it has a
+`weight`. Your own profiles go in `<pack_home>/profiles/`; one there with the
+same name as a built-in profile in `plugin/profiles/` is used instead of it.
 
 ## Layout
 

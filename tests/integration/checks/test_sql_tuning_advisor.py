@@ -55,21 +55,16 @@ CREATE SESSION, plus SELECT_CATALOG_ROLE):
 All columns used exist in 19c; ADV_SQL_ID on DBA_ADVISOR_OBJECTS is not used.
 """
 
-import os
 import re
 import secrets
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
-from helpers import rows_as_dicts
+from helpers import ok, rows_as_dicts, run_mode_a, run_tools, tagged_sql_id
 
 from tools.checks import CHECKS_ROOT
 from tools.checks.index import find_check
-from tools.checks.params import Param, bind
-from tools.checks.run import run_check, validate_result, validate_script_result
-from tools.config import PACK_NAME
+from tools.checks.params import Param
 
 pytestmark = pytest.mark.integration
 
@@ -86,22 +81,9 @@ WARNING_BENEFIT_PCT = 30
 REPORT = re.compile(r"REPORT_TUNING_TASK\s*\(\s*'([^']+)'", re.I)
 
 
-def _ok(session, sql):
-    result = session.run_sql(sql)
-    assert result.error is None, f"{sql}: {result.error}"
-    return result
-
-
 def _checked(session, sql_id):
     """The check bound to `sql_id`, run as `session`; a valid verdict and script."""
-    check = find_check(CHECKS_ROOT, CHECK_ID)
-    assert check is not None, f"no check {CHECK_ID} under {CHECKS_ROOT}"
-    check = bind(check, {"sql_id": sql_id})
-    result = run_check(session, check)
-    assert result.error is None, result.text
-    problems = validate_result(check, result) + validate_script_result(check, result)
-    assert problems == [], f"{problems}\n{result.text}"
-    return result
+    return run_mode_a(session, CHECK_ID, {"sql_id": sql_id})
 
 
 def _script(rows) -> list[str]:
@@ -149,7 +131,7 @@ def _drop_task(sysdba, task):
 
 
 def _task_count(admin) -> int:
-    return int(_ok(admin, "select count(*) from dba_advisor_tasks").rows[0][0])
+    return int(ok(admin, "select count(*) from dba_advisor_tasks").rows[0][0])
 
 
 @pytest.fixture(scope="module")
@@ -161,14 +143,10 @@ def tagged_sql(admin):
     table = f"system.{tag}"
     sql = f"select /* {tag} */ pad from {table} where n = 4242"
     try:
-        _ok(admin, f"create table {table} as select level as n, rpad('x', 100, 'x') as pad "
+        ok(admin, f"create table {table} as select level as n, rpad('x', 100, 'x') as pad "
                    "from dual connect by level <= 20000")
-        _ok(admin, sql)
-        # The lookup's own text must not contain the tag comment.
-        found = _ok(admin, "select distinct sql_id from v$sql "
-                           f"where sql_text like '%/* ' || '{tag}' || ' */%'")
-        assert len(found.rows) == 1, f"tag {tag}: sql ids {found.rows}"
-        yield {"tag": tag, "sql": sql, "sql_id": found.rows[0][0]}
+        ok(admin, sql)
+        yield {"tag": tag, "sql": sql, "sql_id": tagged_sql_id(admin, tag)}
     finally:
         admin.run_sql(f"drop table if exists {table} purge")
 
@@ -181,12 +159,8 @@ def adv_pack(adv, tier_pack, sqlcl_bin_and_dsn):
 
 
 def _advise(pack: Path, sql_bin: str, sql_id: str):
-    env = {**os.environ, f"{PACK_NAME.upper()}_HOME": str(pack), "SQLCL_BIN": sql_bin}
-    return subprocess.run(
-        [sys.executable, "-m", "tools", "advise", CHECK_ID, "--param", f"sql_id={sql_id}",
-         "--connection", CONNECTION],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=600, check=False,
-    )
+    return run_tools(pack, sql_bin, "advise", CHECK_ID, "--param", f"sql_id={sql_id}",
+                     "--connection", CONNECTION)
 
 
 @pytest.fixture
@@ -201,16 +175,16 @@ def tuned(admin, sysdba, adv, tagged_sql):
             # The cursor can leave the cache before the task is created (ORA-13780,
             # bug.md): run the tagged query again first, and retry once.
             for _ in range(2):
-                _ok(admin, tagged_sql["sql"])
+                ok(admin, tagged_sql["sql"])
                 result = sysdba.run_sql(statement)
                 if "ORA-13780" not in (result.error or ""):
                     break
             # A PL/SQL block takes effect, but run-sql reports ORA-17273 (bug.md).
             assert result.error is None or result.error.startswith("ORA-17273"), (
                 f"{statement}: {result.error}")
-        report = _ok(sysdba, statements[-1])
+        report = ok(sysdba, statements[-1])
         assert report.rows, f"empty tuning report for {task}"
-        status = _ok(admin, f"select status from dba_advisor_tasks where task_name = '{task}'")
+        status = ok(admin, f"select status from dba_advisor_tasks where task_name = '{task}'")
         assert status.rows == [["COMPLETED"]], status.text
         yield task
     finally:

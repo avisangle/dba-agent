@@ -2,13 +2,20 @@
 
 import contextlib
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
 from tools.checks import CHECKS_ROOT
 from tools.checks.index import find_check
-from tools.checks.run import run_check
+from tools.checks.params import bind
+from tools.checks.run import run_check, validate_result, validate_script_result
+from tools.config import PACK_NAME
 from tools.sqlcl import SqlResult
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def rows_as_dicts(result) -> list[dict[str, str]]:
@@ -16,11 +23,61 @@ def rows_as_dicts(result) -> list[dict[str, str]]:
     return [dict(zip(result.header, row, strict=True)) for row in result.rows]
 
 
-def run_check_by_id(session, check_id) -> SqlResult:
-    """Run the check under plugin/checks/ whose id is `check_id`."""
+def _bound_check(check_id, params):
     check = find_check(CHECKS_ROOT, check_id)
     assert check is not None, f"no check {check_id} under {CHECKS_ROOT}"
-    return run_check(session, check)
+    return bind(check, params) if params else check
+
+
+def run_check_by_id(session, check_id) -> SqlResult:
+    """Run the check under plugin/checks/ whose id is `check_id`."""
+    return run_check(session, _bound_check(check_id, None))
+
+
+def run_mode_a(session, check_id, params=None) -> SqlResult:
+    """Run mode A check `check_id`, bound to `params`, as `session`; assert it is a
+    valid verdict and script."""
+    check = _bound_check(check_id, params)
+    result = run_check(session, check)
+    assert result.error is None, result.text
+    problems = validate_result(check, result) + validate_script_result(check, result)
+    assert problems == [], f"{problems}\n{result.text}"
+    return result
+
+
+def run_tools(pack: Path, sql_bin: str, *args, timeout=600) -> subprocess.CompletedProcess:
+    """`python -m tools <args>` from the repo, with `pack` as the pack home."""
+    env = {**os.environ, f"{PACK_NAME.upper()}_HOME": str(pack), "SQLCL_BIN": sql_bin}
+    return subprocess.run([sys.executable, "-m", "tools", *args], cwd=REPO_ROOT, env=env,
+                          capture_output=True, text=True, timeout=timeout, check=False)
+
+
+def ok(session, sql) -> SqlResult:
+    """Run `sql` as `session`; assert it raised no error."""
+    result = session.run_sql(sql)
+    assert result.error is None, f"{sql}: {result.error}"
+    return result
+
+
+def awr_snapshot(session) -> int:
+    """Take an AWR snapshot as `session`; its snap id."""
+    return int(ok(session, "select dbms_workload_repository.create_snapshot() from dual")
+               .rows[0][0])
+
+
+def tagged_sql_ids(session, tag: str) -> list[str]:
+    """Distinct sql ids of cached statements holding the comment `/* <tag> */`."""
+    # The lookup's own text must not contain the tag comment.
+    found = ok(session, "select distinct sql_id from v$sql "
+                        f"where sql_text like '%/* ' || '{tag}' || ' */%'")
+    return [row[0] for row in found.rows]
+
+
+def tagged_sql_id(session, tag: str) -> str:
+    """The sql id of the one cached statement holding the comment `/* <tag> */`."""
+    found = tagged_sql_ids(session, tag)
+    assert len(found) == 1, f"tag {tag}: sql ids {found}"
+    return found[0]
 
 
 def unavailable(reason: str):

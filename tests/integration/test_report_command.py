@@ -12,14 +12,11 @@ default tier home. The checks read only what the built-in health check reads
 
 import json
 import os
-import subprocess
-import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
-
-from tools.config import PACK_NAME
+from helpers import run_tools
 
 pytestmark = pytest.mark.integration
 
@@ -37,12 +34,8 @@ def ro_pack(ro, tier_pack):
 
 
 def _report(pack: Path, *args):
-    env = {**os.environ, f"{PACK_NAME.upper()}_HOME": str(pack), "SQLCL_BIN": SQLCL_BIN}
-    return subprocess.run(
-        [sys.executable, "-m", "tools", "report", "--profile", "health_check",
-         "--connection", CONNECTION, *args],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=900, check=False,
-    )
+    return run_tools(pack, SQLCL_BIN, "report", "--profile", "health_check",
+                     "--connection", CONNECTION, *args, timeout=900)
 
 
 def test_health_check_report_as_the_read_only_user_names_every_profile_id(ro_pack):

@@ -6,7 +6,7 @@ Run each one as SKILL.md rule 12 says, with `python -m tools advise <id> --conne
 
 ## Start with
 
-1. `reclaimable_space`, when the user asks about space that can be given back: one `ENABLE ROW MOVEMENT` line then one `SHRINK SPACE` line per recommended segment, largest first. A segment with 1 GB or more to reclaim is a WARNING.
+1. `reclaimable_space`, when the user asks about space that can be given back: one `ENABLE ROW MOVEMENT` line then one `SHRINK SPACE` line per recommended segment, largest first.
 2. `restore_validate_script`, when the user asks whether their backups can be restored.
 3. `sql_tuning_advisor`, when the [tuning playbook](tuning.md) leaves a slow statement unexplained: add `--param sql_id=<sql id>`.
 

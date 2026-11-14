@@ -33,7 +33,7 @@ Pick the playbook that matches the question and follow it. Each one lists the ch
 - [Backup and recovery](playbooks/backup.md): RMAN backup jobs, datafile backup age, archive log mode and gaps, and the retention policy.
 - [SQL tuning](playbooks/tuning.md): one slow statement: its execution plan, its tables' statistics, and SQL plan baselines and SQL profiles.
 - [Security](playbooks/security.md): accounts and profiles, default passwords, privileged grants, password expiry, unified auditing and TDE.
-- [Advisory scripts](playbooks/advisory.md): scripts the pack writes and never runs: Segment Advisor shrink commands and an RMAN restore validation, through `python -m tools advise` on the advisory tier.
+- [Advisory scripts](playbooks/advisory.md): scripts the pack writes and never runs: Segment Advisor shrink commands, an RMAN restore validation and a SQL Tuning Advisor task, through `python -m tools advise` on the advisory tier.
 
 ## Rules
 

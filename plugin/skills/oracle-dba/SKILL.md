@@ -24,7 +24,7 @@ sql -home <read-only home> -R 4 -mcp
 Pick the playbook that matches the question and follow it. Each one lists the checks to start with, the branches to take on what they show, and when to stop. Run every check as rule 3 says.
 
 - [Discovery](playbooks/discovery.md): what this database is, its version, patches, containers and options.
-- [Health check](playbooks/health.md): the scored health check over `health_check.json`.
+- [Health check](playbooks/health.md): the scored health check over the `health_check` profile.
 - [Storage](playbooks/storage.md): tablespaces, datafiles, temp, undo, the fast recovery area, large and growing segments.
 - [Sessions and locks](playbooks/sessions.md): who is running what, who blocks whom, open idle transactions.
 - [Performance](playbooks/performance.md): load, wait events, top SQL, memory and parameters.
@@ -111,7 +111,7 @@ For a written report with no model in the loop, the user runs `python -m tools r
 
 ### 10. Health check
 
-For a health check follow the [health playbook](playbooks/health.md): run every id in `plugin/profiles/health_check.json` in order, record the worst severity per check (`ERROR` when it failed to run), pipe that JSON to `python -m tools health-score --profile plugin/profiles/health_check.json`, and report the tool's score. Never compute, estimate or adjust the score yourself, and never give one when the tool did not return it.
+For a health check follow the [health playbook](playbooks/health.md): get the checks from `python -m tools health-score --profile health_check --checks` and run them in the order it lists, reading each entry's `file` and passing each entry's `params` to `check-sql` with `--param` (rule 3); record the worst severity per check id (`ERROR` when it failed to run), pipe that JSON to `python -m tools health-score --profile health_check`, and report the tool's score. Never read or pick a profile file yourself: the tool resolves the name, a user's copy first. Never compute, estimate or adjust the score yourself, and never give one when the tool did not return it.
 
 ### 11. Explaining ORA- codes
 

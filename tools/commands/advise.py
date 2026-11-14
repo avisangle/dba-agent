@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tools.checks.params import ParamError, bind
-from tools.checks.run import run_check, validate_result, validate_script_result
+from tools.checks.run import run_check, script_lines, validate_result, validate_script_result
 from tools.checks.target import add_param_argument, load_target, parse_values
 from tools.config import pack_home
 from tools.mcp_client import McpError, McpTimeout
@@ -82,10 +82,7 @@ def run(args):
         print(f"error: {check.id} returned an invalid script; nothing written", file=sys.stderr)
         return 1
 
-    upper = [name.upper() for name in result.header]
-    line_no, script_line = upper.index("LINE_NO"), upper.index("SCRIPT_LINE")
-    # validate_script_result proved LINE_NO strictly increasing; sort anyway, as numbers.
-    lines = [row[script_line] for row in sorted(result.rows, key=lambda r: int(r[line_no]))]
+    lines = script_lines(result)
     if not lines:
         print(f"{check.id}: nothing to do")
         return 0

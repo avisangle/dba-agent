@@ -7,7 +7,8 @@
 -- pack: none
 -- remediation: Review the script `python -m tools advise reclaimable_space` writes, then run it yourself in a quiet window: enabling row movement changes ROWIDs, and a shrink takes short locks on the segment.
 WITH asa AS (
-  SELECT segment_owner, segment_name, segment_type, partition_name,
+  -- read by three branches below: materialize so the advisor is read once
+  SELECT /*+ MATERIALIZE */ segment_owner, segment_name, segment_type, partition_name,
          allocated_space, reclaimable_space, task_id, mesg_id, c1, c3,
          SUBSTR(recommendations, 1, 200) AS recommendation,
          -- a command that would not fit in one SCRIPT_LINE is never cut, and one with a

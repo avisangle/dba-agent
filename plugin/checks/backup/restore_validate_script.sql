@@ -19,9 +19,7 @@ WITH db AS (
   UNION ALL
   SELECT 4, '  RESTORE DATABASE VALIDATE;' FROM dual
   UNION ALL
-  -- archived logs exist to restore only in ARCHIVELOG mode
-  SELECT 5, '  RESTORE ARCHIVELOG FROM TIME ''SYSDATE-7'' VALIDATE;' FROM db
-  WHERE  log_mode = 'ARCHIVELOG'
+  SELECT 5, '  RESTORE ARCHIVELOG FROM TIME ''SYSDATE-7'' VALIDATE;' FROM dual
   UNION ALL
   SELECT 6, '}' FROM dual
 )
@@ -32,5 +30,7 @@ SELECT l.line_no,
        'INFO' AS severity
 FROM   lines l
        CROSS JOIN db
+-- archived logs exist to restore only in ARCHIVELOG mode
+WHERE  l.line_no <> 5 OR db.log_mode = 'ARCHIVELOG'
 ORDER  BY l.line_no
 FETCH FIRST 20 ROWS ONLY

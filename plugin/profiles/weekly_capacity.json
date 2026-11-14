@@ -1,0 +1,12 @@
+{
+  "title": "Weekly capacity",
+  "checks": [
+    {"id": "tablespace_usage"},
+    {"id": "datafile_autoextend"},
+    {"id": "temp_usage"},
+    {"id": "undo_usage"},
+    {"id": "fra_usage"},
+    {"id": "top_segments"},
+    {"id": "segment_growth"}
+  ]
+}

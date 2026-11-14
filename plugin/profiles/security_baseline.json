@@ -1,0 +1,11 @@
+{
+  "title": "Security baseline",
+  "checks": [
+    {"id": "users_and_profiles"},
+    {"id": "default_passwords"},
+    {"id": "privileged_grants"},
+    {"id": "password_expiry"},
+    {"id": "audit_config"},
+    {"id": "tde_status"}
+  ]
+}

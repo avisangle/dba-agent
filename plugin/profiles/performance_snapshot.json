@@ -1,0 +1,11 @@
+{
+  "title": "Performance snapshot",
+  "checks": [
+    {"id": "system_stats"},
+    {"id": "wait_events"},
+    {"id": "top_sql"},
+    {"id": "sga_pga_usage"},
+    {"id": "ash_top_activity"},
+    {"id": "awr_snapshot_list"}
+  ]
+}

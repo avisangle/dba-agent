@@ -1,0 +1,14 @@
+{
+  "title": "Pre-patch",
+  "checks": [
+    {"id": "db_overview"},
+    {"id": "instance_info"},
+    {"id": "patch_inventory"},
+    {"id": "options_and_features"},
+    {"id": "invalid_objects"},
+    {"id": "unusable_indexes"},
+    {"id": "failed_jobs"},
+    {"id": "backup_coverage"},
+    {"id": "dataguard_status"}
+  ]
+}

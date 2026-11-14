@@ -94,13 +94,6 @@ def _ok(session, sql):
     return result
 
 
-def _block(session, sql):
-    """DML or a PL/SQL block: it takes effect, but run-sql reports ORA-17273 (bug.md)."""
-    result = session.run_sql(sql)
-    assert result.error is None or result.error.startswith("ORA-17273"), f"{sql}: {result.error}"
-    return result
-
-
 def _checked(session, sql_id):
     """The check bound to `sql_id`, run as `session`; a valid verdict and script."""
     check = find_check(CHECKS_ROOT, CHECK_ID)
@@ -163,20 +156,21 @@ def _task_count(admin) -> int:
 
 @pytest.fixture(scope="module")
 def tagged_sql(admin):
-    """{"tag", "sql_id"}: a selective query, tagged, on a 20000-row table in SYSTEM's
-    schema with no index, run as `admin` so its cursor is cached; the table is
-    dropped afterwards."""
+    """{"tag", "sql", "sql_id"}: a selective query, tagged, on a 20000-row table in
+    SYSTEM's schema with no index, run as `admin` so its cursor is cached; the table
+    is dropped afterwards."""
     tag = f"STA_{secrets.token_hex(4).upper()}"
     table = f"system.{tag}"
+    sql = f"select /* {tag} */ pad from {table} where n = 4242"
     try:
         _ok(admin, f"create table {table} as select level as n, rpad('x', 100, 'x') as pad "
                    "from dual connect by level <= 20000")
-        _ok(admin, f"select /* {tag} */ pad from {table} where n = 4242")
+        _ok(admin, sql)
         # The lookup's own text must not contain the tag comment.
         found = _ok(admin, "select distinct sql_id from v$sql "
                            f"where sql_text like '%/* ' || '{tag}' || ' */%'")
         assert len(found.rows) == 1, f"tag {tag}: sql ids {found.rows}"
-        yield {"tag": tag, "sql_id": found.rows[0][0]}
+        yield {"tag": tag, "sql": sql, "sql_id": found.rows[0][0]}
     finally:
         admin.run_sql(f"drop table if exists {table} purge")
 
@@ -216,7 +210,16 @@ def tuned(admin, sysdba, adv, tagged_sql):
     statements = _statements(lines)
     try:
         for statement in statements[:-1]:
-            _block(sysdba, statement)
+            # The cursor can leave the cache before the task is created (ORA-13780,
+            # bug.md): run the tagged query again first, and retry once.
+            for _ in range(2):
+                _ok(admin, tagged_sql["sql"])
+                result = sysdba.run_sql(statement)
+                if "ORA-13780" not in (result.error or ""):
+                    break
+            # A PL/SQL block takes effect, but run-sql reports ORA-17273 (bug.md).
+            assert result.error is None or result.error.startswith("ORA-17273"), (
+                f"{statement}: {result.error}")
         report = _ok(sysdba, statements[-1])
         assert report.rows, f"empty tuning report for {task}"
         status = _ok(admin, f"select status from dba_advisor_tasks where task_name = '{task}'")

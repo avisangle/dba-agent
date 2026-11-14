@@ -49,7 +49,7 @@ prints.
 
 ### Optional grants
 
-Two read-only checks report more with extra object grants that the default
+Four read-only checks report more with extra object grants that the default
 read-only user does not hold. Without them each check returns one `INFO` row
 starting `not available:` that says what is missing.
 
@@ -58,12 +58,16 @@ starting `not available:` that says what is missing.
 - `python -m tools setup-sql --tier read-only --statspack` adds the grants that
   let `statspack_report` read Statspack snapshots. Statspack must already be
   installed; run the block as SYS or PERFSTAT.
+- `python -m tools setup-sql --tier read-only --security` adds the grants that
+  let `default_passwords` and `audit_config` read their SYS views. Run that
+  block as SYS.
 
 ### Advisory tier (optional)
 
 The advisory tier is a second database user and SQLcl home for checks that
-write fix scripts. Its checks write each script to `<pack_home>/scripts/`; the
-pack never runs them, so a DBA reviews a script and runs it by hand. The tier
+write fix scripts. `python -m tools advise <check id> --connection dba_agent_adv`
+runs one such check and writes its script to `<pack_home>/scripts/`; the pack
+never runs it, so a DBA reviews the script and runs it by hand. The tier
 holds the read-only grants plus the advisor grants `setup-sql` prints, and
 nothing that can change data or structure. Skip this part if you only need
 the read-only checks.
@@ -91,7 +95,9 @@ python -m tools report --profile health_check --connection dba_agent_ro --format
 ```
 
 It exits 0 when the report is written (checks with errors included), 1 when
-SQLcl or the connection fails, and 2 for a bad profile or argument. To run it
+SQLcl, the connection or writing the file fails, and 2 for a bad profile or
+argument. A profile lists read-only (mode `R`) checks only; fix-script checks
+run through `advise`. To run it
 on a schedule, add a cron line that changes to the unzipped folder first. Cron
 starts with a short PATH, so set `SQLCL_BIN` to the SQLcl executable:
 

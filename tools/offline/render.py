@@ -32,7 +32,7 @@ def output_arguments(parser) -> None:
 
 
 def extract_arguments(parser, kind: str, sections) -> None:
-    parser.add_argument("file", type=Path, metavar="FILE", help=f"{kind} report, HTML or text")
+    parser.add_argument("file", type=Path, metavar="FILE", help=f"{kind} report")
     parser.add_argument(
         "--sections",
         metavar="a,b,c",

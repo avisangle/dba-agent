@@ -10,4 +10,4 @@
 
 **Rejected:** One large SQL statement returning a scored report: it cannot be capped, versioned or overridden per check, and one unreadable view breaks the whole report.
 
-**Impact:** The score is computed only by `python -m tools health-score`; the model never computes or adjusts it. The tool exits 2 when the results lack a profile id, hold an id the profile does not list, or hold a severity outside `CRITICAL`, `WARNING`, `OK`, `INFO`, `ERROR`, so a partial run cannot be scored.
+**Impact:** The score is computed only by `tools.health_score.score`, through `python -m tools health-score` or `python -m tools report` (D-DBA-37-report-runner-through-sqlcl-mcp); the model never computes or adjusts it. The tool exits 2 when the results lack a profile id, hold an id the profile does not list, or hold a severity outside `CRITICAL`, `WARNING`, `OK`, `INFO`, `ERROR`, so a partial run cannot be scored.

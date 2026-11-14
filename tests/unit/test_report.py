@@ -343,6 +343,7 @@ def test_report_refuses_a_bad_profile_before_opening_a_session(tmp_path):
     clean (D-DBA-1) and binds its `params`; else exit 2 naming the id and the
     problem, with no session opened. A malformed profile, an unknown profile
     name and a missing template are bad profiles too: exit 2, nothing on stdout.
+    A mode A check is refused too: it runs only through `advise` (D-DBA-36).
     (Falsifier: lint or bind after connecting; the fake's log then exists.)"""
     exe, log = _fake_sqlcl(tmp_path / "fake")
     _user_check(tmp_path, "storage", AMP_CHECK.read_text(encoding="utf-8"))
@@ -360,6 +361,7 @@ def test_report_refuses_a_bad_profile_before_opening_a_session(tmp_path):
         ({"checks": [{"id": "tablespace_usage", "weight": "heavy"}]},
          ["tablespace_usage", "weight"]),
         ({"template": "missing.md", "checks": [{"id": "tablespace_usage"}]}, ["missing.md"]),
+        ({"checks": [{"id": "reclaimable_space"}]}, ["reclaimable_space", "mode A"]),
         ({"title": "no checks key"}, ["checks"]),
         ("{not json", []),
     ]
@@ -490,6 +492,10 @@ def test_report_markdown_runs_profile_with_score_errors_on_top_and_out_file(tmp_
     assert proc.returncode == 0, proc.stderr
     assert proc.stdout == ""
     assert "Nightly report" in target.read_text(encoding="utf-8")
+    # A write failure is not a bad argument: exit 1, as `advise` does.
+    proc = _report(tmp_path, "--profile", "nightly", "--connection", CONNECTION,
+                   "--out", str(tmp_path / "missing" / "nightly.md"), sqlcl=exe)
+    assert proc.returncode == 1 and proc.stdout == "", proc.stderr
 
     (_pack_home(tmp_path) / "profiles" / "nightly.md").write_text(
         "NIGHTLY-MARK $title\n$summary\n", encoding="utf-8")

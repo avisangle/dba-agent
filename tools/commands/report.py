@@ -12,14 +12,7 @@ from tools.connection import (
     connected,
 )
 from tools.health_score import score as health_score
-from tools.reports.profile import (
-    PROFILES_ROOT,
-    ProfileError,
-    bind_checks,
-    find_profile,
-    load_profile,
-    user_profiles_root,
-)
+from tools.reports.profile import ProfileError, bind_checks, load_profile, resolve_profile
 from tools.reports.render import FORMATS, Report, default_template, render
 from tools.reports.runner import VersionUnreadable, database_version, run_checks
 
@@ -50,12 +43,8 @@ def run(args):
     if refusal := advisory_refusal(args):
         _error(refusal)
         return 2
-    path = find_profile(args.profile)
-    if path is None:
-        _error(f"no profile {args.profile} in {user_profiles_root()} or {PROFILES_ROOT}")
-        return 2
     try:
-        profile = load_profile(path)
+        profile = load_profile(resolve_profile(args.profile))
         checks = bind_checks(profile)
         template = (profile.template or default_template(args.format)).read_text(encoding="utf-8")
     except (ProfileError, OSError) as exc:

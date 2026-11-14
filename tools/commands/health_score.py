@@ -6,14 +6,7 @@ import json
 import sys
 
 from tools.health_score import InvalidResults, score
-from tools.reports.profile import (
-    PROFILES_ROOT,
-    ProfileError,
-    bind_checks,
-    find_profile,
-    load_profile,
-    user_profiles_root,
-)
+from tools.reports.profile import ProfileError, bind_checks, load_profile, resolve_profile
 
 NAME = "health-score"
 HELP = (
@@ -48,20 +41,21 @@ def _checks(path, profile) -> dict:
 
 
 def run(args):
-    path = find_profile(args.profile)
-    if path is None:
-        return _error(f"no profile {args.profile} in {user_profiles_root()} or {PROFILES_ROOT}")
     try:
+        path = resolve_profile(args.profile)
         profile = load_profile(path)
-        if (weights := profile.weights) is None:
-            unweighted = ", ".join(c.id for c in profile.checks if c.weight is None)
-            raise ProfileError(f"{path}: no weight for {unweighted}; a scored profile needs one "
-                               "per check")
-        if args.checks:
-            print(json.dumps(_checks(path, profile), indent=2))
-            return 0
     except ProfileError as exc:
         return _error(exc)
+    if (weights := profile.weights) is None:
+        unweighted = ", ".join(c.id for c in profile.checks if c.weight is None)
+        return _error(f"{path}: no weight for {unweighted}; a scored profile needs one per check")
+    if args.checks:
+        try:
+            listing = _checks(path, profile)
+        except ProfileError as exc:
+            return _error(exc)
+        print(json.dumps(listing, indent=2))
+        return 0
     try:
         out = score(weights, json.load(sys.stdin))
     except InvalidResults as exc:

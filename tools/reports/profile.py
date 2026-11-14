@@ -60,6 +60,15 @@ def find_profile(name_or_path: str) -> Path | None:
     return next((p for p in candidates if p.is_file()), None)
 
 
+def resolve_profile(name_or_path: str) -> Path:
+    """`find_profile`, raising ProfileError naming both profile folders when nothing is found."""
+    path = find_profile(name_or_path)
+    if path is None:
+        raise ProfileError(
+            f"no profile {name_or_path} in {user_profiles_root()} or {PROFILES_ROOT}")
+    return path
+
+
 def _entry(path: Path, entry) -> ProfileCheck:
     if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
         raise ProfileError(f'{path}: each check must be an object with a string "id": {entry!r}')

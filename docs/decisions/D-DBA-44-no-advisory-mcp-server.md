@@ -10,4 +10,4 @@
 
 **Rejected:** Keeping the advisory registration, with a record accepting the trade-off and skill rules restricting which server the model connects through and what it sends there: it leans on prompt rules where the database grants no protection, for a registration nothing uses. Keeping `config --tier` with only `read-only` accepted: an option with one value, and an open door for re-adding the advisory server without a new record.
 
-**Impact:** No snippet, doc or command may offer an MCP server on a tier other than read-only without a record that supersedes this one. `config` renders only `TIERS["read-only"]`; `tests/unit/test_config_snippets.py` rejects `--tier`, a `<TIER>` placeholder under `plugin/config/`, and any `tools config` line in the README's advisory part. Advisory checks are run only through `python -m tools advise`.
+**Impact:** Offering an MCP server on any tier other than read-only needs a record that supersedes this one. `tests/unit/test_config_snippets.py` rejects `config --tier`, a `<TIER>` placeholder under `plugin/config/`, and any `tools config` line in the README's advisory part.

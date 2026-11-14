@@ -21,9 +21,9 @@ WITH probe AS (
 SELECT x.item,
        x.value,
        x.detail,
-       CASE WHEN x.w = 1 THEN 'WARNING' ELSE 'INFO' END AS severity
+       CASE WHEN x.o = 3 THEN 'WARNING' ELSE 'INFO' END AS severity
 FROM   probe p,
-       -- Columns: o order, item, value, detail, w 1 for the WARNING row.
+       -- Columns: o order (3 is the WARNING row), item, value, detail.
        -- Only POLICY_NAME, SUCCESS and FAILURE of the enabled-policies view are
        -- read: its other columns differ between 19c and 23ai.
        XMLTABLE('/ROWSET/ROW'
@@ -31,17 +31,17 @@ FROM   probe p,
            CASE WHEN p.readable = 1 THEN
              'SELECT 1 o, parameter item, value,
                      DECODE(value, ''TRUE'', ''pure unified auditing'',
-                            ''mixed mode: unified and traditional auditing'') detail, 0 w
+                            ''mixed mode: unified and traditional auditing'') detail
               FROM   v$option
               WHERE  parameter = ''Unified Auditing''
               UNION ALL
               SELECT 2, ''enabled policy'', SUBSTR(policy_name, 1, 128),
-                     ''success '' || MAX(success) || '', failure '' || MAX(failure), 0
+                     ''success '' || MAX(success) || '', failure '' || MAX(failure)
               FROM   audit_unified_enabled_policies
               GROUP  BY policy_name
               UNION ALL
               SELECT 3, ''logon failure audit'', ''not enabled'',
-                     ''no enabled policy audits failed logons (ORA_LOGON_FAILURES does)'', 1
+                     ''no enabled policy audits failed logons (ORA_LOGON_FAILURES does)''
               FROM   dual
               WHERE  NOT EXISTS (
                        SELECT 1
@@ -49,12 +49,11 @@ FROM   probe p,
                        JOIN   audit_unified_policies u ON u.policy_name = e.policy_name
                        WHERE  e.failure = ''YES''
                        AND    u.audit_option = ''LOGON'')'
-           ELSE 'SELECT 1 o, ''not available: optional security grants not present (setup-sql --security): SYS.AUDIT_UNIFIED_ENABLED_POLICIES, SYS.AUDIT_UNIFIED_POLICIES'' item, 0 w FROM dual'
+           ELSE 'SELECT 1 o, ''not available: optional security grants not present (setup-sql --security): SYS.AUDIT_UNIFIED_ENABLED_POLICIES, SYS.AUDIT_UNIFIED_POLICIES'' item FROM dual'
            END)
          COLUMNS o      NUMBER        PATH 'O',
                  item   VARCHAR2(200) PATH 'ITEM',
                  value  VARCHAR2(200) PATH 'VALUE',
-                 detail VARCHAR2(200) PATH 'DETAIL',
-                 w      NUMBER        PATH 'W') x
+                 detail VARCHAR2(200) PATH 'DETAIL') x
 ORDER  BY x.o, x.value
 FETCH FIRST 50 ROWS ONLY

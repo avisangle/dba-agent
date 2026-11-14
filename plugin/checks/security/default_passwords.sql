@@ -20,7 +20,7 @@ WITH probe AS (
 SELECT x.username,
        x.account_status,
        x.detail,
-       CASE WHEN p.readable = 1 AND x.account_status = 'OPEN' THEN 'CRITICAL'
+       CASE WHEN x.account_status = 'OPEN' THEN 'CRITICAL'
             ELSE 'INFO' END AS severity
 FROM   probe p,
        XMLTABLE('/ROWSET/ROW'

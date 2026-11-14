@@ -121,7 +121,8 @@ def add_arguments(parser):
 
 def run(args):
     script = render(
-        args.tier, args.user, args.audit, args.alert_log, args.statspack, args.security
+        args.tier, args.user, audit=args.audit, alert_log=args.alert_log,
+        statspack=args.statspack, security=args.security,
     )
     if args.out:
         args.out.write_text(script, encoding="utf-8")

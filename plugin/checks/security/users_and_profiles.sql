@@ -8,19 +8,19 @@
 -- remediation: For a WARNING account, assign a profile that limits failed logins and sets a password verify function, for example ALTER PROFILE <profile> LIMIT FAILED_LOGIN_ATTEMPTS 10 PASSWORD_VERIFY_FUNCTION ORA12C_VERIFY_FUNCTION, or lock the account if it is unused (ALTER USER <user> ACCOUNT LOCK); a DBA runs these.
 WITH limits AS (
   -- a limit of DEFAULT means the DEFAULT profile's value
-  SELECT p.profile,
-         MAX(CASE WHEN p.resource_name = 'FAILED_LOGIN_ATTEMPTS'
-                  THEN DECODE(p.limit, 'DEFAULT', d.limit, p.limit) END) AS failed_login_attempts,
-         MAX(CASE WHEN p.resource_name = 'PASSWORD_LIFE_TIME'
-                  THEN DECODE(p.limit, 'DEFAULT', d.limit, p.limit) END) AS password_life_time,
-         MAX(CASE WHEN p.resource_name = 'PASSWORD_VERIFY_FUNCTION'
-                  THEN DECODE(p.limit, 'DEFAULT', d.limit, p.limit) END) AS password_verify_function
-  FROM   dba_profiles p
-  JOIN   dba_profiles d
-  ON     d.profile = 'DEFAULT' AND d.resource_name = p.resource_name
-  WHERE  p.resource_name IN ('FAILED_LOGIN_ATTEMPTS', 'PASSWORD_LIFE_TIME',
-                             'PASSWORD_VERIFY_FUNCTION')
-  GROUP  BY p.profile
+  SELECT profile,
+         MAX(CASE WHEN resource_name = 'FAILED_LOGIN_ATTEMPTS' THEN lim END) AS failed_login_attempts,
+         MAX(CASE WHEN resource_name = 'PASSWORD_LIFE_TIME' THEN lim END) AS password_life_time,
+         MAX(CASE WHEN resource_name = 'PASSWORD_VERIFY_FUNCTION' THEN lim END)
+           AS password_verify_function
+  FROM   (SELECT p.profile, p.resource_name,
+                 DECODE(p.limit, 'DEFAULT', d.limit, p.limit) AS lim
+          FROM   dba_profiles p
+          JOIN   dba_profiles d
+          ON     d.profile = 'DEFAULT' AND d.resource_name = p.resource_name
+          WHERE  p.resource_name IN ('FAILED_LOGIN_ATTEMPTS', 'PASSWORD_LIFE_TIME',
+                                     'PASSWORD_VERIFY_FUNCTION'))
+  GROUP  BY profile
 ),
 users AS (
   SELECT u.username,

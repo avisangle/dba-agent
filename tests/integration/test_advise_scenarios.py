@@ -45,20 +45,17 @@ numbers of megabytes.
 """
 
 import os
-import secrets
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from helpers import rows_as_dicts, run_check_by_id, shrinkable_table
-from save_connection import save_connection
 
 from tools.checks import CHECKS_ROOT
 from tools.checks.index import find_check
 from tools.checks.run import validate_result
 from tools.config import PACK_NAME
-from tools.tiers import TIERS
 
 pytestmark = pytest.mark.integration
 
@@ -107,20 +104,10 @@ def shrinkable_segment(admin):
 
 
 @pytest.fixture(scope="module")
-def adv_pack(admin, adv, sqlcl_bin_and_dsn, tmp_path_factory):
+def adv_pack(adv, tier_pack, sqlcl_bin_and_dsn):
     """A pack home whose `homes/advisory` holds one saved connection for the
-    advisory tier user, given a known password here (as SYSTEM)."""
-    sql_bin, dsn = sqlcl_bin_and_dsn
-    tier = TIERS["advisory"]
-    password = "P" + secrets.token_hex(12)
-    result = admin.run_sql(f'alter user {tier.db_user} identified by "{password}"')
-    assert result.error is None, result.error
-    pack = tmp_path_factory.mktemp("advise-pack")
-    home = pack / "homes" / tier.home_name
-    home.mkdir(parents=True)
-    home.chmod(0o700)
-    save_connection(sql_bin, str(home), CONNECTION, tier.db_user, password, dsn)
-    return pack, sql_bin
+    advisory tier user."""
+    return tier_pack("advisory", CONNECTION, "advise-pack"), sqlcl_bin_and_dsn[0]
 
 
 def _advise(pack: Path, sql_bin: str, *args):

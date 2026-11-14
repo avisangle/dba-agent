@@ -6,7 +6,7 @@
 -- max_rows: 60
 -- pack: tuning
 -- params: sql_id:sql_id
--- remediation: Review the script `python -m tools advise sql_tuning_advisor --param sql_id=<sql id>` writes, then run it yourself as a user holding ADVISOR while the statement is still in the cursor cache; it creates and executes one tuning task and prints its report. Act on a recommendation (an index, statistics, a SQL profile) only after reading its rationale in the report. Drop the task with DBMS_SQLTUNE.DROP_TUNING_TASK when done.
+-- remediation: Review the script `python -m tools advise sql_tuning_advisor --param sql_id=<sql id> --connection <name>` writes, then run it yourself as a user holding ADVISOR while the statement is still in the cursor cache; it creates and executes one tuning task and prints its report. Act on a recommendation (an index, statistics, a SQL profile) only after reading its rationale in the report. Drop the task with DBMS_SQLTUNE.DROP_TUNING_TASK when done.
 -- Reads stored findings only: creating or executing a task here would change the
 -- advisor repository, which a check never does (D-DBA-40-sql-tuning-advisor-route).
 WITH task AS (

@@ -36,14 +36,12 @@ Dictionary columns used (Oracle 23ai reference):
 import importlib
 import json
 import os
-import secrets
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from helpers import rows_as_dicts, shrinkable_table
-from save_connection import save_connection
 
 pytestmark = pytest.mark.integration
 
@@ -216,19 +214,10 @@ def test_advisory_user_cannot_write_by_ddl_dml_or_with_function(admin, adv, prob
 
 
 @pytest.fixture(scope="module")
-def adv_pack(admin, adv, tier, sqlcl_bin_and_dsn, tmp_path_factory):
+def adv_pack(adv, tier, tier_pack, sqlcl_bin_and_dsn):
     """A pack home whose `homes/advisory` holds one saved connection for the
-    tier user, given a known password here (as SYSTEM)."""
-    sql_bin, dsn = sqlcl_bin_and_dsn
-    password = "P" + secrets.token_hex(12)
-    result = admin.run_sql(f'alter user {tier.db_user} identified by "{password}"')
-    assert result.error is None, result.error
-    pack = tmp_path_factory.mktemp("doctor-adv-pack")
-    home = pack / "homes" / tier.home_name
-    home.mkdir(parents=True)
-    home.chmod(0o700)
-    save_connection(sql_bin, str(home), CONNECTION, tier.db_user, password, dsn)
-    return pack, sql_bin
+    tier user."""
+    return tier_pack(tier.name, CONNECTION, "doctor-adv-pack"), sqlcl_bin_and_dsn[0]
 
 
 def _doctor(pack: Path, sql_bin: str) -> dict[str, dict]:

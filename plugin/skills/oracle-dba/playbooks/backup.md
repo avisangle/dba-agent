@@ -1,6 +1,6 @@
 # Backup and recovery playbook
 
-Whether the database can be restored: RMAN backup jobs, how old each datafile's latest backup is, archive log mode and archived log gaps, and whether full backups cover the RMAN recovery window. All four checks read RMAN's `V$` views and change nothing.
+Whether the database can be restored: RMAN backup jobs, how old each datafile's latest backup is, archive log mode and archived log gaps, and whether full backups cover the RMAN recovery window. The checks read RMAN's `V$` views and change nothing; `restore_validate_script` also writes a script the user runs.
 
 RMAN records its jobs and backups at CDB level, and connected to a PDB the checks see that PDB's datafiles only. When every check says "never backed up" in a PDB, ask the user whether backups run from the CDB root before calling it a gap.
 
@@ -15,6 +15,7 @@ RMAN records its jobs and backups at CDB level, and connected to a PDB the check
 - If `rman_job_status` shows the "no backup job in the last 7 days" row, run `recovery_window_check` because it shows whether any full or level 0 backup older than that still covers the retention policy.
 - If `backup_coverage` shows WARNING or CRITICAL, run `recovery_window_check` because a file missing from recent backups usually means the retention policy is not met either.
 - If `backup_coverage` shows WARNING or CRITICAL, run `archivelog_gaps` because without archived logs an old backup restores only to the time it was taken.
+- If `backup_coverage` shows every datafile `OK` and the user wants proof the backups can be restored, run `restore_validate_script` through `python -m tools advise restore_validate_script --connection <name>` ([advisory playbook](advisory.md)) because its RMAN script validates the backups RMAN would pick without restoring them; the user runs it (rule 12).
 - If `archivelog_gaps` shows a CRITICAL gap row, run `fra_usage` because the missing sequences may never have been written; the [storage playbook](storage.md) continues from there.
 
 ## Stop when

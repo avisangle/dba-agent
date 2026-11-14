@@ -40,7 +40,7 @@ SELECT snap_id,
        TO_CHAR(end_interval_time, 'YYYY-MM-DD HH24:MI:SS') AS end_time,
        plan_hash,
        executions,
-       ROUND(ms_per_exec, 3) AS elapsed_per_exec_ms,
+       ROUND(ms_per_exec, 3) AS ms_per_exec,
        ROUND(gets_per_exec, 1) AS gets_per_exec,
        CASE WHEN ms_per_exec > 3 * others_median AND plan_hash <> prev_plan
             THEN 'WARNING' ELSE 'INFO' END AS severity

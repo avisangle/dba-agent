@@ -2,9 +2,9 @@
 
 No database is touched. Profile format and loader are DBA-37's
 (`tools.reports.profile`: `find_profile`, `load_profile`, `bind_checks`); the
-ids and modes come from `plugin/checks/INDEX.md` (generated from the check
-headers), so there are no tables to verify. The pack home is redirected to a
-temp dir so no user profile or user check shadows a built-in one.
+ids and modes come from the check headers (`discover`, the source of
+`plugin/checks/INDEX.md`), so there are no tables to verify. The pack home is
+redirected to a temp dir so no user profile or user check shadows a built-in one.
 
 Pinned for /implement: the six file names below, each with a `title`, only mode
 R checks, and exactly the ids (in order) and weights listed in EXPECTED.
@@ -20,11 +20,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROFILES = REPO_ROOT / "plugin" / "profiles"
-INDEX = REPO_ROOT / "plugin" / "checks" / "INDEX.md"
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tools.checks import CHECKS_ROOT  # noqa: E402
+from tools.checks.index import discover  # noqa: E402
 from tools.config import PACK_NAME  # noqa: E402
 from tools.reports.profile import bind_checks, find_profile, load_profile  # noqa: E402
 
@@ -61,12 +62,8 @@ def _isolated_pack_home(tmp_path, monkeypatch):
 
 
 def _index_modes() -> dict[str, str]:
-    modes = {}
-    for line in INDEX.read_text(encoding="utf-8").splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if line.startswith("|") and len(cells) >= 6 and cells[0] not in ("id", "---"):
-            modes[cells[0]] = cells[2]
-    return modes
+    """Check id -> mode for the built-in checks (the rows of INDEX.md)."""
+    return {c.id: c.mode for c in discover(CHECKS_ROOT)}
 
 
 def _load(name):
@@ -130,3 +127,4 @@ def test_contract_profiles_promised_to_dependents_exist():
         assert path is not None, name
         profile = load_profile(path)
         assert profile.name == name and profile.title and profile.checks
+

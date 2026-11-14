@@ -113,14 +113,13 @@ DBA_ADDM_FINDINGS TASK_NAME, TYPE, IMPACT, PERC_ACTIVE_SESS, MESSAGE.
 """
 
 import contextlib
-import importlib
 import re
 import secrets
-import sys
 import time
 from pathlib import Path
 
 import pytest
+from helpers import awr_snapshot, ok, ok_or_autocommit, rows_as_dicts, tagged_sql_id
 
 from tools.checks import CHECKS_ROOT
 from tools.checks.index import find_check
@@ -128,10 +127,6 @@ from tools.checks.params import TYPES, Param, bind
 from tools.checks.run import run_check
 
 pytestmark = pytest.mark.integration
-
-INTEGRATION = Path(__file__).resolve().parents[1]
-if str(INTEGRATION) not in sys.path:
-    sys.path.insert(0, str(INTEGRATION))
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL_DIR = REPO_ROOT / "plugin" / "skills" / "oracle-dba"
@@ -174,12 +169,6 @@ COLUMNS = {
 SHIFT_HOURS = 9  # session time zone offset from the database's, in the window tests
 
 
-def _ok(session, sql):
-    result = session.run_sql(sql)
-    assert result.error is None, f"{sql}: {result.error}"
-    return result
-
-
 def _run(session, check_id, **values):
     """The check bound to `values` (defaults for the rest), run through `session`."""
     check = find_check(CHECKS_ROOT, check_id)
@@ -190,35 +179,34 @@ def _run(session, check_id, **values):
 
 
 def _rows(session, check_id, **values) -> list[dict[str, str]]:
-    helpers = importlib.import_module("helpers")
-    return helpers.rows_as_dicts(_run(session, check_id, **values))
+    return rows_as_dicts(_run(session, check_id, **values))
 
 
 @contextlib.contextmanager
 def _session_time_zone(session, hours_from_db: int):
     """Set `session`'s time zone `hours_from_db` hours from the database host's
     SYSTIMESTAMP offset; restore the previous session time zone on exit."""
-    zones = _ok(session, "select sessiontimezone, to_char(systimestamp, 'TZH') from dual")
+    zones = ok(session, "select sessiontimezone, to_char(systimestamp, 'TZH') from dual")
     saved, db_hours = zones.rows[0][0], int(zones.rows[0][1])
     hours = db_hours + hours_from_db
     assert -12 <= hours <= 14, f"database offset {db_hours} leaves no room to shift"
-    _ok(session, f"alter session set time_zone = '{hours:+03d}:00'")
+    ok(session, f"alter session set time_zone = '{hours:+03d}:00'")
     try:
         yield
     finally:
-        _ok(session, f"alter session set time_zone = '{saved}'")
+        ok(session, f"alter session set time_zone = '{saved}'")
 
 
 @pytest.fixture
 def root_snapshot(sysdba):
     """Take an AWR snapshot in CDB$ROOT, so the PDB's DBA_HIST_SNAPSHOT also
     holds rows that are not its own; `sysdba` is back in its PDB afterwards."""
-    pdb = _ok(sysdba, "select sys_context('userenv', 'con_name') from dual").rows[0][0]
-    _ok(sysdba, "alter session set container = cdb$root")
+    pdb = ok(sysdba, "select sys_context('userenv', 'con_name') from dual").rows[0][0]
+    ok(sysdba, "alter session set container = cdb$root")
     try:
-        _ok(sysdba, "select dbms_workload_repository.create_snapshot() from dual")
+        awr_snapshot(sysdba)
     finally:
-        _ok(sysdba, f"alter session set container = {pdb}")
+        ok(sysdba, f"alter session set container = {pdb}")
 
 
 # --- contract test -----------------------------------------------------------
@@ -304,7 +292,7 @@ def test_awr_snapshot_list_shows_this_containers_snapshots(ro, admin, awr_window
     after a snapshot. Run with the session time zone 9 hours ahead of the
     database's, so a staleness test against SYSTIMESTAMP reads the latest
     snapshot as 9 hours old and adds a WARNING row."""
-    expected = _ok(admin, "select snap_id from dba_hist_snapshot "
+    expected = ok(admin, "select snap_id from dba_hist_snapshot "
                           "where dbid = (select con_dbid from v$database) "
                           "and end_interval_time >= sysdate - 1")
     expected_ids = sorted((int(r[0]) for r in expected.rows), reverse=True)[:50]
@@ -344,10 +332,6 @@ PLAN_RUNS = 3  # executions of the plan change statement per window
 ADDM_WAIT_SECONDS = 60  # ADDM's own run after a snapshot took under 15 s (probe)
 
 
-def _snap(admin) -> int:
-    return int(_ok(admin, "select dbms_workload_repository.create_snapshot() from dual").rows[0][0])
-
-
 def _number(cell: str) -> float | None:
     return float(cell) if cell.strip() else None
 
@@ -375,7 +359,7 @@ def _column_runs(check_id, window) -> list[dict]:
 
 
 def _plan_hashes(admin, sql_id) -> set[str]:
-    found = _ok(admin, f"select distinct plan_hash_value from v$sql where sql_id = '{sql_id}'")
+    found = ok(admin, f"select distinct plan_hash_value from v$sql where sql_id = '{sql_id}'")
     return {row[0] for row in found.rows}
 
 
@@ -383,9 +367,9 @@ def _plan_hashes(admin, sql_id) -> set[str]:
 def quiet_window(admin, awr_window):
     """(begin, end): two snapshots of this PDB QUIET_SECONDS apart, taken after
     `awr_window` with no workload between them."""
-    begin = _snap(admin)
+    begin = awr_snapshot(admin)
     time.sleep(QUIET_SECONDS)
-    return begin, _snap(admin)
+    return begin, awr_snapshot(admin)
 
 
 @pytest.fixture(scope="module")
@@ -395,41 +379,36 @@ def plan_change(admin):
     index in each of two windows (fast plan), then, after the index is dropped,
     PLAN_RUNS times with a full scan (slow plan) in a third. `snaps` are the four
     snapshot ids; the slow plan's executions fall in the window ending snaps[3]."""
-    commit_ok = importlib.import_module("helpers").ok_or_autocommit
     tag = f"AWRPC_{secrets.token_hex(4).upper()}"
     table = f"system.{tag}"
     query = f"select /* {tag} */ max(pad) from {table} where id = 4242"
     sql_id = None
     try:
-        _ok(admin, f"create table {table} as select level as id, rpad('x', 200, 'x') as pad "
+        ok(admin, f"create table {table} as select level as id, rpad('x', 200, 'x') as pad "
                    f"from dual connect by level <= {PLAN_ROWS}")
-        _ok(admin, f"create unique index {table}_PK on {table} (id)")
-        _ok(admin, query)
-        # The lookup's own text must not contain the tag comment.
-        found = _ok(admin, "select distinct sql_id from v$sql "
-                           f"where sql_text like '%/* ' || '{tag}' || ' */%'")
-        assert len(found.rows) == 1, f"tag {tag}: sql ids {found.rows}"
-        sql_id = found.rows[0][0]
-        commit_ok(admin, "begin dbms_workload_repository.add_colored_sql("
+        ok(admin, f"create unique index {table}_PK on {table} (id)")
+        ok(admin, query)
+        sql_id = tagged_sql_id(admin, tag)
+        ok_or_autocommit(admin, "begin dbms_workload_repository.add_colored_sql("
                          f"'{sql_id}'); end;")
-        snaps = [_snap(admin)]
+        snaps = [awr_snapshot(admin)]
         for _ in range(2):
             for _ in range(PLAN_RUNS):
-                _ok(admin, query)
-            snaps.append(_snap(admin))
+                ok(admin, query)
+            snaps.append(awr_snapshot(admin))
         fast = _plan_hashes(admin, sql_id)
         assert len(fast) == 1, f"index plan: {fast}"
-        _ok(admin, f"drop index {table}_PK")
+        ok(admin, f"drop index {table}_PK")
         for _ in range(PLAN_RUNS):
-            _ok(admin, query)
-        snaps.append(_snap(admin))
+            ok(admin, query)
+        snaps.append(awr_snapshot(admin))
         slow = _plan_hashes(admin, sql_id) - fast
         assert len(slow) == 1, f"no new plan after dropping the index: {fast}"
         yield {"sql_id": sql_id, "fast_plan": fast.pop(), "slow_plan": slow.pop(),
                "snaps": snaps}
     finally:
         if sql_id:
-            commit_ok(admin, "begin dbms_workload_repository.remove_colored_sql("
+            ok_or_autocommit(admin, "begin dbms_workload_repository.remove_colored_sql("
                              f"'{sql_id}'); end;")
         admin.run_sql(f"drop table if exists {table} purge")
 
@@ -479,9 +458,9 @@ def test_default_window_is_the_latest_two_snapshots(ro, admin):
     """AC: with every parameter at its default 0, awr_report summarises the
     latest two snapshots of this container: two the test has just taken.
     Falsifier: read 0 as a snap id, or pick the earliest two."""
-    first = _snap(admin)
+    first = awr_snapshot(admin)
     time.sleep(2)
-    second = _snap(admin)
+    second = awr_snapshot(admin)
     summary = [r for r in _rows(ro, "awr_report") if r["SECTION"] == "summary"]
     assert len(summary) == 1, summary
     assert _names_window(summary[0]["ITEM"], first, second), (first, second, summary)
@@ -573,7 +552,7 @@ def test_addm_findings_lists_the_windows_auto_task(ro, admin, awr_window):
                 "where dbid = (select con_dbid from v$database) "
                 f"and begin_snap_id = {awr_window['begin']} and end_snap_id = {awr_window['end']}")
     deadline = time.monotonic() + ADDM_WAIT_SECONDS
-    while not (found := _ok(admin, task_sql).rows) and time.monotonic() < deadline:
+    while not (found := ok(admin, task_sql).rows) and time.monotonic() < deadline:
         time.sleep(5)
     assert found, f"no ADDM task for snapshots {awr_window['begin']}-{awr_window['end']}"
     task = found[0][0]

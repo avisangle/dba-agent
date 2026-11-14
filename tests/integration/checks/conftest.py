@@ -25,41 +25,31 @@ import secrets
 import time
 
 import pytest
+from helpers import awr_snapshot, ok, tagged_sql_ids
 
 FILL = {"CRITICAL": "9M", "WARNING": "8M"}  # INITIAL extent -> 100 and 90 percent used
 WORKLOAD_SECONDS = 15
-
-
-def _ok(session, sql):
-    result = session.run_sql(sql)
-    assert result.error is None, f"{sql}: {result.error}"
-    return result
 
 
 @pytest.fixture
 def full_tablespace(admin):
     """{expected severity: tablespace name}: CRITICAL is 100 percent used, WARNING
     90 percent; each has one 10 MB non-autoextend datafile."""
-    datafile = _ok(admin, "select file_name from dba_data_files where tablespace_name = 'SYSTEM'")
+    datafile = ok(admin, "select file_name from dba_data_files where tablespace_name = 'SYSTEM'")
     directory = datafile.rows[0][0].rsplit("/", 1)[0]
     tag = secrets.token_hex(3).upper()
     names = {severity: f"TS_T{tag}_{severity[0]}" for severity in FILL}
     try:
         for severity, name in names.items():
-            _ok(admin, f"create smallfile tablespace {name} "
+            ok(admin, f"create smallfile tablespace {name} "
                        f"datafile '{directory}/{name.lower()}.dbf' size 10M autoextend off "
                        "extent management local uniform size 64K")
-            _ok(admin, f"create table system.{name}_fill (c number) segment creation immediate "
+            ok(admin, f"create table system.{name}_fill (c number) segment creation immediate "
                        f"tablespace {name} storage (initial {FILL[severity]})")
         yield names
     finally:
         for name in names.values():
             admin.run_sql(f"drop tablespace if exists {name} including contents and datafiles")
-
-
-def _snapshot(admin) -> int:
-    result = _ok(admin, "select dbms_workload_repository.create_snapshot() from dual")
-    return int(result.rows[0][0])
 
 
 @pytest.fixture(scope="module")
@@ -69,17 +59,14 @@ def awr_window(admin):
     tag = f"AWRWL_{secrets.token_hex(4).upper()}"
     table = f"system.{tag}"
     try:
-        _ok(admin, f"create table {table} as select level as n from dual connect by level <= 2000")
-        begin = _snapshot(admin)
+        ok(admin, f"create table {table} as select level as n from dual connect by level <= 2000")
+        begin = awr_snapshot(admin)
         started = time.monotonic()
         while time.monotonic() - started < WORKLOAD_SECONDS:
-            _ok(admin, f"select /* {tag} */ count(*) from {table} a, {table} b "
+            ok(admin, f"select /* {tag} */ count(*) from {table} a, {table} b "
                        "where mod(a.n * b.n, 7) = 3")
-        end = _snapshot(admin)
-        # The lookup's own text must not contain the tag comment.
-        found = _ok(admin, "select distinct sql_id from v$sql "
-                           f"where sql_text like '%/* ' || '{tag}' || ' */%'")
-        sql_ids = {row[0] for row in found.rows}
+        end = awr_snapshot(admin)
+        sql_ids = set(tagged_sql_ids(admin, tag))
         assert sql_ids, f"no sql id found for workload tag {tag}"
         yield {"begin": begin, "end": end, "sql_ids": sql_ids}
     finally:

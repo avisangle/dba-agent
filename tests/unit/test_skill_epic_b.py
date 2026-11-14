@@ -2,8 +2,10 @@
 saving a query as a check, and the written report without AI.
 
 Structure only. Whether the model follows a rule has no seam until the eval
-harness exists (release-hardening epic), so these tests read SKILL.md text. Two
-kinds of fence:
+harness exists (release-hardening epic), so these tests read SKILL.md text; the
+runnable-commands test also reads every playbook, offline-analysis/SKILL.md,
+each check's `-- remediation:` line and README.md (D-DBA-23). Two kinds of
+fence:
 - whole-text properties: every `python -m tools <command> --flag` the skill shows
   names a real command and a flag its argparse parser accepts (observed through
   tools.__main__.discover_commands, not a list kept here), and no sentence tells

@@ -537,7 +537,8 @@ def test_readme_install_advisory_tier_grants_reports_and_licensing():
     - "Reports without AI": report --profile --connection --format html --out, a
       cron line running it, user profiles in <pack_home>/profiles/;
     - one licensing paragraph (Diagnostics and Tuning Pack not checked; the DBA's
-      responsibility) and no other licence wording anywhere in README.md.
+      responsibility) and no other licence wording anywhere in README.md outside
+      its "## Licence" section, which names the project's own licence (DBA-47).
     Status wording is covered by test_readme_install_section."""
     section = _install_section()
     advisory = _advisory_part(section)
@@ -575,6 +576,7 @@ def test_readme_install_advisory_tier_grants_reports_and_licensing():
     assert re.search(r"(?i)<pack[_ ]?home>/profiles/?", section)
 
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    readme = re.sub(r"(?ms)^## Licence\b.*?(?=^## |\Z)", "", readme)
     licence = [p for p in re.split(r"\n\s*\n", readme) if re.search(r"(?i)licen[cs]", p)]
     assert len(licence) == 1, f"licence wording outside one paragraph: {licence}"
     paragraph = licence[0]

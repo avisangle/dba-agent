@@ -1,4 +1,4 @@
-"""The release zip: plugin/, tools/, db/ and README.md, byte-identical for the same tree."""
+"""The release zip: plugin/, tools/, db/, README.md and LICENSE, byte-identical per tree."""
 
 import fnmatch
 import os
@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 CONTENTS = ("plugin", "tools", "db")
-README = "README.md"
+TOP_FILES = ("README.md", "LICENSE")
 
 SKIP_DIRS = {"__pycache__", ".dbtools"}  # .dbtools: SQLcl's own connection store
 # Wallets, keystores, net config, env files, SQLcl saved connections, bytecode.
@@ -22,7 +22,7 @@ def _skipped(name: str) -> bool:
 def collect(root) -> list[Path]:
     """The files to package, relative to `root`, in zip entry order."""
     root = Path(root)
-    found = [Path(README)] if (root / README).is_file() else []
+    found = [Path(name) for name in TOP_FILES if (root / name).is_file()]
     for top in CONTENTS:
         for dirpath, dirnames, filenames in os.walk(root / top):
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]

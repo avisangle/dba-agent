@@ -1,7 +1,76 @@
 # DBA agent
 
-Working repo for an open-source AI assistant for Oracle DBA work. The product
-plan lives in the "Oracle DBA AI Agent: Product & Build Plan" doc on claude.ai.
+An open-source assistant pack for Oracle Database administrators. It lets an AI
+model such as Claude check a database's health, performance, storage, backups
+and security, and explain what it finds, through a database user that can only
+read.
+
+The pack runs on Oracle's own [SQLcl MCP
+server](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/),
+which connects the model to the database. The pack adds what the model needs to
+do DBA work well:
+
+- a library of 57 tested check queries, with warning thresholds and the fix to
+  suggest where one applies
+- skills that tell the model which checks to run for a question and how to read
+  the results
+- small Python tools (standard library only) for setup, health scores, scheduled
+  reports, and offline analysis of AWR, ASH and Statspack reports and alert logs
+
+It works with Claude Code, Claude Desktop, Cursor, Cline, Codex and GitHub
+Copilot in VS Code (`plugin/config/README.md`).
+
+## What you can ask
+
+- "Run a health check": runs the health profile's checks and gives a score out
+  of 100, a grade, and the findings behind them.
+- "Why was the database slow between 10:00 and 11:00?": reads the AWR snapshots
+  around that window and names the top waits and SQL, with ADDM's findings.
+- "Which tablespaces will fill up?", "Who is blocking whom?", "Are the backups
+  covering the recovery window?"
+- "Tune this SQL id": writes a SQL Tuning Advisor script for a DBA to run.
+- Attach an AWR, ASH or Statspack report or an alert log, and ask what went
+  wrong: the pack extracts the key sections first, so large files fit, and no
+  database connection is needed.
+
+## How it stays safe
+
+- **Read-only database user.** `setup-sql` prints the SQL that creates the
+  user. A DBA reads it and runs it; the pack never creates users. The user holds
+  `CREATE SESSION` and `SELECT_CATALOG_ROLE`, which reads the data dictionary
+  and performance views, and nothing that can change data or structure.
+- **No operating system commands.** The pack always starts SQLcl's MCP server
+  with `-R 4`, which blocks host commands, and `doctor` checks this.
+- **Passwords stay in SQLcl.** You save the connection in your own terminal;
+  the pack and the model never see the password.
+- **Fix scripts are written, never run.** Checks that propose a change write a
+  script to a file through `python -m tools advise`. A DBA reviews it and runs
+  it by hand. The model is never connected as the user that writes them.
+- **Database contents are data.** The skills tell the model to treat values read
+  from the database as data, never as instructions.
+
+## Check library
+
+| Area | Checks |
+|---|---|
+| Discovery | instance and database overview, CDB and PDBs, options, patches, NLS |
+| Health | alert log errors, invalid objects, unusable indexes, failed jobs, dictionary statistics age |
+| Storage | tablespaces, temp, undo, FRA, autoextend, top and growing segments, reclaimable space |
+| Performance | wait events, top SQL, SGA and PGA, system statistics, parameters, Statspack |
+| AWR and ASH | snapshots, top SQL, ADDM findings, ASH activity, period comparison, plan and SQL history |
+| Tuning | execution plans, stale statistics, SQL plan baselines, SQL profiles, SQL Tuning Advisor |
+| Sessions | active sessions, blocking tree, idle in transaction, long operations |
+| Backup | RMAN jobs, backup coverage, recovery window, archivelog gaps, restore validation |
+| High availability | Data Guard, flashback, RAC interconnect and node balance |
+| Security | users and profiles, privileged grants, default passwords, password expiry, audit, TDE |
+
+Each check is one SQL file under `plugin/checks/`, with a header giving its row
+limit, minimum Oracle version and, where they apply, thresholds and remediation.
+The integration suite runs every check against Oracle Database 23ai Free; the CI
+workflow runs it with SQLcl 25.3.2 and the latest SQLcl, on Java 17 and 21.
+Oracle 19c and 21c are not covered by the automated tests. Report profiles in
+`plugin/profiles/` group checks for daily health, weekly capacity, before and
+after patching, security and performance.
 
 ## Install
 
@@ -134,6 +203,8 @@ same name as a built-in profile in `plugin/profiles/` is used instead of it.
 | `pyproject.toml` | pytest and ruff configuration, dev dependencies. |
 | `pending.md` | Deferred work and what unblocks it. |
 | `bug.md` | Bugs as found, with how they were fixed or why they stay. |
+| `CONTRIBUTING.md` | How to contribute: DCO sign-off, data rules, where records go. |
+| `SECURITY.md` | How to report a security problem privately. |
 
 ## Running the spike
 
@@ -155,3 +226,17 @@ error types are untested. To check a result you doubt, run the same query with
 `sql -S` against the same connection: it prints the error report. The probe and
 its data are in `bug.md`; the decision to document rather than detect this is
 `docs/decisions/D-DBA-20-accept-truncated-result-on-fetch-error.md`.
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first:
+every commit needs a `Signed-off-by` line (`git commit -s`). Report security problems privately, as
+[SECURITY.md](SECURITY.md) describes, not in a public issue.
+
+## Licence
+
+Apache License 2.0, in [LICENSE](LICENSE).
+
+Oracle, Java and SQLcl are trademarks or registered trademarks of Oracle and/or
+its affiliates. This project is independent of Oracle and is not affiliated
+with, sponsored or endorsed by Oracle.

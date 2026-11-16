@@ -4,7 +4,7 @@
 No database or SQLcl is touched. `collect` and `build_zip` run on a temp tree
 seeded with files that must stay out of the zip. The command tests that make
 lint or the index fail run `python -m tools` from a copy of tools/, plugin/,
-db/ and README.md in a temp dir, so the source tree is never modified.
+db/, README.md and LICENSE in a temp dir, so the source tree is never modified.
 
 Claude Code plugin format (via Context7, 2026-11-13): the manifest is
 `.claude-plugin/plugin.json` at the plugin root; `name` is required, kebab-case;
@@ -51,6 +51,7 @@ TOP_LEVEL = ("plugin/", "tools/", "db/")
 # A tree with what the zip holds and what it must not.
 KEEP = {
     "README.md": "# readme\n",
+    "LICENSE": "Apache License\n",
     "plugin/.claude-plugin/plugin.json": '{"name": "x", "version": "0.0.1"}\n',
     "plugin/skills/demo/SKILL.md": "---\nname: demo\ndescription: d\n---\nbody\n",
     "plugin/checks/storage/demo.sql": "select 1 from dual\n",
@@ -139,7 +140,8 @@ def _copy_repo(dest: Path) -> Path:
     ignore = shutil.ignore_patterns("__pycache__")
     for name in ("tools", "plugin", "db"):
         shutil.copytree(REPO_ROOT / name, dest / name, ignore=ignore)
-    shutil.copy2(REPO_ROOT / "README.md", dest / "README.md")
+    for name in ("README.md", "LICENSE"):
+        shutil.copy2(REPO_ROOT / name, dest / name)
     return dest
 
 
@@ -174,7 +176,8 @@ def test_plugin_manifest_matches_config_and_lists_both_skills():
 
 
 def test_collect_takes_plugin_tools_db_and_readme_only(tree):
-    """AC: the package holds plugin/, tools/, db/ and README.md and nothing else;
+    """AC: the package holds plugin/, tools/, db/, README.md and LICENSE (DBA-47)
+    and nothing else;
     __pycache__, tests/, spike/, .git, .venv, .github, docs/decisions/ are left
     out, and so is every credential file."""
     collected = _relative(_package().collect(tree), tree)
@@ -210,7 +213,7 @@ def test_build_zip_is_byte_identical_across_runs_and_mtimes(tree, tmp_path):
 
 def test_package_command_writes_the_versioned_zip_from_the_repo(tmp_path):
     """AC: `python -m tools package --out-dir DIR` on this repo writes
-    DIR/<PACK_NAME>-<VERSION>.zip holding plugin/, tools/, db/ and README.md,
+    DIR/<PACK_NAME>-<VERSION>.zip holding plugin/, tools/, db/, README.md and LICENSE,
     including the manifest, the snippets and every tool command; twice gives the
     same bytes."""
     first, second = tmp_path / "one", tmp_path / "two"
@@ -219,9 +222,9 @@ def test_package_command_writes_the_versioned_zip_from_the_repo(tmp_path):
         assert result.returncode == 0, result.stdout + result.stderr
     assert sorted(p.name for p in first.iterdir()) == [ZIP_NAME]
     names = _names(first / ZIP_NAME)
-    assert all(n == "README.md" or n.startswith(TOP_LEVEL) for n in names), names
+    assert all(n in ("README.md", "LICENSE") or n.startswith(TOP_LEVEL) for n in names), names
     assert not [n for n in names if "__pycache__" in n or n.endswith(".pyc")]
-    for required in ("README.md", "plugin/.claude-plugin/plugin.json",
+    for required in ("README.md", "LICENSE", "plugin/.claude-plugin/plugin.json",
                      "plugin/config/codex.toml", "plugin/checks/INDEX.md",
                      "plugin/skills/oracle-dba/SKILL.md", "plugin/skills/offline-analysis/SKILL.md",
                      "tools/__main__.py", "tools/commands/package.py", "tools/commands/config.py",
